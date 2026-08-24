@@ -1,0 +1,6 @@
+-r requirements.txt
+pywebview==5.4
+pyinstaller==6.22.0
+# На Windows pywebview устанавливает pythonnet автоматически.
+# На целевой машине должен быть установлен WebView2 Runtime
+# (есть в Windows 10/11 из коробки, иначе: https://developer.microsoft.com/microsoft-edge/webview2/).

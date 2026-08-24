@@ -1,0 +1,29 @@
+ZELVERA — LICENSE
+=================
+
+Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
+
+The Software, its source code, documentation, and all associated files
+(the "Software") are the exclusive property of the copyright holder,
+Chernomurov Egor Mikhailovich.
+This Software is protected by copyright law and international treaties.
+
+Permission is hereby granted only to the copyright holder and persons
+expressly authorized by the copyright holder in writing. All other rights
+are reserved.
+
+No part of the Software may be copied, modified, merged, published,
+distributed, sublicensed, sold, or otherwise transferred, in whole or in
+part, without the prior written permission of the copyright holder,
+except as expressly permitted by applicable law.
+
+The Software is provided "AS IS", without warranty of any kind, express
+or implied, including but not limited to the warranties of
+merchantability, fitness for a particular purpose, and noninfringement.
+In no event shall the copyright holder be liable for any claim, damages,
+or other liability, whether in an action of contract, tort, or otherwise,
+arising from, out of, or in connection with the Software.
+
+Unauthorized copying, redistribution, or commercial use of the Software,
+whether in whole or in part, is prohibited and constitutes copyright
+infringement.

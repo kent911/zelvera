@@ -1,0 +1,41 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+
+jobs:
+  build-windows:
+    name: Build Zelvera.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run build_windows.bat
+        shell: cmd
+        run: build_windows.bat
+
+      - name: Verify executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\Zelvera\Zelvera.exe")) {
+            throw "dist\Zelvera\Zelvera.exe was not produced"
+          }
+          $file = Get-Item "dist\Zelvera\Zelvera.exe"
+          Write-Host "Zelvera.exe: $($file.Length) bytes"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zelvera-windows
+          path: dist/Zelvera
+          if-no-files-found: error

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<!-- Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zelvera — локальный медицинский ассистент</title>
+  <link rel="stylesheet" href="css/style.css?v=6" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <span class="logo">Zelvera</span>
+        <span class="subtitle" data-i18n="subtitle">локальный ассистент</span>
+      </div>
+      <div class="profile-selector">
+        <span id="profile-name-label" class="profile-name-label" data-i18n="profileLabel" data-i18n-title="profileTitle">Профиль</span>
+        <button id="btn-edit-profile" class="profile-add" data-i18n-title="profileTitle" title="Профиль здоровья">&#9998;</button>
+      </div>
+      <div id="profile-meta" class="profile-meta"></div>
+      <nav>
+        <button class="nav-item active" data-view="chat" data-i18n="nav.chat">Чат с ИИ</button>
+        <button class="nav-item" data-view="card" data-i18n="nav.card">Моя мед. карта</button>
+        <button class="nav-item" data-view="articles" data-i18n="nav.articles">База статей</button>
+        <button class="nav-item" data-view="notes" data-i18n="nav.notes">Заметки</button>
+      </nav>
+      <div class="model-status" id="model-status">
+        <span class="dot"></span>
+        <span id="model-label" data-i18n="chat.connecting">подключение...</span>
+      </div>
+      <button id="lang-toggle" class="settings-btn lang-toggle" data-i18n-title="lang.toggleTitle">EN</button>
+      <button id="btn-settings" class="settings-btn" data-i18n="settingsBtn">Настройки Ollama</button>
+      <button id="btn-logs" class="settings-btn" data-i18n="logsBtn">Логи и ошибки</button>
+    </aside>
+
+    <main id="main">
+      <section id="chat-view" class="view">
+        <header class="chat-header">
+          <h1 data-i18n="chat.title">Диалог с ИИ</h1>
+          <div class="actions">
+            <button class="action-btn" id="btn-photo" data-i18n="chat.photo" title="Отправить фото анализов">Фото анализов</button>
+            <button class="action-btn" id="btn-doc" data-i18n="chat.doc" title="PDF или DOCX с анализами">Документ (PDF/DOCX)</button>
+            <button class="action-btn" id="btn-analysis" data-i18n="chat.analysis" title="Сравнить анализы и статьи">Аналитический отчёт</button>
+            <button class="action-btn" id="btn-save-note" data-i18n="chat.saveNote" title="Сохранить последний ответ ИИ в заметки">Сохранить вывод</button>
+            <button class="action-btn" id="btn-new" data-i18n="chat.new">Новый диалог</button>
+          </div>
+          <input type="file" id="file-photo" accept="image/*" hidden />
+          <input type="file" id="file-doc" accept=".pdf,.docx" hidden />
+        </header>
+
+        <div id="messages" class="messages">
+          <div class="message bot">
+            <div class="bubble" data-i18n="chat.welcome">
+              Здравствуйте! Я ваш локальный медицинский ИИ-ассистент.
+              Я помогаю разбираться в анализах и научных статьях, но не заменяю врача.
+            </div>
+          </div>
+          <div id="suggest-chips" class="suggest-chips">
+            <div class="suggest-title" data-i18n="chips.title">С чего начать:</div>
+            <button class="chip" data-i18n="chips.card">Покажи мои последние анализы</button>
+            <button class="chip" data-i18n="chips.trend">Как изменился мой холестерин за последний месяц?</button>
+            <button class="chip" data-i18n="chips.deviations">Что означают мои отклонения от нормы?</button>
+            <button class="chip" data-i18n="chips.studies">Есть ли в моих статьях что-то о статинах?</button>
+          </div>
+        </div>
+
+        <footer class="composer">
+          <button id="btn-voice" class="voice-btn" data-i18n-title="chat.voiceTitle" title="Голосовой ввод">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+              <path d="M5 10a7 7 0 0 0 14 0"></path>
+              <path d="M12 17v4"></path>
+              <path d="M8 21h8"></path>
+            </svg>
+          </button>
+          <textarea id="input" rows="1" data-i18n-placeholder="chat.placeholder" placeholder="Задайте вопрос или опишите симптомы..."></textarea>
+          <button id="send" class="send-btn" data-i18n="chat.send">Отправить</button>
+        </footer>
+
+        <div id="extract-panel" class="extract-panel hidden">
+          <div class="extract-head">
+            <span id="extract-title" data-i18n="extract.title">Обработка файла...</span>
+            <button id="extract-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+          </div>
+          <div id="extract-status" class="extract-status" data-i18n="extract.status">Читаем документ и распознаём текст...</div>
+          <div id="extract-result" class="extract-result"></div>
+        </div>
+      </section>
+
+      <section id="card-view" class="view hidden">
+        <header class="chat-header">
+          <h1 data-i18n="card.title">Моя медицинская карта</h1>
+          <div class="actions">
+            <button class="action-btn" id="btn-trends" data-i18n="card.trends">Динамика</button>
+            <button class="action-btn" id="btn-export-pdf" data-i18n="card.exportPdf">Экспорт PDF</button>
+            <button class="action-btn" id="btn-refresh" data-i18n="card.refresh">Обновить</button>
+          </div>
+        </header>
+        <div id="reminders" class="reminders"></div>
+        <div id="trends" class="trends hidden"></div>
+        <div id="records" class="records"></div>
+      </section>
+
+      <section id="articles-view" class="view hidden">
+        <header class="chat-header">
+          <h1 data-i18n="articles.title">База научных статей</h1>
+          <div class="actions">
+            <button class="action-btn" id="btn-upload-article" data-i18n="articles.upload">Загрузить статью</button>
+            <button class="action-btn" id="btn-refresh-articles" data-i18n="articles.refresh">Обновить</button>
+          </div>
+          <input type="file" id="file-article" accept=".pdf,.docx,.txt" hidden />
+        </header>
+        <div class="article-search">
+          <input type="text" id="article-query" data-i18n-placeholder="articles.searchPlaceholder" placeholder="Поиск по смыслу: например, «влияние статинов на холестерин»..." />
+          <button class="action-btn" id="btn-article-search" data-i18n="articles.searchBtn">Найти</button>
+        </div>
+        <div id="article-status" class="article-status"></div>
+        <div id="articles-list" class="records"></div>
+      </section>
+
+      <section id="notes-view" class="view hidden">
+        <header class="chat-header">
+          <h1 data-i18n="notes.title">Заметки и выводы ИИ</h1>
+          <div class="actions">
+            <button class="action-btn" id="btn-export-notes" data-i18n="notes.exportPdf">Экспорт PDF</button>
+            <button class="action-btn" id="btn-refresh-notes" data-i18n="notes.refresh">Обновить</button>
+            <button class="action-btn" id="btn-new-note" data-i18n="notes.new">Новая заметка</button>
+          </div>
+        </header>
+        <div id="notes-status" class="article-status"></div>
+        <div id="notes-list" class="records"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="settings.title">Настройки Ollama</span>
+        <button id="settings-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="data-dir-block">
+          <span class="data-dir-label" data-i18n="settings.dataDir">Папка данных (БД, статьи, настройки)</span>
+          <code id="data-dir-path" class="data-dir-path">…</code>
+          <button id="btn-copy-dir" class="action-btn" data-i18n="settings.copy" data-i18n-title="settings.copyTitle">Копировать</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="backup-block">
+          <span class="data-dir-label" data-i18n="settings.backup">Резервная копия (мед. карта, статьи, настройки)</span>
+          <div class="modal-row">
+            <button id="btn-backup-export" class="action-btn" data-i18n="settings.backupExport">Сохранить копию</button>
+            <button id="btn-backup-import" class="action-btn" data-i18n="settings.backupImport">Восстановить из копии</button>
+            <input type="file" id="backup-file-input" accept=".zip" hidden />
+            <span id="backup-status" class="models-status"></span>
+          </div>
+          <span class="field-hint" data-i18n="settings.backupHint">Копия сохраняется в ZIP-архив. Восстановление полностью заменит текущие данные.</span>
+        </div>
+        <div class="modal-divider"></div>
+        <label class="field">
+          <span data-i18n="settings.ollamaUrl">Адрес Ollama</span>
+          <input type="text" id="set-ollama-url" placeholder="http://localhost:11434" />
+        </label>
+        <div class="modal-row">
+          <button id="btn-refresh-models" class="action-btn" data-i18n="settings.refreshModels">Обновить список моделей</button>
+          <span id="models-status" class="models-status"></span>
+        </div>
+        <label class="field">
+          <span data-i18n="settings.chatModel">Модель для чата</span>
+          <input type="text" id="set-chat-model" placeholder="gemma4:26b" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.visionModel">Vision-модель (распознавание фото анализов)</span>
+          <input type="text" id="set-vision-model" placeholder="gemma4:26b" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.embedModel">Эмбеддинг-модель (база статей)</span>
+          <input type="text" id="set-embed-model" placeholder="nomic-embed-text" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.numCtx">Размер контекста модели, токенов (num_ctx)</span>
+          <input type="number" id="set-num-ctx" min="2048" step="1024" placeholder="32768" />
+          <span class="field-hint" data-i18n="settings.numCtxHint">Например: 32768, 65536, 131072. Влияет на то, сколько текста статей ИИ «видит» за один ответ.</span>
+        </label>
+        <div class="modal-divider"></div>
+        <label class="field">
+          <span data-i18n="settings.pullModel">Скачать модель в Ollama (ollama pull)</span>
+          <div class="modal-row">
+            <input type="text" id="pull-model" placeholder="llama3.2" />
+            <button id="btn-pull" class="action-btn" data-i18n="settings.download">Скачать</button>
+          </div>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="settings-save" class="primary-btn" data-i18n="settings.save">Сохранить</button>
+        <button id="settings-cancel" class="action-btn" data-i18n="settings.cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="logs-modal" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="logs.title">Логи и ошибки</span>
+        <button id="logs-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-tab="journal" data-i18n="logs.journal">Журнал</button>
+        <button class="tab-btn" data-tab="audit" data-i18n="logs.audit">Аудит действий</button>
+      </div>
+      <div class="modal-body">
+        <div id="audit-filters" class="audit-filters hidden">
+          <label class="field audit-field">
+            <span data-i18n="logs.type">Тип действия</span>
+            <select id="audit-action-filter"></select>
+          </label>
+          <button id="btn-audit-clear" class="danger-btn" data-i18n="logs.clearAudit">Очистить аудит</button>
+        </div>
+        <div id="logs-content" class="logs-content"></div>
+      </div>
+      <div class="modal-foot">
+        <button id="btn-logs-clear" class="danger-btn" data-i18n="logs.clearJournal">Очистить журнал</button>
+        <button id="btn-logs-refresh" class="action-btn" data-i18n="logs.refresh">Обновить</button>
+        <button id="btn-logs-download" class="primary-btn" data-i18n="logs.download">Скачать .log</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="profile-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="profile.title">Профиль здоровья</span>
+        <button id="profile-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span data-i18n="profile.name">Имя</span>
+          <input type="text" id="profile-name" data-i18n-placeholder="profile.namePlaceholder" placeholder="Как вас зовут" />
+          <span class="field-hint" data-i18n="profile.nameHint">Это ваш профиль здоровья: он один, хранит вашу мед. карту и напоминания.</span>
+        </label>
+        <div class="modal-row">
+          <label class="field">
+            <span data-i18n="profile.birthYear">Год рождения</span>
+            <input type="number" id="profile-birth-year" min="1900" max="2100" placeholder="1985" />
+          </label>
+          <label class="field">
+            <span data-i18n="profile.height">Рост, см</span>
+            <input type="number" id="profile-height" min="50" max="250" placeholder="170" />
+          </label>
+          <label class="field">
+            <span data-i18n="profile.weight">Вес, кг</span>
+            <input type="number" id="profile-weight" min="1" max="400" step="0.1" placeholder="70" />
+          </label>
+        </div>
+        <label class="field">
+          <span data-i18n="profile.bloodType">Группа крови</span>
+          <input type="text" id="profile-blood-type" data-i18n-placeholder="profile.bloodPlaceholder" placeholder="Например: A(II) Rh+ или O(I)" maxlength="12" />
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="profile-save" class="primary-btn" data-i18n="profile.save">Сохранить</button>
+        <button id="profile-cancel" class="action-btn" data-i18n="profile.cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="reminder-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="reminders.modalTitle">Напоминание о пересдаче анализа</span>
+        <button id="reminder-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span data-i18n="reminders.markerField">Показатель</span>
+          <input type="text" id="reminder-marker" data-i18n-placeholder="reminders.markerPlaceholder" placeholder="Например: Гемоглобин" list="reminder-marker-list" />
+          <datalist id="reminder-marker-list"></datalist>
+        </label>
+        <label class="field">
+          <span data-i18n="reminders.intervalField">Повторять каждые, дней</span>
+          <input type="number" id="reminder-interval" min="1" max="3650" value="30" />
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="reminder-save" class="primary-btn" data-i18n="reminders.create">Создать</button>
+        <button id="reminder-cancel" class="action-btn" data-i18n="reminders.cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="note-modal" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="notes.modalTitle">Сохранить вывод ИИ</span>
+        <button id="note-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span data-i18n="notes.articleField">Привязать к статье (необязательно)</span>
+          <select id="note-article"></select>
+        </label>
+        <label class="field">
+          <span data-i18n="notes.contentField">Текст вывода</span>
+          <textarea id="note-content" rows="10" class="note-textarea"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="note-save" class="primary-btn" data-i18n="notes.saved">Сохранить</button>
+        <button id="note-cancel" class="action-btn" data-i18n="notes.cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="js/i18n.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
+</body>
+</html>
