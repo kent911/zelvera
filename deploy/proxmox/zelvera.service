@@ -1,0 +1,21 @@
+[Unit]
+Description=Zelvera Medical AI Assistant
+Documentation=file:///opt/zelvera/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zelvera
+Group=zelvera
+WorkingDirectory=/opt/zelvera/backend
+Environment=ZELVERA_DATA_DIR=/opt/zelvera/data
+Environment=OLLAMA_BASE_URL=http://127.0.0.1:11434
+ExecStart=/opt/zelvera/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

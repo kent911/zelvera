@@ -1,0 +1,7 @@
+# Caddy reverse-proxy для Zelvera на мини-ПК.
+# Если нужен доступ по имени в локальной сети, скопируйте в /etc/caddy/Caddyfile
+# и замените zelvera.lan на желаемое имя (например, zelvera.home).
+
+zelvera.lan {
+    reverse_proxy 127.0.0.1:8001
+}
