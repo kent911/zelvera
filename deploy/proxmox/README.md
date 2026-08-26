@@ -13,6 +13,8 @@ Proxmox (мини-ПК)
 ├── LXC "zelvera"  — приложение (FastAPI + uvicorn, systemd, автозапуск)
 │   ├── http://<ip-zelvera>:8001  (веб-интерфейс)
 │   └── данные в /opt/zelvera/data (на постоянном storage)
+├── LXC "kiwix"    — офлайн-Википедия (kiwix-serve, ZIM ~110 ГБ)
+│   └── http://<ip-kiwix>:8080    (база знаний ИИ)
 └── (опционально) Caddy — доступ по имени, например http://zelvera.lan
 ```
 
@@ -117,7 +119,87 @@ pct enter 100 -- systemctl status zelvera
 
 Веб-интерфейс: `http://<ip-zelvera>:8001`.
 
-## Шаг 6. (Опционально) Доступ по имени через Caddy
+## Шаг 6. (Опционально) Офлайн-Википедия для ИИ (Kiwix)
+
+ИИ-ассистент умеет искать и анализировать информацию из офлайн-Википедии
+через контейнер `kiwix`. Нужен, только если вы хотите, чтобы ассистент
+отвечал по общим медицинским фактам (термины, заболевания, лекарства)
+без доступа в интернет.
+
+1. Создайте контейнер с большим диском (ZIM-файл ~110 ГБ):
+
+```bash
+pct create 102 local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst \
+  --hostname kiwix \
+  --storage local-lvm \
+  --rootfs local-lvm:150 \
+  --net0 name=eth0,bridge=vmbr0,ip=dhcp \
+  --unprivileged 1 \
+  --cores 2 --memory 2048 --swap 512
+```
+
+> Диск 150 ГБ: 110 ГБ занимает сама Википедия, остальное — запас.
+> Если ZIM хранится на сетевом storage (NFS/SMB), размер диска можно уменьшить.
+
+2. Установите kiwix-tools и скачайте англоязычную Википедию:
+
+```bash
+pct enter 102
+apt-get update && apt-get install -y kiwix-tools
+mkdir -p /srv/zim && cd /srv/zim
+kiwix-manage catalog search 'wikipedia_en_all_maxi'
+kiwix-manage catalog download wikipedia_en_all_maxi_2024-01 --library /srv/zim/library.xml
+```
+
+> Точное имя и ссылку на ZIM возьмите из вывода `kiwix-manage catalog search`
+> (выбирайте издание `wikipedia_en_all_maxi`, не `mini` и не `nopic`).
+> Скачивание займёт часы/сутки в зависимости от канала.
+
+3. Запустите kiwix-serve (автозапуск через systemd):
+
+```bash
+nano /etc/systemd/system/kiwix.service
+```
+
+```ini
+[Unit]
+Description=Kiwix offline Wikipedia
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/kiwix-serve --port 8080 --library /srv/zim/library.xml
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl enable --now kiwix
+```
+
+4. Узнайте IP контейнера и проверьте доступность:
+
+```bash
+pct enter 102 -- ip -4 addr show eth0
+curl http://<ip-kiwix>:8080
+```
+
+5. Подключите Kiwix к Zelvera в веб-интерфейсе:
+
+   - Настройки (шестерёнка) → раздел «Офлайн-Википедия (Kiwix)».
+   - В поле «Адрес Kiwix» укажите `http://<ip-kiwix>:8080`.
+   - Нажмите «Проверить список книг» — должна появиться найденная книга
+     (например, `wikipedia_en_all_maxi_2024-01`), поле имени ZIM заполнится
+     автоматически.
+   - Сохраните настройки.
+
+После этого ассистент начнёт использовать инструмент `search_wikipedia`:
+полнотекстовый поиск по Википедии и чтение релевантных статей (каждая —
+до 4000 символов, по умолчанию до 3 статей за запрос). Это не тянет 110 ГБ:
+модель получает только нужные фрагменты.
+
+## Шаг 7. (Опционально) Доступ по имени через Caddy
 
 На хосте (или в контейнере Zelvera):
 
@@ -148,6 +230,8 @@ systemctl restart caddy
 ```bash
 pct enter 100                      # вход в контейнер Zelvera
 pct enter 101                      # вход в контейнер Ollama
+pct enter 102                      # вход в контейнер Kiwix
 pct exec 100 -- journalctl -u zelvera -f   # логи приложения
 pct exec 101 -- ollama ps          # загруженные модели/размер VRAM
+pct exec 102 -- systemctl status kiwix     # статус Kiwix
 ```

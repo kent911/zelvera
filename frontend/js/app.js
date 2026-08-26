@@ -94,6 +94,10 @@ const settingsClose = document.getElementById("settings-close");
 const settingsCancel = document.getElementById("settings-cancel");
 const settingsSave = document.getElementById("settings-save");
 const setOllamaUrl = document.getElementById("set-ollama-url");
+const setKiwixUrl = document.getElementById("set-kiwix-url");
+const setKiwixZim = document.getElementById("set-kiwix-zim");
+const btnKiwixBooks = document.getElementById("btn-kiwix-books");
+const kiwixStatus = document.getElementById("kiwix-status");
 const setChatModel = document.getElementById("set-chat-model");
 const setVisionModel = document.getElementById("set-vision-model");
 const setEmbedModel = document.getElementById("set-embed-model");
@@ -1214,6 +1218,12 @@ function setModelsStatus(text, isError = false) {
   modelsStatus.classList.toggle("err", isError);
 }
 
+function setKiwixStatus(text, isError = false) {
+  if (!kiwixStatus) return;
+  kiwixStatus.textContent = text;
+  kiwixStatus.classList.toggle("err", isError);
+}
+
 let availableModels = [];
 
 function setupModelPicker(inputEl) {
@@ -1278,6 +1288,8 @@ async function openSettings() {
     const res = await fetch("/api/settings");
     const data = await res.json();
     setOllamaUrl.value = data.ollama_base_url || "";
+    setKiwixUrl.value = data.kiwix_base_url || "";
+    setKiwixZim.value = data.kiwix_zim_name || "";
     setChatModel.value = data.chat_model || "";
     setVisionModel.value = data.vision_model || "";
     setEmbedModel.value = data.embed_model || "";
@@ -1289,6 +1301,38 @@ async function openSettings() {
     refreshOllamaModels();
   } catch (err) {
     setModelsStatus(t("settings.error", { msg: err.message }), true);
+  }
+}
+
+async function refreshKiwixBooks() {
+  const url = setKiwixUrl.value.trim();
+  if (!url) {
+    setKiwixStatus(t("settings.kiwixUrl") + ": " + t("settings.nothingFound"), true);
+    return;
+  }
+  setKiwixStatus(t("settings.checkingBooks"));
+  btnKiwixBooks.disabled = true;
+  try {
+    const res = await fetch("/api/settings/kiwix-books", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kiwix_base_url: url }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setKiwixStatus(t("settings.error", { msg: data.detail || t("error.unknown") }), true);
+      return;
+    }
+    const books = data.books || [];
+    if (!setKiwixZim.value && books.length) {
+      const wiki = books.find((b) => b.includes("wikipedia") && b.includes("_en_")) || books[0];
+      setKiwixZim.value = wiki;
+    }
+    setKiwixStatus(t("settings.booksFound", { n: books.length }));
+  } catch (err) {
+    setKiwixStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    btnKiwixBooks.disabled = false;
   }
 }
 
@@ -1452,6 +1496,8 @@ async function refreshOllamaModels() {
 async function saveSettings() {
   const body = {
     ollama_base_url: setOllamaUrl.value.trim(),
+    kiwix_base_url: setKiwixUrl.value.trim(),
+    kiwix_zim_name: setKiwixZim.value.trim(),
     chat_model: setChatModel.value.trim(),
     vision_model: setVisionModel.value.trim(),
     embed_model: setEmbedModel.value.trim(),
@@ -1480,6 +1526,7 @@ settingsClose.addEventListener("click", closeSettings);
 settingsCancel.addEventListener("click", closeSettings);
 settingsSave.addEventListener("click", saveSettings);
 btnRefreshModels.addEventListener("click", refreshOllamaModels);
+btnKiwixBooks.addEventListener("click", refreshKiwixBooks);
 btnPull.addEventListener("click", startPull);
 settingsModal.addEventListener("click", (e) => {
   if (e.target === settingsModal) closeSettings();

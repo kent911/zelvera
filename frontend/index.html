@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zelvera — локальный медицинский ассистент</title>
-  <link rel="stylesheet" href="css/style.css?v=6" />
+  <link rel="stylesheet" href="css/style.css?v=7" />
 </head>
 <body>
   <div id="app">
@@ -162,6 +162,22 @@
           <span data-i18n="settings.ollamaUrl">Адрес Ollama</span>
           <input type="text" id="set-ollama-url" placeholder="http://localhost:11434" />
         </label>
+        <div class="modal-divider"></div>
+        <span class="modal-title modal-title-sm" data-i18n="settings.kiwixTitle">Офлайн-Википедия (Kiwix)</span>
+        <label class="field">
+          <span data-i18n="settings.kiwixUrl">Адрес Kiwix (kiwix-serve)</span>
+          <input type="text" id="set-kiwix-url" placeholder="http://192.168.1.50:8080" />
+          <span class="field-hint" data-i18n="settings.kiwixUrlHint">Адрес LXC-контейнера с Kiwix. Тогда ИИ-ассистент сможет искать и анализировать информацию из Википедии.</span>
+        </label>
+        <label class="field">
+          <span data-i18n="settings.kiwixZimName">Имя ZIM-книги (пусто — найдём автоматически)</span>
+          <input type="text" id="set-kiwix-zim" placeholder="wikipedia_en_all_maxi_2024-01" />
+        </label>
+        <div class="modal-row">
+          <button id="btn-kiwix-books" class="action-btn" data-i18n="settings.checkBooks">Проверить список книг</button>
+          <span id="kiwix-status" class="models-status"></span>
+        </div>
+        <div class="modal-divider"></div>
         <div class="modal-row">
           <button id="btn-refresh-models" class="action-btn" data-i18n="settings.refreshModels">Обновить список моделей</button>
           <span id="models-status" class="models-status"></span>
@@ -314,7 +330,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/i18n.js?v=7"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

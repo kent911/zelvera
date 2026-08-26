@@ -62,6 +62,16 @@ RU = {
     "tool.search_articles.desc": "Смысловой поиск в базе научных статей пользователя. Возвращает релевантные фрагменты статей с их названиями. Используй, когда пользователь спрашивает о научных данных, исследованиях или хочет найти информацию в своих статьях.",
     "tool.search_articles.query": "Поисковый запрос на русском языке.",
     "tool.search_articles.limit": "Максимум результатов (по умолчанию 5).",
+    "tool.search_wikipedia.desc": "Полнотекстовый поиск в офлайн-Википедии (Kiwix, английский язык). Возвращает сниппеты и тексты статей. Используй, когда пользователь спрашивает об общих медицинских терминах, лекарствах, заболеваниях, либо просит сравнить или проверить информацию из Википедии.",
+    "tool.search_wikipedia.query": "Поисковый запрос (на английском языке — Википедия англоязычная).",
+    "tool.search_wikipedia.limit": "Сколько статей извлечь полностью (по умолчанию 3).",
+    "kiwix.empty_query": "Пустой поисковый запрос.",
+    "kiwix.not_configured": "Не задан адрес Kiwix. Укажите его в настройках (раздел «Офлайн-Википедия»).",
+    "kiwix.zim_not_found": "Не найдена книга Википедии. Укажите имя ZIM-книги в настройках.",
+    "kiwix.books_failed": "Не удалось получить список книг Kiwix.",
+    "kiwix.article_failed": "Не удалось получить текст статьи.",
+    "kiwix.unreachable": "Kiwix недоступен по адресу {url}: {err}",
+    "kiwix.no_results": "В офлайн-Википедии ничего не найдено по запросу.",
     "tool.list_articles.desc": "Возвращает список названий научных статей, загруженных в базу пользователя.",
     "tool.get_medical_card.desc": "Возвращает актуальные показатели из медицинской карты текущего профиля пользователя (последнее значение каждого маркера анализов). Используй, когда пользователь спрашивает о своих анализах или здоровье. Опционально можно ограничить период (days) — например, 30 для «за последний месяц».",
     "tool.get_medical_card.days": "Сколько последних дней учитывать (по умолчанию — вся история).",
@@ -130,6 +140,7 @@ RU = {
     "audit.tool_call": "Вызов инструмента ИИ",
     "audit.error": "Ошибка",
     "settings.model_required": "Укажите название модели.",
+    "settings.kiwix_url_required": "Укажите адрес Kiwix (например, http://192.168.1.50:8080).",
     "settings.ollama_unreachable": "Ollama недоступна по адресу {url}: {err}",
     "llm.no_api_key": "Не задан ключ USER_LLM_API_KEY. Добавьте его в backend/.env или переключите LLM_BACKEND на ollama.",
     "llm.tools_api_error": "Ошибка API при вызове инструментов: {err}",
@@ -184,6 +195,9 @@ RU = {
 - get_marker_trends — когда спрашивают о динамике/изменении показателей.
 - search_articles / list_articles — когда спрашивают о научных статьях,
   исследованиях, или просят найти информацию в базе статей.
+- search_wikipedia — когда нужны общие медицинские факты, термины, описание
+  заболеваний/лекарств или сравнение данных из Википедии. Википедия
+  англоязычная — формулируй поисковый запрос на английском языке.
 Не вызывай search_articles для вопросов о карте — данные карты берутся
 только через get_medical_card.""",
     "vision_prompt": (
@@ -307,6 +321,16 @@ EN = {
     "tool.search_articles.desc": "Semantic search across the user's scientific articles database. Returns relevant article fragments with their titles. Use when the user asks about scientific data, research, or wants to find information in their articles.",
     "tool.search_articles.query": "Search query in English.",
     "tool.search_articles.limit": "Maximum number of results (default 5).",
+    "tool.search_wikipedia.desc": "Full-text search in the offline Wikipedia (Kiwix, English). Returns snippets and article texts. Use when the user asks about general medical terms, drugs, diseases, or wants to compare or verify information from Wikipedia.",
+    "tool.search_wikipedia.query": "Search query (in English — the Wikipedia is English).",
+    "tool.search_wikipedia.limit": "How many articles to fetch in full (default 3).",
+    "kiwix.empty_query": "Empty search query.",
+    "kiwix.not_configured": "Kiwix address is not set. Specify it in the settings (section \"Offline Wikipedia\").",
+    "kiwix.zim_not_found": "No Wikipedia book found. Specify the ZIM book name in the settings.",
+    "kiwix.books_failed": "Failed to get the list of Kiwix books.",
+    "kiwix.article_failed": "Failed to fetch the article text.",
+    "kiwix.unreachable": "Kiwix is unreachable at {url}: {err}",
+    "kiwix.no_results": "Nothing found in the offline Wikipedia for the query.",
     "tool.list_articles.desc": "Returns the list of scientific article titles uploaded to the user's database.",
     "tool.get_medical_card.desc": "Returns the current markers from the current user profile's medical card (the latest value of each lab marker). Use when the user asks about their lab results or health. You can optionally limit the period (days) — e.g. 30 for \"over the last month\".",
     "tool.get_medical_card.days": "How many recent days to take into account (default: whole history).",
@@ -375,6 +399,7 @@ EN = {
     "audit.tool_call": "AI tool call",
     "audit.error": "Error",
     "settings.model_required": "Please specify the model name.",
+    "settings.kiwix_url_required": "Please specify the Kiwix address (e.g. http://192.168.1.50:8080).",
     "settings.ollama_unreachable": "Ollama is unreachable at {url}: {err}",
     "llm.no_api_key": "USER_LLM_API_KEY is not set. Add it to backend/.env or switch LLM_BACKEND to ollama.",
     "llm.tools_api_error": "API error while calling tools: {err}",
@@ -428,6 +453,9 @@ Tools:
 - get_marker_trends — when asked about dynamics/changes of markers.
 - search_articles / list_articles — when asked about scientific articles, research,
   or asked to find information in the articles database.
+- search_wikipedia — when general medical facts, terms, descriptions of diseases/drugs,
+  or comparison of Wikipedia data are needed. The Wikipedia is English —
+  formulate the search query in English.
 Do not call search_articles for questions about the card — card data comes only
 through get_medical_card.""",
     "vision_prompt": (

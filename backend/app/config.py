@@ -59,6 +59,11 @@ class Settings:
             "USER_LLM_EMBED_MODEL", "text-embedding-3-small"
         ).strip()
 
+        self.kiwix_base_url: str = os.getenv(
+            "KIWIX_BASE_URL", "http://localhost:8080"
+        ).rstrip("/")
+        self.kiwix_zim_name: str = os.getenv("KIWIX_ZIM_NAME", "").strip()
+
         self.system_prompt: str = os.getenv(
             "SYSTEM_PROMPT",
             (

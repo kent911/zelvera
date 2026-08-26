@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.services import articles_db, audit, critical, database, embeddings, i18n, settings_store
+from app.services import articles_db, audit, critical, database, embeddings, i18n, kiwix, settings_store
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -33,6 +33,27 @@ TOOLS: list[dict[str, Any]] = [
             "name": "list_articles",
             "description": i18n.t("tool.list_articles.desc"),
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_wikipedia",
+            "description": i18n.t("tool.search_wikipedia.desc"),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": i18n.t("tool.search_wikipedia.query"),
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": i18n.t("tool.search_wikipedia.limit"),
+                    },
+                },
+                "required": ["query"],
+            },
         },
     },
     {
@@ -107,6 +128,10 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
         if name == "search_articles":
             return await search_articles(
                 str(args.get("query", "")), int(args.get("limit") or 5)
+            )
+        if name == "search_wikipedia":
+            return await kiwix.fetch_tool_results(
+                str(args.get("query", "")), int(args.get("limit") or 3)
             )
         if name == "list_articles":
             return await asyncio.to_thread(list_articles)

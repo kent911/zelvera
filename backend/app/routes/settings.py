@@ -4,8 +4,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import httpx
+
 from app.config import DATA_DIR, settings as env_settings
-from app.services import audit, i18n, settings_store
+from app.services import audit, i18n, kiwix, settings_store
 
 router = APIRouter()
 
@@ -16,6 +18,8 @@ class SettingsUpdate(BaseModel):
     vision_model: str | None = None
     embed_model: str | None = None
     num_ctx: str | None = None
+    kiwix_base_url: str | None = None
+    kiwix_zim_name: str | None = None
     lang: str | None = None
 
 
@@ -68,3 +72,25 @@ async def start_pull(body: PullIn) -> dict[str, Any]:
 @router.get("/settings/ollama-pull/{model}")
 async def pull_status(model: str) -> dict[str, Any]:
     return settings_store.get_pull_status(model)
+
+
+class KiwixBaseUrlIn(BaseModel):
+    kiwix_base_url: str
+
+
+@router.post("/settings/kiwix-books")
+async def kiwix_books(body: KiwixBaseUrlIn) -> dict[str, Any]:
+    """Проверяет связь с kiwix-serve и возвращает список доступных ZIM-книг."""
+    url = body.kiwix_base_url.strip().rstrip("/")
+    if not url:
+        raise HTTPException(status_code=400, detail=i18n.t("settings.kiwix_url_required"))
+    try:
+        if settings_store.get("kiwix_base_url") != url:
+            settings_store.update(kiwix_base_url=url)
+        books = await kiwix.get_books()
+    except kiwix.KiwixError as exc:
+        raise HTTPException(status_code=502, detail=i18n.t(exc.key)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    audit.log_action("settings_update", "kiwix: проверка списка книг")
+    return {"books": books}

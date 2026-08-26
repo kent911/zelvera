@@ -311,6 +311,12 @@ nav {
   font-weight: 600;
 }
 
+.modal-title-sm {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 .modal-body {
   display: flex;
   flex-direction: column;
