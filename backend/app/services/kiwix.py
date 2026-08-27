@@ -1,23 +1,25 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 """Клиент kiwix-serve: поиск по офлайн-Википедии (ZIM) и извлечение текста статей.
 
-Эндпоинты kiwix-serve:
+Документация kiwix-serve (https://kiwix-tools.readthedocs.io):
   - полнотекстовый поиск: GET /search?pattern=<q>&books.name=<zim>&format=xml&pageLength=N
-  - сырой контент:        GET /raw/<zim>/<path>
-  - каталог книг (OPDS):  GET /catalog/v2/entries
+    Ответ — RSS: <rss><channel><item><title>/<link>/<description>.
+    <link> содержит absolutePath вида /content/<zimname>/<path>.
+    Фильтры без точного имени: books.filter.category=wikipedia, books.filter.lang=eng.
+  - сырой контент:       GET /raw/<zim>/content/<path>
+  - каталог книг (OPDS): GET /catalog/v2/entries?count=N
 """
 import html
 import json
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from app.services import settings_store
 
-ATOM_NS = "http://www.w3.org/2005/Atom"
-DC_NS = "http://purl.org/dc/terms/"
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
 
@@ -36,14 +38,18 @@ def _strip_html(raw: str) -> str:
     return re.sub(r"[ \t\r\f\v]+", " ", text).strip()
 
 
-def _content_path(href: str) -> str:
-    """Преобразует ссылку из результатов поиска в путь внутри ZIM (/A/Статья)."""
-    href = href.split("#")[0]
+def _split_content_link(href: str) -> tuple[str, str]:
+    """Разбирает /content/<zim>/<path> на (zim, /path). Иначе (None, href)."""
+    href = href.split("#")[0].split("?")[0]
     if "/content/" in href:
-        href = href.split("/content/")[-1]
+        rest = href.split("/content/")[-1]
+        parts = rest.split("/", 1)
+        if len(parts) == 2 and parts[0] and parts[1]:
+            return parts[0], "/" + parts[1]
+        return parts[0] if parts else None, ""
     if not href.startswith("/"):
         href = "/" + href
-    return href
+    return None, href
 
 
 def get_base_url() -> str:
@@ -72,28 +78,22 @@ def _parse_books_xml(raw: str) -> list[str]:
     def local(tag: str) -> str:
         return tag.rsplit("}", 1)[-1]
 
-    def text_of(elem: ET.Element) -> str:
-        return (elem.text or "").strip()
-
     for entry in root.iter():
         if local(entry.tag) != "entry":
             continue
-        for child in entry.iter():
-            name = local(child.tag)
-            value = text_of(child)
-            if not value:
-                continue
-            if name == "name" and "/entries/" in value:
-                continue
-            if name == "name":
-                names.append(value)
-            elif name == "identifier":
-                names.append(value)
-            elif name == "link":
+        for child in entry:
+            tag = local(child.tag)
+            if tag == "name":
+                value = (child.text or "").strip()
+                if value:
+                    names.append(value)
+            elif tag == "link":
                 href = child.attrib.get("href", "")
-                if "/entries/" in href:
-                    names.append(href.rsplit("/", 1)[-1])
-    return list(dict.fromkeys(n for n in names if n))
+                last = href.rsplit("/", 1)[-1]
+                if "/entries/" in href or (last and "." not in last):
+                    if last:
+                        names.append(last)
+    return list(dict.fromkeys(names))
 
 
 async def get_books() -> list[str]:
@@ -150,67 +150,55 @@ def _pick_wikipedia_zim(names: list[str]) -> str | None:
 
 
 async def resolve_zim() -> str:
+    """Точное имя ZIM-книги: из настроек, иначе автоопределение. Может вернуть ""."""
     name = get_zim_name()
     if name:
         return name
-    books = await get_books()
-    picked = _pick_wikipedia_zim(books)
-    if picked:
-        return picked
-    raise KiwixError("kiwix.zim_not_found")
+    try:
+        books = await get_books()
+        picked = _pick_wikipedia_zim(books)
+        if picked:
+            return picked
+    except KiwixError:
+        pass
+    return ""
 
 
-async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, str]]:
-    """Полнотекстовый поиск по книге. Возвращает title / href / snippet."""
-    base = get_base_url()
-    if not base:
-        raise KiwixError("kiwix.not_configured")
-    from urllib.parse import quote
-
-    url = (
-        f"{base}/search?pattern={quote(query)}&books.name={quote(zim)}"
-        f"&format=xml&pageLength={int(page_length)}"
-    )
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        text = resp.text
+def _parse_search_xml(text: str) -> list[dict[str, str]]:
+    """Разбирает RSS-ответ /search: item → title / link(absolutePath) / description."""
     results: list[dict[str, str]] = []
+
+    def make_item(title: str, link_text: str, snippet: str) -> dict[str, str]:
+        zim, path = _split_content_link(link_text)
+        return {
+            "title": _strip_html(title),
+            "href": path,
+            "snippet": _strip_html(snippet),
+            "zim": zim or "",
+        }
+
     try:
         root = ET.fromstring(text)
-    except ET.ParseError:
-        root = None
-    if root is not None:
-        ns = {"a": ATOM_NS}
-        for entry in root.findall(".//a:entry", ns):
-            title = entry.findtext("a:title", "", ns)
-            link = entry.find("a:link", ns)
-            href = link.attrib.get("href", "") if link is not None else ""
-            summary = entry.findtext("a:summary", "", ns)
+        for item in root.findall(".//item"):
+            link_el = item.find("link")
+            link_text = (link_el.text or "").strip() if link_el is not None else ""
+            desc_el = item.find("description")
+            desc_text = "".join(desc_el.itertext()) if desc_el is not None else ""
             results.append(
-                {
-                    "title": _strip_html(title),
-                    "href": href,
-                    "snippet": _strip_html(summary),
-                }
+                make_item(
+                    item.findtext("title", "") or "",
+                    link_text,
+                    desc_text,
+                )
             )
-    else:
-        for block in re.findall(r"<entry[^>]*>(.*?)</entry>", text, flags=re.S):
+    except ET.ParseError:
+        for block in re.findall(r"<item[^>]*>(.*?)</item>", text, flags=re.S):
             def grab(tag: str) -> str:
                 m = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", block, flags=re.S)
                 return m.group(1) if m else ""
 
-            href = ""
-            m = re.search(r'<link[^>]*href="([^"]+)"', block)
-            if m:
-                href = m.group(1)
-            results.append(
-                {
-                    "title": _strip_html(grab("title")),
-                    "href": href,
-                    "snippet": _strip_html(grab("summary")),
-                }
-            )
+            results.append(make_item(grab("title"), grab("link").strip(), grab("description")))
+
     seen: set[str] = set()
     cleaned: list[dict[str, str]] = []
     for r in results:
@@ -222,13 +210,44 @@ async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, 
     return cleaned
 
 
+async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, str]]:
+    """Полнотекстовый поиск. При неверном имени книги — fallback на фильтры."""
+    base = get_base_url()
+    if not base:
+        raise KiwixError("kiwix.not_configured")
+
+    def url_for(book_query: str) -> str:
+        return (
+            f"{base}/search?pattern={quote(query)}&{book_query}"
+            f"&format=xml&pageLength={int(page_length)}"
+        )
+
+    filter_q = "books.filter.category=wikipedia&books.filter.lang=eng"
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        if zim:
+            resp = await client.get(url_for(f"books.name={quote(zim)}"))
+            if resp.status_code == 400:
+                resp = await client.get(url_for(filter_q))
+        else:
+            resp = await client.get(url_for(filter_q))
+        resp.raise_for_status()
+        text = resp.text
+    results = _parse_search_xml(text)
+    if zim:
+        for r in results:
+            r.setdefault("zim", zim)
+    return results
+
+
 async def get_article(zim: str, path: str) -> str:
     """Возвращает текст статьи без HTML, ограниченный ARTICLE_MAX_CHARS."""
     base = get_base_url()
     if not base:
         raise KiwixError("kiwix.not_configured")
-    content_path = _content_path(path)
-    attempts = [f"{base}/raw/{zim}{content_path}", f"{base}/raw/{zim}/content{content_path}"]
+    attempts = [
+        f"{base}/raw/{zim}/content{path}",
+        f"{base}/raw/{zim}{path}",
+    ]
     errors: list[str] = []
     for url in attempts:
         try:
@@ -267,12 +286,14 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         if item.get("snippet"):
             body_parts.append(item["snippet"])
         if item.get("href"):
-            try:
-                article = await get_article(zim, item["href"])
-                if article:
-                    body_parts.append(article)
-            except (KiwixError, httpx.HTTPError):
-                pass
+            article_zim = item.get("zim") or zim
+            if article_zim:
+                try:
+                    article = await get_article(article_zim, item["href"])
+                    if article:
+                        body_parts.append(article)
+                except (KiwixError, httpx.HTTPError):
+                    pass
         if body_parts:
             blocks.append(header + "\n" + "\n".join(body_parts))
     if not blocks:
