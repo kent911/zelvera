@@ -71,9 +71,9 @@ async def _get_json(base: str, path: str) -> dict[str, Any] | None:
     return None
 
 
-def _parse_books_xml(raw: str) -> list[str]:
+def _parse_books_info_xml(raw: str) -> list[dict[str, str]]:
     root = ET.fromstring(raw)
-    names: list[str] = []
+    books: list[dict[str, str]] = []
 
     def local(tag: str) -> str:
         return tag.rsplit("}", 1)[-1]
@@ -81,23 +81,19 @@ def _parse_books_xml(raw: str) -> list[str]:
     for entry in root.iter():
         if local(entry.tag) != "entry":
             continue
+        info: dict[str, str] = {"name": "", "title": "", "language": "", "category": ""}
         for child in entry:
             tag = local(child.tag)
-            if tag == "name":
-                value = (child.text or "").strip()
-                if value:
-                    names.append(value)
-            elif tag == "link":
-                href = child.attrib.get("href", "")
-                last = href.rsplit("/", 1)[-1]
-                if "/entries/" in href or (last and "." not in last):
-                    if last:
-                        names.append(last)
-    return list(dict.fromkeys(names))
+            value = (child.text or "").strip()
+            if tag in info and value:
+                info[tag] = value
+        if info["name"]:
+            books.append(info)
+    return books
 
 
-async def get_books() -> list[str]:
-    """Список имён ZIM-книг, доступных в kiwix-serve."""
+async def get_books_info() -> list[dict[str, str]]:
+    """Список подключённых книг с метаданными: name, title, language, category."""
     base = get_base_url()
     if not base:
         raise KiwixError("kiwix.not_configured")
@@ -105,26 +101,29 @@ async def get_books() -> list[str]:
     try:
         data = await _get_json(base, "/catalog/v2/entries?count=200")
         if data is not None:
-            candidates: list[str] = []
             entries = (
                 data.get("data", {}).get("entries", []) if isinstance(data.get("data"), dict) else []
             )
             if not entries and isinstance(data.get("data"), list):
                 entries = data["data"]
+            books: list[dict[str, str]] = []
             for e in entries:
-                if isinstance(e, str):
-                    candidates.append(e)
-                    continue
                 if not isinstance(e, dict):
                     continue
                 meta = e.get("metadata") if isinstance(e.get("metadata"), dict) else e
-                for key in ("name", "identifier"):
-                    if meta.get(key):
-                        candidates.append(str(meta[key]))
-                        break
-            names = list(dict.fromkeys(c for c in candidates if c))
-            if names:
-                return names
+                lang = meta.get("language")
+                if isinstance(lang, list):
+                    lang = ", ".join(str(x) for x in lang)
+                info = {
+                    "name": str(meta.get("name") or meta.get("identifier") or ""),
+                    "title": str(meta.get("title") or ""),
+                    "language": str(lang or ""),
+                    "category": str(meta.get("category") or ""),
+                }
+                if info["name"]:
+                    books.append(info)
+            if books:
+                return books
             errors.append("JSON: no entries")
     except (httpx.HTTPError, json.JSONDecodeError) as exc:
         errors.append(str(exc))
@@ -133,10 +132,16 @@ async def get_books() -> list[str]:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(url)
             resp.raise_for_status()
-            return _parse_books_xml(resp.text)
+            return _parse_books_info_xml(resp.text)
     except (httpx.HTTPError, ET.ParseError) as exc:
         errors.append(str(exc))
     raise KiwixError("kiwix.books_failed", err="; ".join(errors))
+
+
+async def get_books() -> list[str]:
+    """Имена ZIM-книг, доступных в kiwix-serve."""
+    books = await get_books_info()
+    return [b["name"] for b in books if b["name"]]
 
 
 def _pick_wikipedia_zim(names: list[str]) -> str | None:
@@ -299,3 +304,27 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
     if not blocks:
         return t("kiwix.no_results")
     return "\n\n---\n\n".join(blocks)
+
+
+async def fetch_books_tool_result() -> str:
+    """Ответ для инструмента ИИ list_kiwix_books: подключённые книги."""
+    from app.services.i18n import t
+
+    try:
+        books = await get_books_info()
+    except KiwixError as exc:
+        detail = t(exc.key)
+        if exc.err:
+            detail = f"{detail} ({exc.err})"
+        return f"{t('error.prefix')} {detail}"
+    except httpx.HTTPError as exc:
+        return f"{t('error.prefix')} {t('kiwix.unreachable', url=get_base_url() or '—', err=exc)}"
+    if not books:
+        return t("kiwix.no_books")
+    lines: list[str] = []
+    for b in books:
+        label = f"{b['title'] or b['name']} ({b['name']})"
+        if b.get("language"):
+            label += f" — {b['language']}"
+        lines.append(f"• {label}")
+    return "\n".join(lines)

@@ -59,6 +59,14 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_kiwix_books",
+            "description": i18n.t("tool.list_kiwix_books.desc"),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_medical_card",
             "description": i18n.t("tool.get_medical_card.desc"),
             "parameters": {
@@ -133,6 +141,8 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
             return await kiwix.fetch_tool_results(
                 str(args.get("query", "")), int(args.get("limit") or 3)
             )
+        if name == "list_kiwix_books":
+            return await kiwix.fetch_books_tool_result()
         if name == "list_articles":
             return await asyncio.to_thread(list_articles)
         if name == "get_medical_card":

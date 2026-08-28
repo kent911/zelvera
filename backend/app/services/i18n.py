@@ -65,6 +65,8 @@ RU = {
     "tool.search_wikipedia.desc": "Полнотекстовый поиск в офлайн-Википедии (Kiwix, английский язык). Возвращает сниппеты и тексты статей. Используй, когда пользователь спрашивает об общих медицинских терминах, лекарствах, заболеваниях, либо просит сравнить или проверить информацию из Википедии.",
     "tool.search_wikipedia.query": "Поисковый запрос (на английском языке — Википедия англоязычная).",
     "tool.search_wikipedia.limit": "Сколько статей извлечь полностью (по умолчанию 3).",
+    "tool.list_kiwix_books.desc": "Возвращает список книг, подключённых к Kiwix (офлайн-контент: Википедия и другие). Используй, когда пользователь спрашивает, какие книги или какие Википедии доступны/подключены.",
+    "kiwix.no_books": "В Kiwix не подключено ни одной книги.",
     "kiwix.empty_query": "Пустой поисковый запрос.",
     "kiwix.not_configured": "Не задан адрес Kiwix. Укажите его в настройках (раздел «Офлайн-Википедия»).",
     "kiwix.zim_not_found": "Не найдена книга Википедии. Укажите имя ZIM-книги в настройках.",
@@ -198,6 +200,8 @@ RU = {
 - search_wikipedia — когда нужны общие медицинские факты, термины, описание
   заболеваний/лекарств или сравнение данных из Википедии. Википедия
   англоязычная — формулируй поисковый запрос на английском языке.
+- list_kiwix_books — когда спрашивают, какие книги или Википедии подключены
+  к Kiwix.
 Не вызывай search_articles для вопросов о карте — данные карты берутся
 только через get_medical_card.""",
     "vision_prompt": (
@@ -324,6 +328,8 @@ EN = {
     "tool.search_wikipedia.desc": "Full-text search in the offline Wikipedia (Kiwix, English). Returns snippets and article texts. Use when the user asks about general medical terms, drugs, diseases, or wants to compare or verify information from Wikipedia.",
     "tool.search_wikipedia.query": "Search query (in English — the Wikipedia is English).",
     "tool.search_wikipedia.limit": "How many articles to fetch in full (default 3).",
+    "tool.list_kiwix_books.desc": "Returns the list of books connected to Kiwix (offline content: Wikipedia and others). Use when the user asks which books or which Wikipedias are available/connected.",
+    "kiwix.no_books": "No books are connected to Kiwix.",
     "kiwix.empty_query": "Empty search query.",
     "kiwix.not_configured": "Kiwix address is not set. Specify it in the settings (section \"Offline Wikipedia\").",
     "kiwix.zim_not_found": "No Wikipedia book found. Specify the ZIM book name in the settings.",
@@ -456,6 +462,7 @@ Tools:
 - search_wikipedia — when general medical facts, terms, descriptions of diseases/drugs,
   or comparison of Wikipedia data are needed. The Wikipedia is English —
   formulate the search query in English.
+- list_kiwix_books — when asked which books or Wikipedias are connected to Kiwix.
 Do not call search_articles for questions about the card — card data comes only
 through get_medical_card.""",
     "vision_prompt": (
