@@ -16,6 +16,7 @@ take_pending_images() после вызова инструмента.
 import base64
 import html
 import json
+import logging
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -24,6 +25,8 @@ from urllib.parse import quote
 import httpx
 
 from app.services import settings_store
+
+log = logging.getLogger("kiwix")
 
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
@@ -462,9 +465,19 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                     if article:
                         body_parts.append(article)
                     if image_count < IMAGE_CAP_TOTAL:
-                        for img in _extract_images(
+                        images_for_article = _extract_images(
                             html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
-                        ):
+                        )
+                        if not images_for_article:
+                            img_tags = _IMG_TAG_RE.findall(html_text)
+                            if img_tags:
+                                log.info(
+                                    "kiwix: статья %s: %d <img>, но не извлечено ни одного; примеры src: %s",
+                                    item["href"],
+                                    len(img_tags),
+                                    "; ".join(img_tags[:3])[:400],
+                                )
+                        for img in images_for_article:
                             if image_count >= IMAGE_CAP_TOTAL:
                                 break
                             data = await _fetch_image(img["zim"], img["path"])
@@ -485,6 +498,8 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                                 body_parts.append(f"[Image: {caption}]")
         if body_parts:
             blocks.append(header + "\n" + "\n".join(body_parts))
+    if image_count:
+        log.info("kiwix: по запросу %r извлечено изображений: %d", query, image_count)
     if not blocks:
         return t("kiwix.no_results")
     return "\n\n---\n\n".join(blocks)
