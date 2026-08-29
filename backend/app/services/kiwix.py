@@ -314,29 +314,32 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
 def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> tuple[str, str]:
     """Приводит src картинки к (zim, /path). Пусто, если путь непригоден.
 
-    В сыром HTML ZIM пути к картинкам относительные (../I/Файл.jpg), т.к.
-    статьи лежат в A/, а изображения в I/ — соседних каталогах. Также
-    встречаются абсолютные /I/..., /<zim>/I/... и /content/<zim>/I/....
+    Форматы src в сыром HTML ZIM:
+      - ./_assets_/Файл  (новые ZIM: ассеты рядом со статьёй в namespace A)
+      - ../I/Файл        (старые ZIM: статьи в A/, картинки в I/)
+      - /I/Файл, /<zim>/I/Файл, /content/<zim>/I/Файл
+    Имена могут быть процентно-закодированы (в т.ч. дважды, %252B).
     """
     import posixpath
+    from urllib.parse import unquote
 
     src = src.split("#")[0].split("?")[0].strip()
     if not src:
         return "", ""
     if "/content/" in src:
         zim, path = _split_content_link(src)
-        return (zim or article_zim), path
+        return (zim or article_zim), unquote(path)
     if src.startswith("/I/"):
-        return article_zim, src
+        return article_zim, unquote(src)
     if src.startswith("/"):
         rest = src.lstrip("/")
         parts = rest.split("/", 1)
         if len(parts) == 2 and parts[0] == article_zim and parts[1].startswith("I/"):
-            return article_zim, "/" + parts[1]
+            return article_zim, "/" + unquote(parts[1])
         return "", ""
     base = posixpath.dirname(article_path or "/")
-    joined = posixpath.normpath(posixpath.join(base, src))
-    if joined.startswith("/I/"):
+    joined = posixpath.normpath(posixpath.join(base, unquote(src)))
+    if joined.startswith("/I/") or "/_assets_/" in joined:
         return article_zim, joined
     return "", ""
 
@@ -385,7 +388,8 @@ def take_pending_images() -> list[dict]:
 def _record_image(zim: str, path: str, caption: str) -> None:
     if not zim or not path:
         return
-    item = {"zim": zim, "path": path, "caption": caption}
+    url = f"/api/kiwix/image?zim={quote(zim, safe='')}&path={quote(path, safe='/')}"
+    item = {"zim": zim, "path": path, "caption": caption, "url": url}
     if item not in _pending_images:
         _pending_images.append(item)
 
@@ -395,19 +399,46 @@ def _mime_for_path(path: str) -> str:
     return _MIME_BY_EXT.get("." + ext.lower(), "image/jpeg")
 
 
-async def _fetch_image(zim: str, path: str) -> bytes | None:
+def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
+    """Кандидаты (рабочий_путь, url) для загрузки изображения.
+
+    В разных ZIM один и тот же файл лежит в A/_assets_/, I/_assets_/ или I/.
+    """
     base = get_base_url()
     if not base:
-        return None
-    url = f"{base}/raw/{quote(zim, safe='')}/content{path}"
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            data = resp.content
-            return data if len(data) <= MAX_IMAGE_BYTES else None
-    except httpx.HTTPError:
-        return None
+        return []
+    variants: list[str] = [path]
+    name: str | None = None
+    if "/_assets_/" in path:
+        name = path.rsplit("/_assets_/", 1)[-1]
+    elif path.startswith("/I/"):
+        name = path[len("/I/"):]
+    if name:
+        if path.startswith("/A/_assets_/"):
+            variants += ["/I/_assets_/" + name, "/I/" + name]
+        elif path.startswith("/I/_assets_/"):
+            variants += ["/A/_assets_/" + name, "/I/" + name]
+        elif path.startswith("/I/"):
+            variants += ["/I/_assets_/" + name, "/A/_assets_/" + name]
+    return [
+        (v, f"{base}/raw/{quote(zim, safe='')}/content{quote(v, safe='/')}")
+        for v in variants
+    ]
+
+
+async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
+    """Загружает изображение; возвращает (байты, рабочий_путь) или (None, "")."""
+    for variant, url in _image_url_candidates(zim, path):
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.content
+                if len(data) <= MAX_IMAGE_BYTES:
+                    return data, variant
+        except httpx.HTTPError:
+            continue
+    return None, ""
 
 
 async def _describe_image_bytes(img_bytes: bytes, mime: str) -> str | None:
@@ -480,19 +511,19 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                         for img in images_for_article:
                             if image_count >= IMAGE_CAP_TOTAL:
                                 break
-                            data = await _fetch_image(img["zim"], img["path"])
+                            data, working_path = await _fetch_image(img["zim"], img["path"])
                             if data is None:
                                 continue
                             caption = img["alt"]
                             if vision_available:
                                 desc = await _describe_image_bytes(
-                                    data, _mime_for_path(img["path"])
+                                    data, _mime_for_path(working_path)
                                 )
                                 if desc is None:
                                     vision_available = False
                                 elif desc:
                                     caption = desc
-                            _record_image(img["zim"], img["path"], caption)
+                            _record_image(img["zim"], working_path, caption)
                             image_count += 1
                             if caption:
                                 body_parts.append(f"[Image: {caption}]")
