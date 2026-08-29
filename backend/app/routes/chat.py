@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.services import articles_db, audit, embeddings, i18n, llm, settings_store, tools
+from app.services import articles_db, audit, embeddings, i18n, kiwix, llm, settings_store, tools
 from app.services.llm import chat_with_tools, stream_chat
 
 router = APIRouter()
@@ -112,14 +112,26 @@ async def chat(req: ChatRequest) -> StreamingResponse:
     async def event_stream():
         if rag_text and _looks_like_article_query(last_user):
             yield _sse("Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n")
+
+        pending: list[dict] = []
+
+        async def tool_executor(name: str, arguments: dict):
+            result = await tools.execute_tool(name, arguments)
+            for img in kiwix.take_pending_images():
+                if img not in pending:
+                    pending.append(img)
+            return result
+
         try:
             async for item in chat_with_tools(
-                messages, tools.TOOLS, tools.execute_tool
+                messages, tools.TOOLS, tool_executor
             ):
                 yield _sse(item)
         except llm.LLMError:
             async for chunk in stream_chat(messages):
                 yield _sse(chunk)
+        if pending:
+            yield _sse({"images": pending})
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -129,5 +141,7 @@ async def chat(req: ChatRequest) -> StreamingResponse:
     )
 
 
-def _sse(text: str) -> str:
-    return f"data: {json.dumps({'content': text}, ensure_ascii=False)}\n\n"
+def _sse(data: str | dict) -> str:
+    if isinstance(data, str):
+        return f"data: {json.dumps({'content': data}, ensure_ascii=False)}\n\n"
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"

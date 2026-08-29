@@ -186,6 +186,13 @@ async def ocr_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
     return await _ocr_ollama(image_b64)
 
 
+async def describe_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
+    """Описание изображения через vision-модель (для картинок Википедии)."""
+    if settings.llm_backend == "openai":
+        return await _describe_openai(image_b64, mime_type)
+    return await _describe_ollama(image_b64)
+
+
 async def _num_ctx() -> int:
     raw = settings_store.get("num_ctx")
     try:
@@ -224,6 +231,68 @@ async def _ocr_ollama(image_b64: str) -> str:
             i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
         )
     return data.get("message", {}).get("content", "").strip()
+
+
+async def _describe_ollama(image_b64: str) -> str:
+    base_url = settings_store.get("ollama_base_url")
+    model = settings_store.get("vision_model")
+    url = f"{base_url}/api/chat"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "user", "content": i18n.t("image_prompt"), "images": [image_b64]}
+        ],
+        "stream": False,
+        "options": {"num_ctx": await _num_ctx()},
+    }
+    async with httpx.AsyncClient(timeout=900) as client:
+        try:
+            resp = await client.post(url, json=payload)
+            data = resp.json()
+        except httpx.HTTPError as exc:
+            raise LLMError(
+                i18n.t("llm.ollama_connect_failed", url=url, err=exc)
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise LLMError(
+                i18n.t("llm.ollama_not_json", model=model, status=resp.status_code)
+            ) from exc
+    if resp.status_code != 200:
+        detail = data.get("error") or i18n.t("llm.no_data")
+        raise LLMError(
+            i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
+        )
+    return data.get("message", {}).get("content", "").strip()
+
+
+async def _describe_openai(image_b64: str, mime_type: str) -> str:
+    if not settings.user_llm_api_key:
+        raise LLMError(i18n.t("llm.no_api_key"))
+    client = AsyncOpenAI(
+        base_url=settings.user_llm_base_url,
+        api_key=settings.user_llm_api_key,
+    )
+    try:
+        resp = await client.chat.completions.create(
+            model=settings.vision_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": i18n.t("image_prompt")},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_b64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+        )
+        return resp.choices[0].message.content or ""
+    except Exception as exc:
+        raise LLMError(i18n.t("llm.vision_api_error", err=exc)) from exc
 
 
 async def _ocr_openai(image_b64: str, mime_type: str) -> str:

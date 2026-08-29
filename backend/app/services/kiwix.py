@@ -8,7 +8,12 @@
     Фильтры без точного имени: books.filter.category=wikipedia, books.filter.lang=eng.
   - сырой контент:       GET /raw/<zim>/content/<path>
   - каталог книг (OPDS): GET /catalog/v2/entries?count=N
+Изображения статей лежат в namespace I/ (src вида /I/<имя>). Их описание
+делает vision-модель (llm.describe_image); найденные изображения
+накапливаются в _pending_images и отправляются на фронтенд через
+take_pending_images() после вызова инструмента.
 """
+import base64
 import html
 import json
 import re
@@ -22,6 +27,23 @@ from app.services import settings_store
 
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
+ARTICLE_HTML_MAX_CHARS = 300_000
+IMAGE_CAP_TOTAL = 4
+IMAGE_CAP_PER_ARTICLE = 3
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+_MIME_BY_EXT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+}
+
+_pending_images: list[dict] = []
 
 
 class KiwixError(Exception):
@@ -265,8 +287,120 @@ async def get_article(zim: str, path: str) -> str:
     raise KiwixError("kiwix.article_failed", err="; ".join(errors))
 
 
+async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MAX_CHARS) -> str:
+    """Возвращает сырой HTML статьи (ограничен), для извлечения <img> и текста."""
+    base = get_base_url()
+    if not base:
+        raise KiwixError("kiwix.not_configured")
+    attempts = [
+        f"{base}/raw/{zim}/content{path}",
+        f"{base}/raw/{zim}{path}",
+    ]
+    errors: list[str] = []
+    for url in attempts:
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                return resp.text[:max_chars]
+        except httpx.HTTPError as exc:
+            errors.append(str(exc))
+    raise KiwixError("kiwix.article_failed", err="; ".join(errors))
+
+
+def _normalize_img_src(src: str, article_zim: str) -> tuple[str, str]:
+    """Приводит src картинки к (zim, /path). Пусто, если путь непригоден."""
+    src = src.split("#")[0].split("?")[0].strip()
+    if not src:
+        return "", ""
+    if "/content/" in src:
+        zim, path = _split_content_link(src)
+        return (zim or article_zim), path
+    if src.startswith("/I/"):
+        return article_zim, src
+    if src.startswith("I/"):
+        return article_zim, "/" + src
+    return "", ""
+
+
+_IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
+
+
+def _extract_images(raw: str, article_zim: str, max_images: int) -> list[dict[str, str]]:
+    """Извлекает <img src=/I/...> из HTML статьи, предпочитая картинки с alt."""
+    candidates: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for tag in _IMG_TAG_RE.findall(raw):
+        src_m = re.search(r'\bsrc\s*=\s*"([^"]+)"', tag, flags=re.I)
+        if not src_m:
+            continue
+        zim, path = _normalize_img_src(src_m.group(1), article_zim)
+        if not zim or not path:
+            continue
+        key = (zim, path)
+        if key in seen:
+            continue
+        seen.add(key)
+        alt_m = re.search(r'\balt\s*=\s*"([^"]*)"', tag, flags=re.I)
+        alt = html.unescape(alt_m.group(1)).strip() if alt_m else ""
+        candidates.append({"zim": zim, "path": path, "alt": alt})
+    candidates.sort(key=lambda c: 0 if c["alt"] else 1)
+    return candidates[: max(0, int(max_images))]
+
+
+def take_pending_images() -> list[dict]:
+    """Забирает накопленные инструментом изображения и очищает очередь."""
+    global _pending_images
+    imgs = _pending_images
+    _pending_images = []
+    return imgs
+
+
+def _record_image(zim: str, path: str, caption: str) -> None:
+    if not zim or not path:
+        return
+    item = {"zim": zim, "path": path, "caption": caption}
+    if item not in _pending_images:
+        _pending_images.append(item)
+
+
+def _mime_for_path(path: str) -> str:
+    ext = path.rsplit(".", 1)[-1] if "." in path else ""
+    return _MIME_BY_EXT.get("." + ext.lower(), "image/jpeg")
+
+
+async def _fetch_image(zim: str, path: str) -> bytes | None:
+    base = get_base_url()
+    if not base:
+        return None
+    url = f"{base}/raw/{quote(zim, safe='')}/content{path}"
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.content
+            return data if len(data) <= MAX_IMAGE_BYTES else None
+    except httpx.HTTPError:
+        return None
+
+
+async def _describe_image_bytes(img_bytes: bytes, mime: str) -> str | None:
+    """Описание картинки vision-моделью; None — модель недоступна/не поддерживает."""
+    from app.services.llm import LLMError, describe_image
+
+    try:
+        desc = await describe_image(base64.b64encode(img_bytes).decode("ascii"), mime)
+    except LLMError:
+        return None
+    return (desc or "").strip()
+
+
 async def fetch_tool_results(query: str, limit: int = 3) -> str:
-    """Готовит ответ для инструмента ИИ: сниппеты поиска + тексты статей."""
+    """Готовит ответ для инструмента ИИ: сниппеты поиска + тексты статей.
+
+    Также извлекает картинки из статей (namespace I/), описывает их
+    vision-моделью и накапливает в _pending_images для показа в чате.
+    """
     from app.services.i18n import t
 
     query = query.strip()
@@ -285,6 +419,8 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
     if not results:
         return t("kiwix.no_results")
     blocks: list[str] = []
+    image_count = 0
+    vision_available = True
     for item in results[: max(1, min(int(limit), 5))]:
         header = f"[Wikipedia: {item['title'] or item['href']}]"
         body_parts = []
@@ -293,12 +429,37 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         if item.get("href"):
             article_zim = item.get("zim") or zim
             if article_zim:
+                html_text = ""
                 try:
-                    article = await get_article(article_zim, item["href"])
-                    if article:
-                        body_parts.append(article)
+                    html_text = await get_article_html(article_zim, item["href"])
                 except (KiwixError, httpx.HTTPError):
                     pass
+                if html_text:
+                    article = _strip_html(html_text)[:ARTICLE_MAX_CHARS]
+                    if article:
+                        body_parts.append(article)
+                    if image_count < IMAGE_CAP_TOTAL:
+                        for img in _extract_images(
+                            html_text, article_zim, IMAGE_CAP_PER_ARTICLE
+                        ):
+                            if image_count >= IMAGE_CAP_TOTAL:
+                                break
+                            data = await _fetch_image(img["zim"], img["path"])
+                            if data is None:
+                                continue
+                            caption = img["alt"]
+                            if vision_available:
+                                desc = await _describe_image_bytes(
+                                    data, _mime_for_path(img["path"])
+                                )
+                                if desc is None:
+                                    vision_available = False
+                                elif desc:
+                                    caption = desc
+                            _record_image(img["zim"], img["path"], caption)
+                            image_count += 1
+                            if caption:
+                                body_parts.append(f"[Image: {caption}]")
         if body_parts:
             blocks.append(header + "\n" + "\n".join(body_parts))
     if not blocks:

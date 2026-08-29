@@ -211,6 +211,12 @@ RU = {
         "референсные диапазоны, дату. Сохраняй структуру строка за строкой. "
         "Верни только распознанный текст без комментариев."
     ),
+    "image_prompt": (
+        "Опиши подробно, что показано на изображении: все объекты, подписи, "
+        "цифры, схемы, таблицы, графики. Если это медицинская схема, график "
+        "или таблица данных — опиши их содержание максимально полно. "
+        "Отвечай на русском языке."
+    ),
     "extraction_prompt": """Ты — медицинский анализатор лабораторных анализов.
 Ниже дан распознанный текст бланка анализов. Извлеки из него все медицинские
 показатели (маркеры): название, значение, единицу измерения, референсный
@@ -471,6 +477,12 @@ through get_medical_card.""",
         "marker names, values, units of measurement, reference ranges, date. "
         "Keep the structure line by line. "
         "Return only the recognized text without any comments."
+    ),
+    "image_prompt": (
+        "Describe in detail what is shown in the image: all objects, labels, "
+        "numbers, diagrams, tables, charts. If it is a medical diagram, chart "
+        "or data table, describe its content as fully as possible. "
+        "Answer in English."
     ),
     "extraction_prompt": """You are a medical lab results analyzer.
 Below is the recognized text of a lab results form. Extract all medical

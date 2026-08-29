@@ -162,8 +162,10 @@ function saveHistory() {
   } catch { /* нет места в localStorage — не критично */ }
 }
 
-function pushHistory(role, content) {
-  history.push({ role, content });
+function pushHistory(role, content, images) {
+  const item = { role, content };
+  if (images && images.length) item.images = images;
+  history.push(item);
   saveHistory();
 }
 
@@ -289,6 +291,22 @@ function addMessage(role, text, isError = false) {
   return bubble;
 }
 
+function makeFigure(img) {
+  const fig = document.createElement("figure");
+  fig.className = "msg-figure";
+  const el = document.createElement("img");
+  el.src = img.url;
+  el.loading = "lazy";
+  el.alt = img.caption || "";
+  fig.appendChild(el);
+  if (img.caption) {
+    const cap = document.createElement("figcaption");
+    cap.textContent = img.caption;
+    fig.appendChild(cap);
+  }
+  return fig;
+}
+
 function setComposerBusy(busy) {
   sendBtn.disabled = busy;
   inputEl.disabled = busy;
@@ -297,7 +315,12 @@ function setComposerBusy(busy) {
 
 async function init() {
   for (const m of history) {
-    addMessage(m.role === "assistant" ? "bot" : m.role, m.content);
+    const bubble = addMessage(m.role === "assistant" ? "bot" : m.role, m.content);
+    if (m.role === "assistant" && Array.isArray(m.images)) {
+      for (const img of m.images) {
+        if (img && img.url) bubble.appendChild(makeFigure(img));
+      }
+    }
   }
   if (history.length) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -341,7 +364,7 @@ async function sendWithText(text) {
   const botBubble = addMessage("bot", "");
   setComposerBusy(true);
 
-  const { acc, error } = await streamIntoBubble(
+  const { acc, error, images } = await streamIntoBubble(
     "/api/chat",
     {
       method: "POST",
@@ -352,7 +375,7 @@ async function sendWithText(text) {
   );
 
   if (!error) {
-    pushHistory("assistant", acc);
+    pushHistory("assistant", acc, images);
   }
   setComposerBusy(false);
 }
@@ -360,6 +383,11 @@ async function sendWithText(text) {
 async function streamIntoBubble(url, options, bubble) {
   let acc = "";
   let error = false;
+  const images = [];
+  const addedUrls = new Set();
+  const textEl = document.createElement("div");
+  textEl.className = "msg-text";
+  bubble.appendChild(textEl);
 
   try {
     const res = await fetch(url, options);
@@ -392,8 +420,18 @@ async function streamIntoBubble(url, options, bubble) {
 
         try {
           const msg = JSON.parse(payload);
-          acc += msg.content;
-          bubble.textContent = acc;
+          if (msg.content) {
+            acc += msg.content;
+            textEl.textContent = acc;
+          }
+          if (Array.isArray(msg.images)) {
+            for (const img of msg.images) {
+              if (!img || !img.url || addedUrls.has(img.url)) continue;
+              addedUrls.add(img.url);
+              images.push(img);
+              bubble.appendChild(makeFigure(img));
+            }
+          }
           if (isNearBottom()) scrollToBottom();
         } catch {
           /* игнорируем битые чанки */
@@ -406,7 +444,7 @@ async function streamIntoBubble(url, options, bubble) {
     bubble.classList.add("error");
   }
 
-  return { acc, error };
+  return { acc, error, images };
 }
 
 async function analyzeNow() {
