@@ -308,8 +308,15 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
     raise KiwixError("kiwix.article_failed", err="; ".join(errors))
 
 
-def _normalize_img_src(src: str, article_zim: str) -> tuple[str, str]:
-    """Приводит src картинки к (zim, /path). Пусто, если путь непригоден."""
+def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> tuple[str, str]:
+    """Приводит src картинки к (zim, /path). Пусто, если путь непригоден.
+
+    В сыром HTML ZIM пути к картинкам относительные (../I/Файл.jpg), т.к.
+    статьи лежат в A/, а изображения в I/ — соседних каталогах. Также
+    встречаются абсолютные /I/..., /<zim>/I/... и /content/<zim>/I/....
+    """
+    import posixpath
+
     src = src.split("#")[0].split("?")[0].strip()
     if not src:
         return "", ""
@@ -318,31 +325,47 @@ def _normalize_img_src(src: str, article_zim: str) -> tuple[str, str]:
         return (zim or article_zim), path
     if src.startswith("/I/"):
         return article_zim, src
-    if src.startswith("I/"):
-        return article_zim, "/" + src
+    if src.startswith("/"):
+        rest = src.lstrip("/")
+        parts = rest.split("/", 1)
+        if len(parts) == 2 and parts[0] == article_zim and parts[1].startswith("I/"):
+            return article_zim, "/" + parts[1]
+        return "", ""
+    base = posixpath.dirname(article_path or "/")
+    joined = posixpath.normpath(posixpath.join(base, src))
+    if joined.startswith("/I/"):
+        return article_zim, joined
     return "", ""
 
 
 _IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
 
 
-def _extract_images(raw: str, article_zim: str, max_images: int) -> list[dict[str, str]]:
-    """Извлекает <img src=/I/...> из HTML статьи, предпочитая картинки с alt."""
+def _extract_images(
+    raw: str, article_zim: str, article_path: str, max_images: int
+) -> list[dict[str, str]]:
+    """Извлекает <img ... src=...> из HTML статьи, предпочитая картинки с alt."""
     candidates: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for tag in _IMG_TAG_RE.findall(raw):
-        src_m = re.search(r'\bsrc\s*=\s*"([^"]+)"', tag, flags=re.I)
+        src_m = re.search(
+            r"\bsrc\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
+        )
         if not src_m:
             continue
-        zim, path = _normalize_img_src(src_m.group(1), article_zim)
+        src = src_m.group(1) if src_m.group(1) is not None else src_m.group(2)
+        zim, path = _normalize_img_src(src or "", article_zim, article_path)
         if not zim or not path:
             continue
         key = (zim, path)
         if key in seen:
             continue
         seen.add(key)
-        alt_m = re.search(r'\balt\s*=\s*"([^"]*)"', tag, flags=re.I)
-        alt = html.unescape(alt_m.group(1)).strip() if alt_m else ""
+        alt_m = re.search(r"\balt\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I)
+        alt = ""
+        if alt_m:
+            alt = (alt_m.group(1) if alt_m.group(1) is not None else alt_m.group(2) or "")
+            alt = html.unescape(alt).strip()
         candidates.append({"zim": zim, "path": path, "alt": alt})
     candidates.sort(key=lambda c: 0 if c["alt"] else 1)
     return candidates[: max(0, int(max_images))]
@@ -440,7 +463,7 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                         body_parts.append(article)
                     if image_count < IMAGE_CAP_TOTAL:
                         for img in _extract_images(
-                            html_text, article_zim, IMAGE_CAP_PER_ARTICLE
+                            html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
                         ):
                             if image_count >= IMAGE_CAP_TOTAL:
                                 break
