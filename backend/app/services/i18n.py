@@ -62,7 +62,7 @@ RU = {
     "tool.search_articles.desc": "Смысловой поиск в базе научных статей пользователя. Возвращает релевантные фрагменты статей с их названиями. Используй, когда пользователь спрашивает о научных данных, исследованиях или хочет найти информацию в своих статьях.",
     "tool.search_articles.query": "Поисковый запрос на русском языке.",
     "tool.search_articles.limit": "Максимум результатов (по умолчанию 5).",
-    "tool.search_wikipedia.desc": "Полнотекстовый поиск в офлайн-Википедии (Kiwix, английский язык). Возвращает сниппеты и тексты статей. Используй, когда пользователь спрашивает об общих медицинских терминах, лекарствах, заболеваниях, либо просит сравнить или проверить информацию из Википедии.",
+    "tool.search_wikipedia.desc": "Полнотекстовый поиск в офлайн-Википедии (Kiwix, английский язык). Возвращает сниппеты и тексты статей; найденные изображения статей автоматически показываются пользователю в чате. Используй, когда пользователь спрашивает об общих медицинских терминах, лекарствах, заболеваниях, либо просит сравнить или проверить информацию из Википедии.",
     "tool.search_wikipedia.query": "Поисковый запрос (на английском языке — Википедия англоязычная).",
     "tool.search_wikipedia.limit": "Сколько статей извлечь полностью (по умолчанию 3).",
     "tool.list_kiwix_books.desc": "Возвращает список книг, подключённых к Kiwix (офлайн-контент: Википедия и другие). Используй, когда пользователь спрашивает, какие книги или какие Википедии доступны/подключены.",
@@ -203,7 +203,13 @@ RU = {
 - list_kiwix_books — когда спрашивают, какие книги или Википедии подключены
   к Kiwix.
 Не вызывай search_articles для вопросов о карте — данные карты берутся
-только через get_medical_card.""",
+только через get_medical_card.
+
+Важно: когда ты используешь search_wikipedia, найденные изображения статей
+автоматически показываются пользователю в чате под твоим ответом. НЕ говори,
+что не можешь показать картинки или графические файлы, — они отобразятся сами.
+Ссылайся на них текстом (например, «см. рисунок выше») и опирайся на их
+описания, чтобы полно ответить на вопрос пользователя.""",
     "vision_prompt": (
         "Ты — система распознавания медицинских документов (OCR). "
         "Извлеки из изображения ВЕСЬ текст бланка лабораторных анализов "
@@ -331,7 +337,7 @@ EN = {
     "tool.search_articles.desc": "Semantic search across the user's scientific articles database. Returns relevant article fragments with their titles. Use when the user asks about scientific data, research, or wants to find information in their articles.",
     "tool.search_articles.query": "Search query in English.",
     "tool.search_articles.limit": "Maximum number of results (default 5).",
-    "tool.search_wikipedia.desc": "Full-text search in the offline Wikipedia (Kiwix, English). Returns snippets and article texts. Use when the user asks about general medical terms, drugs, diseases, or wants to compare or verify information from Wikipedia.",
+    "tool.search_wikipedia.desc": "Full-text search in the offline Wikipedia (Kiwix, English). Returns snippets and article texts; the found article images are automatically shown to the user in the chat. Use when the user asks about general medical terms, drugs, diseases, or wants to compare or verify information from Wikipedia.",
     "tool.search_wikipedia.query": "Search query (in English — the Wikipedia is English).",
     "tool.search_wikipedia.limit": "How many articles to fetch in full (default 3).",
     "tool.list_kiwix_books.desc": "Returns the list of books connected to Kiwix (offline content: Wikipedia and others). Use when the user asks which books or which Wikipedias are available/connected.",
@@ -470,7 +476,13 @@ Tools:
   formulate the search query in English.
 - list_kiwix_books — when asked which books or Wikipedias are connected to Kiwix.
 Do not call search_articles for questions about the card — card data comes only
-through get_medical_card.""",
+through get_medical_card.
+
+Important: when you use search_wikipedia, the images from the articles are
+automatically shown to the user in the chat below your answer. Do NOT say you
+cannot display images or graphic files — they will appear on their own.
+Refer to them in text (e.g., "see the image above") and rely on their
+descriptions to fully answer the user's question.""",
     "vision_prompt": (
         "You are a medical document recognition (OCR) system. "
         "Extract ALL the text from the lab results form image as accurately as possible: "
