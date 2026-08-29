@@ -447,7 +447,8 @@ async def _describe_image_bytes(img_bytes: bytes, mime: str) -> str | None:
 
     try:
         desc = await describe_image(base64.b64encode(img_bytes).decode("ascii"), mime)
-    except LLMError:
+    except LLMError as exc:
+        log.warning("kiwix: vision-описание недоступно: %s", exc)
         return None
     return (desc or "").strip()
 
