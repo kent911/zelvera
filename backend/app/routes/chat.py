@@ -83,7 +83,10 @@ async def chat(req: ChatRequest) -> StreamingResponse:
         messages.append({"role": "system", "content": req.system_prompt})
     else:
         messages.append({"role": "system", "content": i18n.t("chat_system")})
-    messages.extend(req.messages)
+    messages.extend(
+        {"role": m.get("role", "user"), "content": m.get("content", "")}
+        for m in req.messages
+    )
 
     last_user = next(
         (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
