@@ -31,9 +31,10 @@ log = logging.getLogger("kiwix")
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
 ARTICLE_HTML_MAX_CHARS = 300_000
-IMAGE_CAP_TOTAL = 4
+IMAGE_CAP_TOTAL = 6
 IMAGE_CAP_PER_ARTICLE = 3
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MIN_IMAGE_WIDTH = 100
 
 _MIME_BY_EXT = {
     ".jpg": "image/jpeg",
@@ -350,7 +351,11 @@ _IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
 def _extract_images(
     raw: str, article_zim: str, article_path: str, max_images: int
 ) -> list[dict[str, str]]:
-    """Извлекает <img ... src=...> из HTML статьи, предпочитая картинки с alt."""
+    """Извлекает <img ... src=...> из HTML статьи в порядке появления.
+
+    Ведущая/инфобокс-картинка обычно стоит первой в статье (часто без alt),
+    поэтому порядок документа сохраняется; отсекаются только мелкие иконки.
+    """
     candidates: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for tag in _IMG_TAG_RE.findall(raw):
@@ -363,6 +368,9 @@ def _extract_images(
         zim, path = _normalize_img_src(src or "", article_zim, article_path)
         if not zim or not path:
             continue
+        width_m = re.search(r'\bwidth\s*=\s*"(\d+)"', tag, flags=re.I)
+        if width_m and int(width_m.group(1)) < MIN_IMAGE_WIDTH:
+            continue
         key = (zim, path)
         if key in seen:
             continue
@@ -373,7 +381,6 @@ def _extract_images(
             alt = (alt_m.group(1) if alt_m.group(1) is not None else alt_m.group(2) or "")
             alt = html.unescape(alt).strip()
         candidates.append({"zim": zim, "path": path, "alt": alt})
-    candidates.sort(key=lambda c: 0 if c["alt"] else 1)
     return candidates[: max(0, int(max_images))]
 
 
