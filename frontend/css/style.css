@@ -666,6 +666,53 @@ nav {
   color: var(--text-dim);
 }
 
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  padding: 24px;
+}
+
+.lightbox.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lightbox-inner {
+  max-width: 92vw;
+  max-height: 92vh;
+  background: var(--bg-main);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.lightbox-inner img {
+  display: block;
+  max-width: 90vw;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: zoom-out;
+}
+
+.lightbox-caption {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: normal;
+}
+
 /* Composer */
 .composer {
   display: flex;

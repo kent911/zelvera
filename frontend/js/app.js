@@ -298,6 +298,8 @@ function makeFigure(img) {
   el.src = img.url;
   el.loading = "lazy";
   el.alt = img.caption || "";
+  el.title = t("chat.zoomHint") || "Увеличить";
+  el.addEventListener("click", () => openLightbox(el));
   fig.appendChild(el);
   if (img.caption) {
     const cap = document.createElement("figcaption");
@@ -306,6 +308,45 @@ function makeFigure(img) {
   }
   return fig;
 }
+
+let lightboxEl = null;
+
+function openLightbox(img) {
+  if (!lightboxEl) {
+    lightboxEl = document.createElement("div");
+    lightboxEl.className = "lightbox";
+    lightboxEl.addEventListener("click", (e) => {
+      if (e.target === lightboxEl) closeLightbox();
+    });
+    const inner = document.createElement("div");
+    inner.className = "lightbox-inner";
+    lightboxEl.appendChild(inner);
+    document.body.appendChild(lightboxEl);
+  }
+  const inner = lightboxEl.querySelector(".lightbox-inner");
+  inner.innerHTML = "";
+  const big = document.createElement("img");
+  big.src = img.src;
+  big.alt = img.alt || "";
+  inner.appendChild(big);
+  const fig = img.closest("figure");
+  const cap = fig ? fig.querySelector("figcaption") : null;
+  if (cap && cap.textContent) {
+    const c = document.createElement("div");
+    c.className = "lightbox-caption";
+    c.textContent = cap.textContent;
+    inner.appendChild(c);
+  }
+  lightboxEl.classList.add("open");
+}
+
+function closeLightbox() {
+  if (lightboxEl) lightboxEl.classList.remove("open");
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeLightbox();
+});
 
 function setComposerBusy(busy) {
   sendBtn.disabled = busy;
