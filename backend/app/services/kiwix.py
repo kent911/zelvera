@@ -441,14 +441,49 @@ async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
     return None, ""
 
 
-async def _describe_image_bytes(img_bytes: bytes, mime: str) -> str | None:
+def _normalize_image_for_vision(img_bytes: bytes, fallback_mime: str) -> tuple[bytes, str]:
+    """Перекодирует изображение в JPEG (RGB, макс. 1024px) для vision-модели.
+
+    Часть ассетов ZIM — файлы вида *.svg.png большого размера или в
+    формате, который Ollama не декодирует. Pillow нормализует картинку.
+    При неудаче возвращает оригинал.
+    """
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        with Image.open(BytesIO(img_bytes)) as img:
+            img.load()
+            img = img.convert("RGB")
+            w, h = img.size
+            max_dim = 1024
+            if max(w, h) > max_dim:
+                scale = max_dim / max(w, h)
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=88)
+            return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return img_bytes, fallback_mime
+
+
+async def _describe_image_bytes(img_bytes: bytes, fallback_mime: str) -> str | None:
     """Описание картинки vision-моделью; None — модель недоступна/не поддерживает."""
     from app.services.llm import LLMError, describe_image
 
+    norm_bytes, norm_mime = _normalize_image_for_vision(img_bytes, fallback_mime)
     try:
-        desc = await describe_image(base64.b64encode(img_bytes).decode("ascii"), mime)
+        desc = await describe_image(
+            base64.b64encode(norm_bytes).decode("ascii"), norm_mime
+        )
     except LLMError as exc:
-        log.warning("kiwix: vision-описание недоступно: %s", exc)
+        log.warning(
+            "kiwix: vision-описание недоступно: %s (байт: %d, mime: %s)",
+            exc,
+            len(img_bytes),
+            fallback_mime,
+        )
         return None
     return (desc or "").strip()
 
