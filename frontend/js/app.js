@@ -315,12 +315,18 @@ function openLightbox(img) {
   if (!lightboxEl) {
     lightboxEl = document.createElement("div");
     lightboxEl.className = "lightbox";
-    lightboxEl.addEventListener("click", (e) => {
-      if (e.target === lightboxEl) closeLightbox();
-    });
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "lightbox-close";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", t("chat.zoomClose") || "Закрыть");
+    closeBtn.addEventListener("click", closeLightbox);
+    lightboxEl.appendChild(closeBtn);
     const inner = document.createElement("div");
     inner.className = "lightbox-inner";
     lightboxEl.appendChild(inner);
+    lightboxEl.addEventListener("click", (e) => {
+      if (e.target === lightboxEl) closeLightbox();
+    });
     document.body.appendChild(lightboxEl);
   }
   const inner = lightboxEl.querySelector(".lightbox-inner");
