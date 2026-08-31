@@ -306,6 +306,12 @@ function makeFigure(img) {
     cap.textContent = img.caption;
     fig.appendChild(cap);
   }
+  if (img.source) {
+    const src = document.createElement("div");
+    src.className = "msg-figure-source";
+    src.textContent = t("chat.imageFrom") + " " + img.source;
+    fig.appendChild(src);
+  }
   return fig;
 }
 

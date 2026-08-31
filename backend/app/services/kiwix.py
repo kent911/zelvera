@@ -392,11 +392,11 @@ def take_pending_images() -> list[dict]:
     return imgs
 
 
-def _record_image(zim: str, path: str, caption: str) -> None:
+def _record_image(zim: str, path: str, caption: str, source: str = "") -> None:
     if not zim or not path:
         return
     url = f"/api/kiwix/image?zim={quote(zim, safe='')}&path={quote(path, safe='/')}"
-    item = {"zim": zim, "path": path, "caption": caption, "url": url}
+    item = {"zim": zim, "path": path, "caption": caption, "url": url, "source": source}
     if item not in _pending_images:
         _pending_images.append(item)
 
@@ -566,7 +566,12 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                                     vision_available = False
                                 elif desc:
                                     caption = desc
-                            _record_image(img["zim"], working_path, caption)
+                            _record_image(
+                                img["zim"],
+                                working_path,
+                                caption,
+                                source=item.get("title") or item.get("href") or "",
+                            )
                             image_count += 1
                             if caption:
                                 body_parts.append(f"[Image: {caption}]")
