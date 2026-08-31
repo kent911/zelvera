@@ -49,6 +49,8 @@ const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
 const modelLabel = document.getElementById("model-label");
 const modelDot = document.querySelector("#model-status .dot");
+const kiwixLabel = document.getElementById("kiwix-label");
+const kiwixDot = document.querySelector("#kiwix-status-line .dot");
 const newChatBtn = document.getElementById("btn-new");
 const btnPhoto = document.getElementById("btn-photo");
 const btnDoc = document.getElementById("btn-doc");
@@ -384,9 +386,23 @@ async function init() {
     const cfg = await res.json();
     modelLabel.textContent = `${cfg.backend} / ${cfg.model}`;
     modelDot.classList.add("ok");
+    renderKiwixStatus(cfg.kiwix);
   } catch {
     modelLabel.textContent = t("chat.noServer");
     modelDot.classList.add("err");
+    kiwixLabel.textContent = t("status.kiwix") + ": " + t("chat.noServer");
+    kiwixDot.classList.add("err");
+  }
+}
+
+function renderKiwixStatus(k) {
+  if (!k) return;
+  if (k.ok) {
+    kiwixLabel.textContent = t("status.kiwix") + " / " + (k.zim || k.url || "");
+    kiwixDot.classList.add("ok");
+  } else {
+    kiwixLabel.textContent = t("status.kiwix") + ": " + t("status.kiwixNoConn");
+    kiwixDot.classList.add("err");
   }
 }
 

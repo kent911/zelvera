@@ -248,6 +248,11 @@ nav {
   border-top: 1px solid var(--border);
 }
 
+.model-status + .model-status {
+  border-top: none;
+  padding-top: 0;
+}
+
 .settings-btn {
   width: 100%;
   background: var(--bg-main);

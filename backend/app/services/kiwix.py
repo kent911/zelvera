@@ -18,6 +18,7 @@ import html
 import json
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import quote
@@ -84,6 +85,33 @@ def get_base_url() -> str:
 
 def get_zim_name() -> str:
     return settings_store.get("kiwix_zim_name").strip()
+
+
+_CONNECTION_CACHE: dict[str, Any] = {}
+_CONNECTION_TTL = 30.0
+
+
+async def check_connection() -> dict[str, Any]:
+    """Проверяет доступность kiwix-serve (с коротким TTL-кешем)."""
+    now = time.monotonic()
+    cached = _CONNECTION_CACHE.get("value")
+    if cached is not None and now - _CONNECTION_CACHE.get("ts", 0) < _CONNECTION_TTL:
+        return cached
+    base = get_base_url()
+    zim = get_zim_name()
+    if not base:
+        result = {"ok": False, "url": "", "zim": zim, "error": "kiwix.no_url"}
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(f"{base}/catalog/v2/entries?count=1")
+                resp.raise_for_status()
+            result = {"ok": True, "url": base, "zim": zim, "error": ""}
+        except httpx.HTTPError as exc:
+            result = {"ok": False, "url": base, "zim": zim, "error": str(exc)}
+    _CONNECTION_CACHE["ts"] = now
+    _CONNECTION_CACHE["value"] = result
+    return result
 
 
 async def _get_json(base: str, path: str) -> dict[str, Any] | None:

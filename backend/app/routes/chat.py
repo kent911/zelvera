@@ -73,6 +73,7 @@ async def config() -> dict:
         "backend": settings.llm_backend,
         "model": settings_store.get("chat_model"),
         "ollama_url": settings_store.get("ollama_base_url"),
+        "kiwix": await kiwix.check_connection(),
     }
 
 
