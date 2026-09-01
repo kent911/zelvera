@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.services import articles_db, audit, critical, database, embeddings, i18n, kiwix, settings_store
+from app.services import articles_db, audit, critical, database, embeddings, i18n, kiwix, norms, settings_store
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -100,6 +100,39 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_marker_norm",
+            "description": i18n.t("tool.check_marker_norm.desc"),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "marker": {
+                        "type": "string",
+                        "description": i18n.t("tool.check_marker_norm.marker"),
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": i18n.t("tool.check_marker_norm.value"),
+                    },
+                    "unit": {
+                        "type": "string",
+                        "description": i18n.t("tool.check_marker_norm.unit"),
+                    },
+                    "sex": {
+                        "type": "string",
+                        "description": i18n.t("tool.check_marker_norm.sex"),
+                    },
+                    "age": {
+                        "type": "integer",
+                        "description": i18n.t("tool.check_marker_norm.age"),
+                    },
+                },
+                "required": ["marker", "value"],
+            },
+        },
+    },
 ]
 
 
@@ -154,6 +187,15 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
                 get_marker_trends,
                 str(args.get("marker", "")) or None,
                 int(args.get("days")) if args.get("days") else None,
+            )
+        if name == "check_marker_norm":
+            return await asyncio.to_thread(
+                check_marker_norm,
+                str(args.get("marker", "")),
+                args.get("value"),
+                str(args.get("unit", "") or ""),
+                args.get("sex"),
+                int(args["age"]) if args.get("age") else None,
             )
         return i18n.t("tool.unknown", name=name)
     except Exception as exc:
@@ -314,4 +356,51 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
         lines.append(
             i18n.t("tool.trend_line", name=name, series=series, n=len(pts), trend=trend)
         )
+    return "\n".join(lines)
+
+
+def check_marker_norm(
+    marker: str,
+    value: Any,
+    unit: str = "",
+    sex: str | None = None,
+    age: int | None = None,
+) -> str:
+    """Проверяет показатель по справочнику референсных норм (пол/возраст)."""
+    if not marker.strip():
+        return i18n.t("tool.check_marker_norm.empty")
+    if age is None:
+        pid = _current_profile_id()
+        if pid is not None:
+            try:
+                profile = database.get_profile(pid)
+                by = profile.get("birth_year")
+                if by:
+                    age = datetime.now().year - int(by)
+            except (KeyError, TypeError, ValueError):
+                age = None
+    result = norms.check_norm(marker, value, unit, sex, age)
+    if result is None:
+        return i18n.t("norm.not_found", marker=marker)
+    if result["value"] is None:
+        return i18n.t("norm.not_numeric", value=result["raw"])
+    head = f"{result['label']}: {result['raw']} {result['unit']}".strip()
+    if len(result["ranges"]) == 1:
+        r = result["ranges"][0]
+        note = f" ({r.get('note')})" if r.get("note") else ""
+        status = i18n.t("norm.status." + result["status"])
+        return head + "\n" + i18n.t(
+            "norm.single", note=note, range=norms.range_text(r), status=status
+        )
+    lines = [head]
+    for r in result["ranges"]:
+        lines.append(
+            i18n.t("norm.item", note=r.get("note") or "—", range=norms.range_text(r))
+        )
+    lines.append(
+        i18n.t(
+            "norm.multi_status",
+            status=i18n.t("norm.status." + result["status"]),
+        )
+    )
     return "\n".join(lines)
