@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import json
 import logging
+import time
 from typing import AsyncIterator
 
 import httpx
@@ -14,6 +15,47 @@ log = logging.getLogger("llm")
 SystemMessage = dict
 UserMessage = dict
 ChatMessage = dict
+
+
+def _log_ollama_metrics(model: str, phase: str, data: dict | None, seconds: float) -> None:
+    prompt = out = 0
+    rate = ""
+    if isinstance(data, dict):
+        try:
+            prompt = int(data.get("prompt_eval_count") or 0)
+        except (TypeError, ValueError):
+            prompt = 0
+        try:
+            out = int(data.get("eval_count") or 0)
+        except (TypeError, ValueError):
+            out = 0
+        try:
+            ev = int(data.get("eval_duration") or 0)
+            if ev > 0:
+                rate = " ({:.1f} tok/s)".format(out / (ev / 1e9))
+        except (TypeError, ValueError):
+            pass
+    log.info(
+        "[metrics] %s model=%s prompt=%d eval=%d%s time=%.1fs",
+        phase, model, prompt, out, rate, seconds,
+    )
+
+
+def _log_openai_metrics(model: str, phase: str, usage, seconds: float) -> None:
+    prompt = out = 0
+    if usage is not None:
+        try:
+            prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
+        except (TypeError, ValueError):
+            prompt = 0
+        try:
+            out = int(getattr(usage, "completion_tokens", 0) or 0)
+        except (TypeError, ValueError):
+            out = 0
+    log.info(
+        "[metrics] %s model=%s prompt=%d eval=%d time=%.1fs",
+        phase, model, prompt, out, seconds,
+    )
 
 
 async def stream_chat(messages: list[ChatMessage]) -> AsyncIterator[str]:
@@ -115,6 +157,7 @@ async def _complete_with_tools_openai(
         base_url=settings.user_llm_base_url,
         api_key=settings.user_llm_api_key,
     )
+    t0 = time.monotonic()
     try:
         resp = await client.chat.completions.create(
             model=settings.user_llm_model,
@@ -124,6 +167,9 @@ async def _complete_with_tools_openai(
         )
     except Exception as exc:
         raise LLMError(i18n.t("llm.tools_api_error", err=exc)) from exc
+    _log_openai_metrics(
+        settings.user_llm_model, "openai_tools_round", resp.usage, time.monotonic() - t0
+    )
     msg = resp.choices[0].message
     content = (msg.content or "").strip()
     calls: list[dict] = []
@@ -156,6 +202,7 @@ async def _complete_with_tools_ollama(
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=300) as client:
+        t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
@@ -170,6 +217,7 @@ async def _complete_with_tools_ollama(
             raise LLMError(
                 i18n.t("llm.ollama_connect_failed", url=url, err=exc)
             ) from exc
+    _log_ollama_metrics(model, "ollama_tools_round", data, time.monotonic() - t0)
     msg = data.get("message", {})
     content = (msg.get("content") or "").strip()
     calls: list[dict] = []
@@ -223,6 +271,7 @@ async def _ocr_ollama(image_b64: str) -> str:
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=900) as client:
+        t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
             data = resp.json()
@@ -239,6 +288,7 @@ async def _ocr_ollama(image_b64: str) -> str:
         raise LLMError(
             i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
         )
+    _log_ollama_metrics(model, "ollama_ocr", data, time.monotonic() - t0)
     return data.get("message", {}).get("content", "").strip()
 
 
@@ -255,6 +305,7 @@ async def _describe_ollama(image_b64: str) -> str:
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=900) as client:
+        t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
             data = resp.json()
@@ -271,6 +322,7 @@ async def _describe_ollama(image_b64: str) -> str:
         raise LLMError(
             i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
         )
+    _log_ollama_metrics(model, "ollama_vision", data, time.monotonic() - t0)
     return data.get("message", {}).get("content", "").strip()
 
 
@@ -345,15 +397,17 @@ async def _complete_ollama(messages: list[ChatMessage]) -> str:
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=300) as client:
+        t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
-            return data.get("message", {}).get("content", "").strip()
         except httpx.HTTPError as exc:
             raise LLMError(
                 i18n.t("llm.ollama_connect_failed", url=url, err=exc)
             ) from exc
+    _log_ollama_metrics(model, "ollama_chat", data, time.monotonic() - t0)
+    return data.get("message", {}).get("content", "").strip()
 
 
 async def _complete_openai(messages: list[ChatMessage]) -> str:
@@ -383,6 +437,8 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
         "stream": True,
         "options": {"num_ctx": await _num_ctx()},
     }
+    t0 = time.monotonic()
+    done_data: dict | None = None
     async with httpx.AsyncClient(timeout=None) as client:
         try:
             async with client.stream("POST", url, json=payload) as resp:
@@ -398,9 +454,11 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
                     if chunk:
                         yield chunk
                     if data.get("done"):
+                        done_data = data
                         break
         except httpx.HTTPError as exc:
             yield _error_message(i18n.t("llm.ollama_connect_failed", url=url, err=exc))
+    _log_ollama_metrics(model, "ollama_stream", done_data, time.monotonic() - t0)
 
 
 async def _stream_openai(messages: list[ChatMessage]) -> AsyncIterator[str]:

@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import asyncio
 import json
+import logging
+import time
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -11,6 +13,7 @@ from app.services import articles_db, audit, embeddings, i18n, kiwix, llm, setti
 from app.services.llm import chat_with_tools, stream_chat
 
 router = APIRouter()
+logger = logging.getLogger("chat")
 
 
 
@@ -114,29 +117,41 @@ async def chat(req: ChatRequest) -> StreamingResponse:
         )
 
     async def event_stream():
-        if rag_text and _looks_like_article_query(last_user):
-            yield _sse("Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n")
-
-        pending: list[dict] = []
-
-        async def tool_executor(name: str, arguments: dict):
-            result = await tools.execute_tool(name, arguments)
-            for img in kiwix.take_pending_images():
-                if img not in pending:
-                    pending.append(img)
-            return result
-
+        start = time.monotonic()
+        rounds = 0
         try:
-            async for item in chat_with_tools(
-                messages, tools.TOOLS, tool_executor
-            ):
-                yield _sse(item)
-        except llm.LLMError:
-            async for chunk in stream_chat(messages):
-                yield _sse(chunk)
-        if pending:
-            yield _sse({"images": pending})
-        yield "data: [DONE]\n\n"
+            if rag_text and _looks_like_article_query(last_user):
+                yield _sse("Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n")
+
+            pending: list[dict] = []
+
+            async def tool_executor(name: str, arguments: dict):
+                nonlocal rounds
+                rounds += 1
+                result = await tools.execute_tool(name, arguments)
+                for img in kiwix.take_pending_images():
+                    if img not in pending:
+                        pending.append(img)
+                return result
+
+            try:
+                async for item in chat_with_tools(
+                    messages, tools.TOOLS, tool_executor
+                ):
+                    yield _sse(item)
+            except llm.LLMError:
+                async for chunk in stream_chat(messages):
+                    yield _sse(chunk)
+            if pending:
+                yield _sse({"images": pending})
+            yield "data: [DONE]\n\n"
+        finally:
+            logger.info(
+                "[metrics] chat total time=%.1fs tool_rounds=%d images=%d",
+                time.monotonic() - start,
+                rounds,
+                len(pending) if "pending" in locals() else 0,
+            )
 
     return StreamingResponse(
         event_stream(),
