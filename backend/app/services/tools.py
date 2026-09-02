@@ -210,7 +210,8 @@ async def search_articles(query: str, limit: int = 5) -> str:
     except Exception as exc:
         return i18n.t("tool.embedding_failed", err=exc)
     results = await asyncio.to_thread(
-        articles_db.query, query_embedding, max(1, min(int(limit), 10))
+        articles_db.hybrid_query, query.strip(), query_embedding,
+        max(1, min(int(limit), 10)),
     )
     if not results:
         return i18n.t("tool.search_no_results")

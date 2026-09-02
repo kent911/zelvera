@@ -28,7 +28,9 @@ async def _rag_context(query: str) -> str:
         return ""
     try:
         (query_embedding,) = await embeddings.embed_texts([query.strip()])
-        results = await asyncio.to_thread(articles_db.query, query_embedding, 12)
+        results = await asyncio.to_thread(
+            articles_db.hybrid_query, query.strip(), query_embedding, 12
+        )
     except llm.LLMError:
         return ""
     if not results:

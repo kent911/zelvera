@@ -1154,7 +1154,9 @@ function renderSearchResults(query, results) {
     badge.className = "article-meta";
     badge.innerHTML =
       `<span class="article-badge">${t("articles.badge", { id: r.article_id })}</span>` +
-      `<span class="article-distance">${t("articles.distance", { d: r.distance })}</span>`;
+      (r.distance != null
+        ? `<span class="article-distance">${t("articles.distance", { d: r.distance })}</span>`
+        : "");
     meta.append(title, badge);
 
     const chunk = document.createElement("div");

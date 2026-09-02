@@ -76,7 +76,9 @@ async def analysis(profile_id: int | None = None) -> StreamingResponse:
     article_results: list[dict[str, Any]] = []
     try:
         (query_embedding,) = await embeddings.embed_texts([search_query.strip() or "анализы крови"])
-        article_results = await asyncio.to_thread(articles_db.query, query_embedding, 3)
+        article_results = await asyncio.to_thread(
+            articles_db.hybrid_query, search_query.strip() or "анализы крови", query_embedding, 3
+        )
     except llm.LLMError:
         article_results = []
 

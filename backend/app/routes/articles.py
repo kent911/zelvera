@@ -152,7 +152,9 @@ async def search_articles(q: SearchQuery) -> list[dict[str, Any]]:
     except llm.LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     audit.log_action("article_search", _truncate_q(q.query))
-    return await asyncio.to_thread(articles_db.query, query_embedding, q.limit)
+    return await asyncio.to_thread(
+        articles_db.hybrid_query, q.query.strip(), query_embedding, q.limit
+    )
 
 
 @router.post("/articles/{article_id}/search")
@@ -165,7 +167,7 @@ async def search_article_chunks(article_id: int, q: SearchQuery) -> list[dict[st
     except llm.LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return await asyncio.to_thread(
-        articles_db.query, query_embedding, q.limit, article_id
+        articles_db.hybrid_query, q.query.strip(), query_embedding, q.limit, article_id
     )
 
 

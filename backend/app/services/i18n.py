@@ -220,6 +220,17 @@ RU = {
 Не вызывай search_articles для вопросов о карте — данные карты берутся
 только через get_medical_card.
 
+Цитирование источников: в конце абзаца, в котором ты привёл конкретные
+данные из результата инструмента, указывай источник в квадратных скобках.
+- Если данные получены через search_wikipedia — формат
+  [Википедия: <название статьи>]. Название бери из заголовка результата
+  (то, что после «Wikipedia:»).
+- Если данные получены через search_articles или из фрагментов базы статей —
+  формат [Статья «<название>»].
+Ссылайся только на источники, которые реально были в результатах
+инструментов, не выдумывай их. Свои рассуждения, объяснения и общие
+рекомендации можно давать без ссылки.
+
 Важно: когда ты используешь search_wikipedia, найденные изображения статей
 автоматически показываются пользователю в чате под твоим ответом. НЕ говори,
 что не можешь показать картинки или графические файлы, — они отобразятся сами.
@@ -507,6 +518,16 @@ Tools:
 - list_kiwix_books — when asked which books or Wikipedias are connected to Kiwix.
 Do not call search_articles for questions about the card — card data comes only
 through get_medical_card.
+
+Source citation: at the end of a paragraph where you state concrete data from a
+tool result, cite the source in square brackets.
+- If the data came from search_wikipedia — format [Wikipedia: <article title>].
+  Take the title from the result header (the part after "Wikipedia:").
+- If the data came from search_articles or from the articles database fragments —
+  format [Article «<title>»].
+Cite only sources that were actually present in the tool results; do not invent
+them. Your own reasoning, explanations and general recommendations can be given
+without a citation.
 
 Important: when you use search_wikipedia, the images from the articles are
 automatically shown to the user in the chat below your answer. Do NOT say you
