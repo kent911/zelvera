@@ -106,9 +106,6 @@ const setEmbedModel = document.getElementById("set-embed-model");
 const setNumCtx = document.getElementById("set-num-ctx");
 const btnRefreshModels = document.getElementById("btn-refresh-models");
 const modelsStatus = document.getElementById("models-status");
-const pullModel = document.getElementById("pull-model");
-const btnPull = document.getElementById("btn-pull");
-let pullPolling = false;
 const notesView = document.getElementById("notes-view");
 const notesList = document.getElementById("notes-list");
 const notesStatus = document.getElementById("notes-status");
@@ -1445,8 +1442,6 @@ async function refreshKiwixBooks() {
 
 function closeSettings() {
   settingsModal.classList.add("hidden");
-  pullPolling = false;
-  btnPull.disabled = false;
 }
 
 document.getElementById("btn-copy-dir")?.addEventListener("click", async () => {
@@ -1530,56 +1525,6 @@ backupFileInput?.addEventListener("change", async () => {
   }
 });
 
-async function startPull() {
-  const model = pullModel.value.trim();
-  if (!model) return;
-  setModelsStatus(t("settings.pulling", { model }));
-  btnPull.disabled = true;
-  pullPolling = true;
-  try {
-    await fetch("/api/settings/ollama-pull", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        ollama_base_url: setOllamaUrl.value.trim(),
-      }),
-    });
-    pollPull(model);
-  } catch (err) {
-    setModelsStatus(t("settings.error", { msg: err.message }), true);
-    btnPull.disabled = false;
-    pullPolling = false;
-  }
-}
-
-async function pollPull(model) {
-  if (!pullPolling) return;
-  try {
-    const res = await fetch(`/api/settings/ollama-pull/${encodeURIComponent(model)}`);
-    const data = await res.json();
-    if (data.state === "done") {
-      setModelsStatus(t("settings.pullDone", { model }));
-      btnPull.disabled = false;
-      pullPolling = false;
-      refreshOllamaModels();
-      return;
-    }
-    if (data.state === "error") {
-      setModelsStatus(t("settings.pullError", { msg: data.detail }), true);
-      btnPull.disabled = false;
-      pullPolling = false;
-      return;
-    }
-    setModelsStatus(data.detail || t("settings.pullProgress"));
-    setTimeout(() => pollPull(model), 2000);
-  } catch (err) {
-    setModelsStatus(t("settings.error", { msg: err.message }), true);
-    btnPull.disabled = false;
-    pullPolling = false;
-  }
-}
-
 async function refreshOllamaModels() {
   setModelsStatus(t("settings.fetchingModels"));
   try {
@@ -1634,7 +1579,6 @@ settingsCancel.addEventListener("click", closeSettings);
 settingsSave.addEventListener("click", saveSettings);
 btnRefreshModels.addEventListener("click", refreshOllamaModels);
 btnKiwixBooks.addEventListener("click", refreshKiwixBooks);
-btnPull.addEventListener("click", startPull);
 settingsModal.addEventListener("click", (e) => {
   if (e.target === settingsModal) closeSettings();
 });
@@ -1781,7 +1725,6 @@ btnAuditClear.addEventListener("click", clearAudit);
 setupModelPicker(setChatModel);
 setupModelPicker(setVisionModel);
 setupModelPicker(setEmbedModel);
-setupModelPicker(pullModel);
 
 btnUploadArticle.addEventListener("click", () => fileArticle.click());
 fileArticle.addEventListener("change", () => {

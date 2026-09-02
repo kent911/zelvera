@@ -172,8 +172,6 @@ RU = {
     "llm.tool_round_limit": "Достигнут лимит шагов работы с инструментами.",
     "llm.openai_api_error": "Ошибка OpenAI-совместимого API: {err}",
     "llm.no_data": "нет данных",
-    "pull.starting": "Запуск...",
-    "pull.installed": "Модель установлена",
     # --- marker helpers (analysis) ---
     "marker.no_value": "значение не указано",
     "marker.norm": "норма {ref}",
@@ -464,8 +462,6 @@ EN = {
     "llm.tool_round_limit": "Tool call round limit reached.",
     "llm.openai_api_error": "OpenAI-compatible API error: {err}",
     "llm.no_data": "no data",
-    "pull.starting": "Starting...",
-    "pull.installed": "Model installed",
     # --- marker helpers (analysis) ---
     "marker.no_value": "value not specified",
     "marker.norm": "norm {ref}",

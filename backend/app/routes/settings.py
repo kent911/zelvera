@@ -27,11 +27,6 @@ class BaseUrlIn(BaseModel):
     ollama_base_url: str
 
 
-class PullIn(BaseModel):
-    ollama_base_url: str
-    model: str
-
-
 @router.get("/settings")
 async def get_settings() -> dict[str, str]:
     data = settings_store.all_settings()
@@ -58,20 +53,6 @@ async def ollama_models(body: BaseUrlIn) -> dict[str, Any]:
     except ConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"models": models}
-
-
-@router.post("/settings/ollama-pull")
-async def start_pull(body: PullIn) -> dict[str, Any]:
-    model = body.model.strip()
-    if not model:
-        raise HTTPException(status_code=400, detail=i18n.t("settings.model_required"))
-    audit.log_action("model_pull", f"модель={model}")
-    return settings_store.start_pull(body.ollama_base_url, model)
-
-
-@router.get("/settings/ollama-pull/{model}")
-async def pull_status(model: str) -> dict[str, Any]:
-    return settings_store.get_pull_status(model)
 
 
 class KiwixBaseUrlIn(BaseModel):
