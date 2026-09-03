@@ -13,18 +13,23 @@
 накапливаются в _pending_images и отправляются на фронтенд через
 take_pending_images() после вызова инструмента.
 """
+import asyncio
 import base64
+import hashlib
 import html
 import json
 import logging
+import os
 import re
 import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
+from app.config import KIWIX_CACHE_DIR
 from app.services import settings_store
 
 log = logging.getLogger("kiwix")
@@ -47,6 +52,75 @@ _MIME_BY_EXT = {
     ".tif": "image/tiff",
     ".tiff": "image/tiff",
 }
+
+KIWIX_CACHE_MAX_BYTES = 256 * 1024 * 1024
+
+_cache_dir = Path(KIWIX_CACHE_DIR)
+
+
+def _cache_key(zim: str, path: str) -> str:
+    return hashlib.sha256(f"{zim}\n{path}".encode("utf-8")).hexdigest()
+
+
+def _cache_bin_path(zim: str, path: str) -> Path:
+    return _cache_dir / (_cache_key(zim, path) + ".bin")
+
+
+def cache_get_sync(zim: str, path: str) -> tuple[bytes | None, str | None]:
+    """Читает файл из дискового кеша; возвращает (байты, mime)."""
+    bin_path = _cache_bin_path(zim, path)
+    try:
+        data = bin_path.read_bytes()
+    except OSError:
+        return None, None
+    try:
+        mime = _cache_mime_path(zim, path).read_text("utf-8").strip() or None
+    except OSError:
+        mime = None
+    return data, mime
+
+
+def cache_put_sync(zim: str, path: str, data: bytes, mime: str = "") -> None:
+    """Кладёт файл в дисковый кеш и при переполнении чистит старые."""
+    try:
+        _cache_dir.mkdir(parents=True, exist_ok=True)
+        bin_path = _cache_bin_path(zim, path)
+        tmp = bin_path.with_suffix(".bin.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, bin_path)
+        _cache_mime_path(zim, path).write_text(mime or "", encoding="utf-8")
+    except OSError:
+        log.debug("kiwix cache: не удалось записать %s %s", zim, path)
+        return
+    _cache_evict_sync()
+
+
+def _cache_mime_path(zim: str, path: str) -> Path:
+    return _cache_dir / (_cache_key(zim, path) + ".mime")
+
+
+def _cache_evict_sync() -> None:
+    try:
+        files = sorted(_cache_dir.glob("*.bin"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return
+    total = sum(p.stat().st_size for p in files)
+    while files and total > KIWIX_CACHE_MAX_BYTES:
+        old = files.pop(0)
+        try:
+            total -= old.stat().st_size
+            old.unlink()
+            old.with_suffix(".mime").unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+async def cache_get(zim: str, path: str) -> tuple[bytes | None, str | None]:
+    return await asyncio.to_thread(cache_get_sync, zim, path)
+
+
+async def cache_put(zim: str, path: str, data: bytes, mime: str = "") -> None:
+    await asyncio.to_thread(cache_put_sync, zim, path, data, mime)
 
 _pending_images: list[dict] = []
 
@@ -462,14 +536,26 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
 
 
 async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
-    """Загружает изображение; возвращает (байты, рабочий_путь) или (None, "")."""
+    """Загружает изображение; возвращает (байты, рабочий_путь) или (None, "").
+
+    Сначала проверяет дисковый кеш — повторные загрузки (та же статья в чате,
+    повторные вопросы) не ходят в Kiwix.
+    """
     for variant, url in _image_url_candidates(zim, path):
+        cached, _ = await cache_get(zim, variant)
+        if cached is not None:
+            if len(cached) <= MAX_IMAGE_BYTES:
+                return cached, variant
+            continue
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 data = resp.content
                 if len(data) <= MAX_IMAGE_BYTES:
+                    await cache_put(
+                        zim, variant, data, resp.headers.get("Content-Type", "")
+                    )
                     return data, variant
         except httpx.HTTPError:
             continue

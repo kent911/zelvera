@@ -28,6 +28,7 @@ else:
     DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DB_PATH = DATA_DIR / "medical.db"
 CHROMA_DIR = DATA_DIR / "chroma"
+KIWIX_CACHE_DIR = DATA_DIR / "kiwix_cache"
 
 
 class Settings:
