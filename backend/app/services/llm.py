@@ -258,17 +258,33 @@ async def _num_ctx() -> int:
         return 32768
 
 
-async def _ocr_ollama(image_b64: str) -> str:
+async def _vision_max_tokens() -> int | None:
+    """Лимит токенов для описания картинок (не для OCR).
+
+    0 или нечисловое значение — без лимита (None).
+    """
+    try:
+        value = int(settings_store.get("vision_max_tokens"))
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+async def _describe_ollama(image_b64: str) -> str:
     base_url = settings_store.get("ollama_base_url")
     model = settings_store.get("vision_model")
     url = f"{base_url}/api/chat"
+    options: dict = {"num_ctx": await _num_ctx()}
+    max_tokens = await _vision_max_tokens()
+    if max_tokens:
+        options["num_predict"] = max_tokens
     payload = {
         "model": model,
         "messages": [
-            {"role": "user", "content": i18n.t("vision_prompt"), "images": [image_b64]}
+            {"role": "user", "content": i18n.t("image_prompt"), "images": [image_b64]}
         ],
         "stream": False,
-        "options": {"num_ctx": await _num_ctx()},
+        "options": options,
     }
     async with httpx.AsyncClient(timeout=900) as client:
         t0 = time.monotonic()

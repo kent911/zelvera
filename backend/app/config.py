@@ -48,6 +48,12 @@ class Settings:
             self.ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
         except ValueError:
             self.ollama_num_ctx = 32768
+        try:
+            self.ollama_vision_max_tokens: int = int(
+                os.getenv("OLLAMA_VISION_MAX_TOKENS", "250")
+            )
+        except ValueError:
+            self.ollama_vision_max_tokens = 250
         self.user_llm_base_url: str = os.getenv(
             "USER_LLM_BASE_URL", "https://api.openai.com/v1"
         ).rstrip("/")

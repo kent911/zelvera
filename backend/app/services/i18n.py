@@ -244,10 +244,10 @@ RU = {
         "Верни только распознанный текст без комментариев."
     ),
     "image_prompt": (
-        "Опиши подробно, что показано на изображении: все объекты, подписи, "
-        "цифры, схемы, таблицы, графики. Если это медицинская схема, график "
-        "или таблица данных — опиши их содержание максимально полно. "
-        "Отвечай на русском языке."
+        "Опиши кратко и ёмко, что показано на изображении (2-3 предложения): "
+        "основной объект/тема, ключевые подписи и цифры, тип схемы/графика/"
+        "таблицы и главное содержание. Это короткая подпись под иллюстрацией "
+        "в ответе. Отвечай на русском языке."
     ),
     "extraction_prompt": """Ты — медицинский анализатор лабораторных анализов.
 Ниже дан распознанный текст бланка анализов. Извлеки из него все медицинские
@@ -542,10 +542,10 @@ descriptions to fully answer the user's question.""",
         "Return only the recognized text without any comments."
     ),
     "image_prompt": (
-        "Describe in detail what is shown in the image: all objects, labels, "
-        "numbers, diagrams, tables, charts. If it is a medical diagram, chart "
-        "or data table, describe its content as fully as possible. "
-        "Answer in English."
+        "Briefly and concisely describe what is shown in the image (2-3 sentences): "
+        "the main object/topic, key labels and numbers, the type of diagram/chart/"
+        "table and its main content. This is a short caption under an illustration "
+        "in an answer. Answer in English."
     ),
     "extraction_prompt": """You are a medical lab results analyzer.
 Below is the recognized text of a lab results form. Extract all medical

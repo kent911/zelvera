@@ -19,6 +19,7 @@ DEFAULTS = {
     "vision_model": env_settings.ollama_vision_model,
     "embed_model": env_settings.ollama_embed_model,
     "num_ctx": str(env_settings.ollama_num_ctx),
+    "vision_max_tokens": str(env_settings.ollama_vision_max_tokens),
     "kiwix_base_url": env_settings.kiwix_base_url,
     "kiwix_zim_name": env_settings.kiwix_zim_name,
     "current_profile_id": "",
