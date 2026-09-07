@@ -289,6 +289,29 @@ RU = {
 Текст анализов:
 \"\"\"{text}\"\"\"
 """,
+    "extraction_retry_prompt": """Ты — медицинский анализатор лабораторных анализов. Ниже дан распознанный текст бланка. Извлеки из него медицинские показатели и дату анализа.
+
+ПРЕДЫДУЩИЙ ТВОЙ ОТВЕТ НЕ БЫЛ ВАЛИДНЫМ JSON. Теперь верни СТРОГО ОДИН JSON-объект и НИЧЕГО больше: без пояснений, без markdown (```), без текста до '{' и после '}'. Начинай ответ с '{' и заканчивай '}'.
+
+Формат:
+{{
+  "date": "ГГГГ-ММ-ДД" | null,
+  "markers": [
+    {{
+      "name": "...",
+      "value": число | null,
+      "unit": "...",
+      "reference_range": "...",
+      "status": "normal" | "high" | "low" | "unknown",
+      "raw_text": "..."
+    }}
+  ],
+  "summary": "Краткое резюме на русском: что в норме, что отклонено."
+}}
+
+Текст анализов:
+\"\"\"{text}\"\"\"
+""",
     "analysis_system": """Ты — медицинский аналитик. Ты помогаешь человеку понимать
 его анализы в контексте научных данных. Ты НЕ врач и НЕ ставишь диагнозы,
 НЕ назначаешь лечение. Подчёркивай, что информация носит ознакомительный
@@ -591,6 +614,29 @@ Rules:
 - status: high — above normal, low — below normal, normal — in range, unknown — normal unknown.
 - Ignore headers, logos and service lines without markers.
 - Do not invent data that is not in the text.
+
+Lab results text:
+\"\"\"{text}\"\"\"
+""",
+    "extraction_retry_prompt": """You are a medical lab results analyzer. Below is the recognized text of a lab results form. Extract the medical markers and the analysis date from it.
+
+YOUR PREVIOUS RESPONSE WAS NOT VALID JSON. Now return STRICTLY ONE JSON object and nothing else: no explanations, no markdown (```), no text before '{' or after '}'. Start your answer with '{' and end it with '}'.
+
+Format:
+{{
+  "date": "YYYY-MM-DD" | null,
+  "markers": [
+    {{
+      "name": "...",
+      "value": number | null,
+      "unit": "...",
+      "reference_range": "...",
+      "status": "normal" | "high" | "low" | "unknown",
+      "raw_text": "..."
+    }}
+  ],
+  "summary": "A short summary in English: what is normal, what is deviated."
+}}
 
 Lab results text:
 \"\"\"{text}\"\"\"
