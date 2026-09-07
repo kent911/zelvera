@@ -1148,6 +1148,48 @@ tr.marker-suspect-row td {
   font-size: 14px;
 }
 
+.record-details {
+  margin-top: 10px;
+}
+
+.record-original {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.record-original-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.record-original-thumb {
+  max-width: 340px;
+  max-height: 260px;
+  width: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #000;
+  cursor: zoom-in;
+  object-fit: contain;
+}
+
+.record-original-link {
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.record-original-link:hover {
+  text-decoration: underline;
+}
+
 /* Articles */
 .article-search {
   display: flex;
@@ -1360,4 +1402,37 @@ tr.marker-suspect-row td {
     opacity: 0;
     transform: translateX(12px);
   }
+}
+
+/* TTS / озвучка сообщений */
+.msg-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.msg-controls .btn-speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.msg-controls .btn-speak:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.msg-controls .btn-speak.speaking {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 0, 0, 0.25);
 }

@@ -133,6 +133,37 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_analysis_to_card",
+            "description": i18n.t("tool.save_analysis_to_card.desc"),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "markers": {
+                        "type": "array",
+                        "description": i18n.t("tool.save_analysis_to_card.markers"),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "value": {"type": "string"},
+                                "unit": {"type": "string"},
+                                "reference_range": {"type": "string"},
+                            },
+                            "required": ["name"],
+                        },
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": i18n.t("tool.save_analysis_to_card.date"),
+                    },
+                },
+                "required": ["markers"],
+            },
+        },
+    },
 ]
 
 
@@ -197,6 +228,12 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
                 args.get("sex"),
                 int(args["age"]) if args.get("age") else None,
             )
+        if name == "save_analysis_to_card":
+            return await asyncio.to_thread(
+                save_analysis_to_card,
+                list(args.get("markers") or []),
+                str(args.get("date") or "") or None,
+            )
         return i18n.t("tool.unknown", name=name)
     except Exception as exc:
         return i18n.t("tool.exec_error", name=name, err=exc)
@@ -226,6 +263,42 @@ def list_articles() -> str:
     if not articles:
         return i18n.t("tool.articles_empty")
     return "\n".join(f"{a['id']}. {a['filename']}" for a in articles)
+
+
+def save_analysis_to_card(markers: list[Any], date: str | None = None) -> str:
+    """Сохраняет обсуждённые показатели из чата в карту одной записью."""
+    cleaned: list[dict[str, Any]] = []
+    for m in markers or []:
+        if not isinstance(m, dict):
+            continue
+        name = str(m.get("name") or "").strip()
+        if not name:
+            continue
+        cleaned.append(
+            {
+                "name": name,
+                "value": m.get("value"),
+                "unit": str(m.get("unit") or "").strip(),
+                "reference_range": str(m.get("reference_range") or "").strip(),
+            }
+        )
+    if not cleaned:
+        return i18n.t("tool.save_analysis_to_card.empty")
+    try:
+        record = database.create_record(
+            source_name=i18n.t("record.source_chat"),
+            summary="",
+            markers=cleaned,
+            date=date,
+            profile_id=_current_profile_id(),
+        )
+    except Exception as exc:
+        return i18n.t("tool.save_analysis_to_card.error", err=exc)
+    names = ", ".join(str(m["name"]) for m in cleaned)
+    audit.log_action(
+        "record_save_chat", f"id={record['id']}, маркеров={len(cleaned)}"
+    )
+    return i18n.t("tool.save_analysis_to_card.ok", names=names)
 
 
 def get_medical_card(days: int | None = None) -> str:

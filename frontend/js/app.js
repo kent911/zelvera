@@ -112,6 +112,7 @@ const notesStatus = document.getElementById("notes-status");
 const btnRefreshNotes = document.getElementById("btn-refresh-notes");
 const btnNewNote = document.getElementById("btn-new-note");
 const btnSaveNote = document.getElementById("btn-save-note");
+const btnSaveCard = document.getElementById("btn-save-card");
 const noteModal = document.getElementById("note-modal");
 const noteArticle = document.getElementById("note-article");
 const noteContent = document.getElementById("note-content");
@@ -170,6 +171,7 @@ function pushHistory(role, content, images) {
 
 let history = loadHistory();
 let extractData = null;
+let pendingOriginalFile = null;
 
 function profileQuery() {
   return currentProfileId ? `profile_id=${encodeURIComponent(currentProfileId)}` : "";
@@ -373,6 +375,7 @@ async function init() {
         if (img && img.url) bubble.appendChild(makeFigure(img));
       }
     }
+    if (m.role === "assistant") attachSpeakControl(bubble, m.content);
   }
   if (history.length) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -510,6 +513,10 @@ async function streamIntoBubble(url, options, bubble) {
     bubble.classList.add("error");
   }
 
+  if (!error && acc.trim()) {
+    attachSpeakControl(bubble, acc.trim());
+  }
+
   return { acc, error, images };
 }
 
@@ -553,6 +560,7 @@ function showExtractPanel(title) {
 function hideExtractPanel() {
   extractPanel.classList.add("hidden");
   extractData = null;
+  pendingOriginalFile = null;
 }
 
 function statusLabel(status) {
@@ -605,12 +613,27 @@ function switchView(view) {
   if (view === "notes") loadNotes();
 }
 
-async function saveRecord(record) {
-  const res = await fetch("/api/records", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(record),
-  });
+async function saveRecord(record, originalFile) {
+  let res;
+  if (originalFile) {
+    const fd = new FormData();
+    fd.append("source_name", record.source_name || "manual");
+    fd.append("summary", record.summary || "");
+    if (record.date) fd.append("date", record.date);
+    if (record.profile_id != null) fd.append("profile_id", String(record.profile_id));
+    fd.append("markers", JSON.stringify(record.markers || []));
+    fd.append("original", originalFile, originalFile.name);
+    res = await fetch("/api/records", {
+      method: "POST",
+      body: fd,
+    });
+  } else {
+    res = await fetch("/api/records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
+  }
   if (!res.ok) {
     let detail = t("record.saveError");
     try {
@@ -713,7 +736,11 @@ async function toggleRecordDetails(id, card) {
   try {
     const res = await fetch(`/api/records/${id}`);
     const rec = await res.json();
-    details.innerHTML = buildMarkersTable(rec.markers || []);
+    details.innerHTML = "";
+    details.appendChild(buildMarkersTable(rec.markers || []));
+    if (rec.image_url) {
+      details.appendChild(buildOriginalPhoto(rec));
+    }
     details.style.display = "";
     btn.textContent = t("card.collapse");
   } catch (err) {
@@ -750,6 +777,35 @@ function buildMarkersTable(markers) {
   }
   table.appendChild(tbody);
   return table;
+}
+
+function buildOriginalPhoto(rec) {
+  const wrap = document.createElement("div");
+  wrap.className = "record-original";
+
+  const head = document.createElement("div");
+  head.className = "record-original-head";
+  head.textContent = t("card.originalPhoto");
+  wrap.appendChild(head);
+
+  const thumb = document.createElement("img");
+  thumb.className = "record-original-thumb";
+  thumb.src = rec.image_url;
+  thumb.alt = t("card.originalAlt");
+  thumb.loading = "lazy";
+  thumb.title = t("card.zoomOriginal") || t("card.openOriginal");
+  thumb.addEventListener("click", () => openLightbox(thumb));
+  wrap.appendChild(thumb);
+
+  const link = document.createElement("a");
+  link.className = "record-original-link";
+  link.href = rec.image_url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = t("card.openOriginal");
+  wrap.appendChild(link);
+
+  return wrap;
 }
 
 async function deleteRecord(id) {
@@ -1312,6 +1368,16 @@ btnSaveNote.addEventListener("click", () => {
   const lastAssistant = [...history].reverse().find((m) => m.role === "assistant");
   openNoteModal(lastAssistant ? lastAssistant.content : "");
 });
+btnSaveCard.addEventListener("click", () => {
+  if (sendBtn.disabled) return;
+  const text = t("chat.saveCardAsk");
+  inputEl.value = "";
+  autoResize();
+  hideSuggestChips();
+  addMessage("user", text);
+  pushHistory("user", text);
+  sendWithText(text);
+});
 noteClose.addEventListener("click", closeNoteModal);
 noteCancel.addEventListener("click", closeNoteModal);
 noteSave.addEventListener("click", saveNote);
@@ -1867,6 +1933,9 @@ async function uploadDocument(file) {
   const fd = new FormData();
   fd.append("file", uploadFile);
 
+  pendingOriginalFile =
+    file.type.startsWith("image/") && file.size <= MAX ? file : null;
+
   try {
     const res = await fetch("/api/documents/extract", { method: "POST", body: fd });
     const data = await res.json();
@@ -1899,7 +1968,8 @@ async function askAboutExtract() {
 
   if (markers.length) {
     try {
-      await saveRecord(record);
+      await saveRecord(record, pendingOriginalFile);
+      pendingOriginalFile = null;
     } catch (err) {
       addMessage("bot", t("extract.errorSaveMsg", { msg: err.message }), true);
       showToast(t("extract.errorSave", { msg: err.message }), "error");
@@ -1972,7 +2042,8 @@ newChatBtn.addEventListener("click", () => {
   history = [];
   saveHistory();
   messagesEl.innerHTML = "";
-  addMessage("bot", t("chat.newDialog"));
+  const wb = addMessage("bot", t("chat.newDialog"));
+  attachSpeakControl(wb, t("chat.newDialog"));
   showSuggestChips();
   inputEl.focus();
 });
@@ -2045,6 +2116,88 @@ function stopVoice() {
       recognition.stop();
     } catch { /* уже остановлен */ }
   }
+}
+
+let currentUtterance = null;
+
+function stopSpeak() {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  currentUtterance = null;
+  document.querySelectorAll(".btn-speak.speaking").forEach((btn) => {
+    btn.classList.remove("speaking");
+    btn.title = t("chat.speakTitle");
+    btn.setAttribute("aria-label", btn.title);
+  });
+}
+
+function setSpeakBtnState(btn, speaking) {
+  if (!btn) return;
+  btn.classList.toggle("speaking", speaking);
+  btn.title = speaking ? t("chat.speakStopTitle") : t("chat.speakTitle");
+  btn.setAttribute("aria-label", btn.title);
+}
+
+function pickSpeakVoice() {
+  const want = LANG === "en" ? "en-US" : "ru-RU";
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  return (
+    voices.find((v) => (v.lang || "").replace("_", "-").toLowerCase() === want.toLowerCase()) ||
+    voices.find((v) => (v.lang || "").toLowerCase().startsWith(LANG === "en" ? "en" : "ru")) ||
+    null
+  );
+}
+
+function speakText(text, btn) {
+  if (!window.speechSynthesis) {
+    showToast(t("chat.speakUnsupported"), "warn");
+    return;
+  }
+  if (btn && btn.classList.contains("speaking")) {
+    stopSpeak();
+    return;
+  }
+  stopSpeak();
+  if (!text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = LANG === "en" ? "en-US" : "ru-RU";
+  const voice = pickSpeakVoice();
+  if (voice) u.voice = voice;
+  u.onend = () => {
+    currentUtterance = null;
+    setSpeakBtnState(btn, false);
+  };
+  u.onerror = () => {
+    currentUtterance = null;
+    setSpeakBtnState(btn, false);
+  };
+  currentUtterance = u;
+  setSpeakBtnState(btn, true);
+  window.speechSynthesis.speak(u);
+}
+
+function attachSpeakControl(bubble, text) {
+  if (!bubble || !window.speechSynthesis || !text) return;
+  if (bubble.querySelector(".btn-speak")) return;
+  const controls = document.createElement("div");
+  controls.className = "msg-controls";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-speak";
+  btn.title = t("chat.speakTitle");
+  btn.setAttribute("aria-label", btn.title);
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' +
+    '<path d="M3 9v6h4l5 4.5v-15L7 9H3z"></path>' +
+    '<path d="M15.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>' +
+    "</svg>";
+  btn.addEventListener("click", () => speakText(text, btn));
+  controls.appendChild(btn);
+  bubble.appendChild(controls);
+}
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {};
 }
 
 btnEditProfile.addEventListener("click", openProfileEditModal);

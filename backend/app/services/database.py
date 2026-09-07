@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS records (
     source_name TEXT NOT NULL DEFAULT 'manual',
     created_at TEXT NOT NULL,
     summary TEXT DEFAULT '',
-    profile_id INTEGER DEFAULT NULL
+    profile_id INTEGER DEFAULT NULL,
+    image_path TEXT DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS markers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,6 +120,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
     if "validation" not in _columns(conn, "markers"):
         conn.execute("ALTER TABLE markers ADD COLUMN validation TEXT DEFAULT NULL")
+
+    if "image_path" not in _columns(conn, "records"):
+        conn.execute("ALTER TABLE records ADD COLUMN image_path TEXT DEFAULT NULL")
 
 
 def _ensure_default_profile(conn: sqlite3.Connection) -> None:
@@ -227,28 +231,36 @@ def create_record(
 
 
 def list_records(profile_id: int | None = None) -> list[dict[str, Any]]:
+    select = (
+        "SELECT id, source_name, created_at, summary, profile_id, image_path, "
+        "(SELECT COUNT(*) FROM markers m WHERE m.record_id = r.id) AS marker_count "
+        "FROM records r"
+    )
     with get_conn() as conn:
         if profile_id is None:
-            rows = conn.execute(
-                "SELECT id, source_name, created_at, summary, profile_id, "
-                "(SELECT COUNT(*) FROM markers m WHERE m.record_id = r.id) AS marker_count "
-                "FROM records r ORDER BY r.created_at DESC, r.id DESC"
-            ).fetchall()
+            rows = conn.execute(select + " ORDER BY r.created_at DESC, r.id DESC").fetchall()
         else:
             rows = conn.execute(
-                "SELECT id, source_name, created_at, summary, profile_id, "
-                "(SELECT COUNT(*) FROM markers m WHERE m.record_id = r.id) AS marker_count "
-                "FROM records r WHERE r.profile_id = ? "
+                select + " WHERE r.profile_id = ? "
                 "ORDER BY r.created_at DESC, r.id DESC",
                 (profile_id,),
             ).fetchall()
         return [dict(row) for row in rows]
 
 
+def set_record_image(record_id: int, image_path: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE records SET image_path = ? WHERE id = ?",
+            (image_path, record_id),
+        )
+
+
 def get_record(record_id: int) -> dict[str, Any]:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, source_name, created_at, summary FROM records WHERE id = ?",
+            "SELECT id, source_name, created_at, summary, profile_id, image_path "
+            "FROM records WHERE id = ?",
             (record_id,),
         ).fetchone()
         if row is None:

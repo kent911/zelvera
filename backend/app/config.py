@@ -29,6 +29,7 @@ else:
 DB_PATH = DATA_DIR / "medical.db"
 CHROMA_DIR = DATA_DIR / "chroma"
 KIWIX_CACHE_DIR = DATA_DIR / "kiwix_cache"
+MEDIA_DIR = DATA_DIR / "media"
 
 
 class Settings:
