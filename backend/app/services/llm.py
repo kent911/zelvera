@@ -304,18 +304,18 @@ async def _describe_ollama(image_b64: str) -> str:
         raise LLMError(
             i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
         )
-    _log_ollama_metrics(model, "ollama_ocr", data, time.monotonic() - t0)
+    _log_ollama_metrics(model, "ollama_vision", data, time.monotonic() - t0)
     return data.get("message", {}).get("content", "").strip()
 
 
-async def _describe_ollama(image_b64: str) -> str:
+async def _ocr_ollama(image_b64: str) -> str:
     base_url = settings_store.get("ollama_base_url")
     model = settings_store.get("vision_model")
     url = f"{base_url}/api/chat"
     payload = {
         "model": model,
         "messages": [
-            {"role": "user", "content": i18n.t("image_prompt"), "images": [image_b64]}
+            {"role": "user", "content": i18n.t("vision_prompt"), "images": [image_b64]}
         ],
         "stream": False,
         "options": {"num_ctx": await _num_ctx()},
@@ -338,7 +338,7 @@ async def _describe_ollama(image_b64: str) -> str:
         raise LLMError(
             i18n.t("llm.ollama_error", model=model, status=resp.status_code, detail=detail)
         )
-    _log_ollama_metrics(model, "ollama_vision", data, time.monotonic() - t0)
+    _log_ollama_metrics(model, "ollama_ocr", data, time.monotonic() - t0)
     return data.get("message", {}).get("content", "").strip()
 
 
