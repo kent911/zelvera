@@ -1436,3 +1436,15 @@ tr.marker-suspect-row td {
   border-color: var(--accent);
   background: rgba(0, 0, 0, 0.25);
 }
+
+/* Заметки: свёрнутый вид + разворот */
+.note-content {
+  white-space: pre-wrap;
+}
+
+.note-content.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

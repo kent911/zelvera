@@ -1286,15 +1286,24 @@ function renderNotes(notes) {
     del.className = "danger-btn";
     del.textContent = t("card.delete");
     del.addEventListener("click", () => deleteNote(n.id));
-    actions.appendChild(del);
+    const view = document.createElement("button");
+    view.className = "action-btn";
+    view.textContent = t("card.details");
+    actions.append(del, view);
 
     head.append(meta, actions);
     card.appendChild(head);
 
     const body = document.createElement("div");
-    body.className = "summary note-content";
+    body.className = "summary note-content clamped";
     body.textContent = n.content;
     card.appendChild(body);
+
+    view.addEventListener("click", () => {
+      const isClamped = body.classList.contains("clamped");
+      body.classList.toggle("clamped", !isClamped);
+      view.textContent = isClamped ? t("card.collapse") : t("card.details");
+    });
 
     notesList.appendChild(card);
   }
