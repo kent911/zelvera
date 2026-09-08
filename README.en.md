@@ -1,0 +1,379 @@
+# Zelvera — Local AI Medical Assistant
+
+**Languages:** [Русский](README.md) · English
+
+A fully functional local application: AI chat, lab-result recognition
+(photo/PDF/DOCX), a personal medical record, a scientific article database
+with RAG search, notes, health profiles and reminders. All data stays local.
+The assistant does not make diagnoses and does not replace a doctor.
+
+## Tech stack
+
+- Backend: Python 3.11+ / FastAPI + Uvicorn
+- AI: Ollama (local, default) or any OpenAI-compatible API
+- Frontend: HTML/CSS/JS without a bundler (wrapped into a desktop app via pywebview)
+- Storage: SQLite (medical record, notes, audit, profiles) + ChromaDB (articles)
+
+## Getting started
+
+### 1. Local model (Ollama)
+
+```bash
+# install Ollama: https://ollama.com
+ollama pull gemma4:26b
+ollama serve
+```
+
+Default models (configurable in `backend/.env`):
+- chat and vision-based photo recognition: `gemma4:26b`
+- embeddings for articles: `nomic-embed-text` (`ollama pull nomic-embed-text`)
+
+### 2. Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+### 3. Start
+
+```bash
+python run.py
+```
+
+Open http://127.0.0.1:8000 in your browser.
+
+## Desktop window (Step 6, pywebview)
+
+```bash
+cd backend
+pip install -r requirements-desktop.txt
+cd ..
+python desktop.py
+```
+
+Starts a local server in a background thread and opens a native window.
+If no GUI backend is available, opens the app in the browser (fallback).
+
+Platform requirements for the window:
+
+- **Windows**: Microsoft Edge WebView2 (preinstalled on Win10/11).
+- **macOS**: `pip install pyobjc`.
+- **Linux (Debian/Ubuntu)**:
+  ```bash
+  sudo apt install libgirepository1.0-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.1 python3-gi
+  ```
+
+## Windows build (.exe) and CI
+
+A single executable for Windows is built with PyInstaller (`zelvera.spec`).
+
+```bat
+build_windows.bat
+```
+
+The script checks for Python 3.11+, installs dependencies from
+`backend\requirements-desktop.txt` and builds the app into `dist\Zelvera\`.
+
+GitHub Actions (`.github/workflows/build-windows.yml`) repeats the same build
+on `windows-latest`, verifies that `Zelvera.exe` exists and uploads the
+`Zelvera-windows` artifact — runs on push/PR or manually
+(workflow_dispatch).
+
+## Using an OpenAI-compatible API (optional)
+
+In `backend/.env` set:
+
+```env
+LLM_BACKEND=openai
+USER_LLM_BASE_URL=https://api.openai.com/v1
+USER_LLM_API_KEY=your-key
+USER_LLM_MODEL=gpt-4o
+```
+
+The key is stored only locally and is never sent anywhere except the API you choose.
+
+## API
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/health` | Status and active model |
+| GET | `/api/config` | Current backend/model for the UI |
+| POST | `/api/chat` | Chat; the reply streams via SSE (`data: {content}`) |
+| POST | `/api/documents/extract` | Photo/PDF/DOCX → recognized text + health markers (JSON) |
+| POST | `/api/records` | Save a lab-result record (markers) to the medical record |
+| GET | `/api/records` | List of record cards (`?profile_id=` — profile only, `critical_count`) |
+| GET | `/api/records/trends` | Marker dynamics over dates (`?profile_id=`) |
+| GET | `/api/records/export.pdf` | Export the medical record to PDF (`?profile_id=`) |
+| GET | `/api/records/{id}` | Record with markers (critical ones have the `critical` field) |
+| DELETE | `/api/records/{id}` | Delete a record from the card |
+| POST | `/api/articles` | Upload a scientific article (PDF/DOCX/TXT) → chunks + embeddings + summary |
+| GET | `/api/articles` | List of articles |
+| POST | `/api/articles/search` | Semantic search across all articles |
+| POST | `/api/articles/{id}/search` | Search inside one article (for "Discuss with AI") |
+| DELETE | `/api/articles/{id}` | Delete an article |
+| POST | `/api/analysis` | Analytical report "labs ↔ articles" (SSE streaming, `?profile_id=`) |
+| GET | `/api/settings` | Current models (Ollama) |
+| POST | `/api/settings` | Save selected models |
+| POST | `/api/settings/ollama-models` | List of models from a running Ollama |
+| POST | `/api/settings/ollama-pull` | Download a model into Ollama (`ollama pull`, background task) |
+| GET | `/api/settings/ollama-pull/{model}` | Model download status |
+| GET | `/api/logs` | Latest lines of the app log |
+| GET | `/api/logs/download` | Download the log (.log) |
+| POST | `/api/logs/client` | Write a frontend error into the log/audit |
+| GET | `/api/notes` | List of notes (AI takeaways) |
+| POST | `/api/notes` | Save a note (can be linked to an article) |
+| DELETE | `/api/notes/{id}` | Delete a note |
+| GET | `/api/notes/export.pdf` | Export notes to PDF |
+| GET | `/api/profiles` | List of profiles + current (single profile) |
+| PATCH | `/api/profiles/{id}` | Update a profile (name, birth_year, height_cm, weight_kg, blood_type) |
+| POST | `/api/profiles/{id}/activate` | Make a profile current |
+| GET | `/api/profiles/current` | Current profile |
+| GET | `/api/reminders` | List of reminders (`?profile_id=`) |
+| POST | `/api/reminders` | Create a lab-retest reminder |
+| DELETE | `/api/reminders/{id}` | Delete a reminder |
+| GET | `/api/audit` | Audit log of actions (with type filter) |
+| DELETE | `/api/audit` | Clear the audit log |
+| GET | `/api/backup/export` | Download a ZIP archive of all data (DB, articles, settings) |
+| POST | `/api/backup/import` | Restore data from a ZIP archive |
+
+## Backup
+
+In the settings ("Ollama Settings") there is a "Backup" section:
+
+- **Save a copy** — downloads a ZIP archive with all data: `medical.db`
+  (medical record, articles, notes, profile, reminders, audit), `settings.json`
+  and the vector article database `chroma/`;
+- **Restore from a copy** — uploads the ZIP archive; the data is fully
+  replaced (with confirmation). The archive is validated for integrity and the
+  presence of `medical.db`;
+- all actions are written to the audit log (`backup_export`, `backup_import`).
+
+## Step 2 — document processing
+
+The "Lab photo" and "Document (PDF/DOCX)" buttons in the chat:
+
+- **Images**: a vision model recognizes the form text (OCR).
+- **PDF/DOCX**: text is extracted locally (PyMuPDF / python-docx), form tables are read row by row.
+- Then the LLM extracts health markers into JSON: `{name, value, unit, reference_range, status}`.
+- The result is shown as a table in the UI; the "Ask AI" button sends the parse into the chat.
+
+Photo recognition requires a vision model in Ollama:
+
+```bash
+ollama pull gemma4:26b   # supports images
+```
+
+## Step 3 — personal medical record (SQLite)
+
+Recognized markers are automatically saved into `data/medical.db` (excluded from git):
+
+- Table `records` — date, source, summary.
+- Table `markers` — name, value, unit, reference range, deviation.
+
+The "My medical card" tab shows lab history: date, source, number of markers,
+summary. Records expand into a marker table and can be deleted with the
+"Delete" button.
+
+### Critical deviations (alarms)
+
+Some markers have critical thresholds (for example, hemoglobin below
+70 g/L, glucose above 27.8 mmol/L, platelets below 20, potassium below/above
+2.5/6.5 mmol/L, etc.):
+
+- in the marker table critical values are highlighted with a pulsing
+  red "⚠ Critical!" badge;
+- in the record list a "⚠ N crit." badge appears;
+- the `get_medical_card` AI tool prints a "WARNING: CRITICAL deviations that
+  require immediate medical attention" block at the start of a reply;
+- the thresholds and synonyms database lives in `backend/app/services/critical.py`.
+
+## Ollama settings menu
+
+The "Ollama Settings" button in the side menu:
+
+- Ollama address field;
+- "Refresh model list" — fetches models from a running Ollama (`/api/tags`);
+- choose the chat model, vision model and embedding model (can be typed manually);
+- the choice survives restarts (`data/settings.json`); takes priority over `.env`.
+
+## Step 4 — scientific article database (ChromaDB / RAG)
+
+In the "Article database" tab:
+
+- Upload PDF/DOCX/TXT → text is extracted, split into overlapping chunks,
+  embeddings are computed per chunk (Ollama `nomic-embed-text`
+  or OpenAI `text-embedding-3-small`), the LLM writes a short summary.
+- Chunks are stored in ChromaDB (`data/chroma`, cosine metric), article
+  metadata in SQLite.
+- Semantic search: the query is embedded and matched against all chunks,
+  returning relevant fragments with their closeness. Each fragment can be
+  discussed with the AI.
+
+Required local Ollama models:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+## Step 5 — analytical report "labs ↔ articles"
+
+The "Analytical report" button in the chat:
+
+1. Takes the current markers from the medical record (latest value of each marker).
+2. Embeds them and finds relevant scientific fragments in ChromaDB.
+3. The LLM composes a personalized report: marker overview → comparison with
+   scientific data → what to track → disclaimer.
+
+The assistant does not make diagnoses and does not prescribe treatment; every
+report ends with a disclaimer about consulting a doctor.
+
+## Notes — AI takeaways on articles
+
+The AI in chat is a language model; it does not write to the database itself.
+Saving is done by the UI:
+
+- In the chat press "Save takeaway" — a window with the latest AI reply opens,
+  choose an article (optional) and save it to the database.
+- The "Notes" tab in the side menu — all saved takeaways with a date
+  and article binding; they can be deleted.
+- A note is bound to an article automatically if the dialog was started with
+  the "Discuss with AI" or "Ask AI about this fragment" button.
+
+## AI tools (function calling)
+
+The chat supports tool calls (read-only, no writes to the database):
+
+- `search_articles(query, limit)` — semantic search over the scientific article database;
+- `list_articles()` — list of uploaded articles;
+- `get_medical_card(days)` — current markers from the active profile's
+  medical record (optionally — for the last N days);
+- `get_marker_trends(marker, days)` — marker dynamics over dates,
+  number of measurements and trend direction.
+
+Tools work with the single health profile: edit the profile in the header
+(pencil button) and the AI will answer based on that profile's data.
+
+Supported by both backends: Ollama (`tools`) and the OpenAI-compatible API
+(`tools`). If the model does not support tools or they are unavailable,
+the chat automatically falls back to a plain answer without tools.
+
+## Action audit
+
+The "Action audit" tab in the "Logs and errors" window shows the history of
+user actions (SQLite, table `audit_log`):
+
+- chat queries and the analytical report;
+- document recognition (photo/PDF/DOCX) and adding records to the card;
+- article upload/deletion and searching them;
+- saving/deleting/exporting notes;
+- editing the health profile (name, birth year, height, weight, blood type);
+- creating/deleting lab-retest reminders;
+- changing settings and downloading models;
+- AI tool calls (function calling);
+- exporting the medical record to PDF;
+- frontend errors.
+
+Filtering by action type and full log cleanup are available.
+
+## Health profile
+
+The app works with a single profile — for one person. The header on the left
+shows the profile name; the pencil button opens editing:
+
+- profile fields: name, birth year, height, weight, blood type;
+- all data (medical record, reminders, AI tools) is tied to this profile;
+- the blood type is stored normalized, e.g. `A(II) Rh+`;
+
+## Lab-retest reminders
+
+In the "My medical card" tab:
+
+- add a reminder: a marker plus an interval in days (for example, "Hemoglobin,
+  every 30 days");
+- when a new record with this marker appears, the reminder records the
+  date (`last_reported` updates automatically);
+- the reminder tells you in how many days the test should be retaken
+  (or flags an overdue item).
+
+## Voice input
+
+The chat has a microphone button — speech recognition via
+`webkitSpeechRecognition` (available in Chrome/Edge). The recognized text is
+inserted into the input field. If the browser does not support recognition,
+the button is hidden.
+
+## Quick suggestions (onboarding)
+
+At the start of a new dialog, chips with example questions appear under the
+greeting ("Show my latest lab results", "How has my cholesterol changed over
+the last month?", etc.). Clicking a chip sends the question to the chat. The
+chips disappear after the first message and reappear when "New dialog" is pressed.
+
+## Roadmap (next steps)
+
+Implemented:
+
+- MVP with chat, photo/PDF/DOCX processing and a personal medical record (SQLite);
+- scientific article database with RAG search (ChromaDB) and the analytical report;
+- notes (AI takeaways) with PDF export;
+- health profiles and lab-retest reminders;
+- AI tools (function calling, read-only) over the active profile's data;
+- action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
+
+Possible next steps (not prioritized):
+
+- "Monthly summary" auto-digest — an LLM summary of marker dynamics over 30 days;
+- notifications for reminders on app startup;
+- data import/export;
+- mobile UI adaptation.
+
+## Structure
+
+```
+backend/app/
+  main.py            # FastAPI, serves the frontend
+  config.py          # settings from .env
+  routes/chat.py     # POST /api/chat (SSE streaming)
+  routes/documents.py# POST /api/documents/extract (photo/PDF/DOCX)
+  routes/records.py  # CRUD of the medical record (SQLite)
+  routes/articles.py # article upload/search (RAG)
+  routes/analysis.py # analytical report "labs ↔ articles"
+  routes/settings.py # Ollama model settings
+  routes/notes.py    # notes (AI takeaways on articles) + PDF export
+  routes/profiles.py # health profiles (CRUD + current profile)
+  routes/reminders.py# lab-retest reminders
+  services/llm.py    # Ollama / OpenAI client + function calling
+  services/tools.py  # AI tools (article search, medical record reads)
+  services/audit.py  # user action audit
+  services/document.py   # text extraction from PDF/DOCX + chunking
+  services/extractor.py  # LLM extraction of health markers into JSON
+  services/database.py   # SQLite: records, markers, articles, profiles, reminders
+  services/embeddings.py # embeddings via Ollama / OpenAI
+  services/articles_db.py# ChromaDB: article chunks and semantic search
+  services/settings_store.py # runtime model settings (data/settings.json)
+  services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
+frontend/
+  index.html         # chat UI, recognition panel, profiles, reminders
+  css/style.css
+  js/app.js          # response streaming, document uploads, voice input
+data/                # databases (SQLite, ChromaDB) — not in git
+```
+
+## Security
+
+- The app runs only locally.
+- Medical data in `data/` is excluded from git.
+- Do not use public Wi-Fi networks when working with lab results without encryption.
+
+## License
+
+Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
+
+The software, its source code and documentation are the exclusive property of
+the rights holder (Chernomurov Egor Mikhailovich). Copying, modification,
+distribution and commercial use without written permission are prohibited. See
+`LICENSE.txt` for details.
