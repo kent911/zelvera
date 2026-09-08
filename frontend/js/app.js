@@ -828,20 +828,83 @@ const TREND_KEYS = {
   single: "trend.single",
 };
 
-function sparklineSvg(points, w = 120, h = 40) {
+function fmtNum(v) {
+  if (v == null || !isFinite(v)) return "—";
+  const r = Math.round(v * 100) / 100;
+  return String(r);
+}
+
+function sparklineSvg(points, refLow, refHigh, w = 120, h = 40) {
   const vals = points.map((p) => p.value);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
+  let min = Math.min(...vals);
+  let max = Math.max(...vals);
+  const lo = refLow == null ? null : Number(refLow);
+  const hi = refHigh == null ? null : Number(refHigh);
+  if (lo != null) min = Math.min(min, lo);
+  if (hi != null) max = Math.max(max, hi);
+  const pad = (max - min) * 0.08 || 1;
+  min -= pad;
+  max += pad;
   const range = max - min || 1;
   const step = w / Math.max(vals.length - 1, 1);
+  const yOf = (v) => h - 4 - ((v - min) / range) * (h - 8);
+
+  let band = "";
+  const yLow = lo == null ? null : yOf(lo);
+  const yHigh = hi == null ? null : yOf(hi);
+  const line = (y) =>
+    `<line x1="0" x2="${w}" y1="${y}" y2="${y}" stroke="rgba(125,211,252,0.8)" stroke-width="1" stroke-dasharray="3,2"/>`;
+  if (yLow != null && yHigh != null) {
+    const top = Math.min(yLow, yHigh);
+    band =
+      `<rect x="0" y="${top}" width="${w}" height="${Math.abs(yHigh - yLow)}" fill="rgba(56,189,248,0.13)"/>` +
+      line(yHigh) + line(yLow);
+  } else if (yLow != null) {
+    band = line(yLow);
+  } else if (yHigh != null) {
+    band = line(yHigh);
+  }
+
   const coords = vals.map((v, i) => {
     const x = i * step;
-    const y = h - 4 - ((v - min) / range) * (h - 8);
+    const y = yOf(v);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="sparkline">
+    ${band}
     <polyline points="${coords.join(" ")}" fill="none" stroke="#38bdf8" stroke-width="2"/>
   </svg>`;
+}
+
+function trendBits(t) {
+  const bits = [];
+  const low = t.ref_low;
+  const high = t.ref_high;
+  const hasLow = low != null && isFinite(low);
+  const hasHigh = high != null && isFinite(high);
+  if (hasLow && hasHigh) {
+    bits.push(t("trend.refRange", { low: fmtNum(low), high: fmtNum(high) }));
+  } else if (hasHigh) {
+    bits.push(t("trend.refMax", { high: fmtNum(high) }));
+  } else if (hasLow) {
+    bits.push(t("trend.refMin", { low: fmtNum(low) }));
+  }
+  const points = t.points || [];
+  if (points.length >= 2) {
+    const prev = points[points.length - 2];
+    const cur = points[points.length - 1];
+    if (isFinite(prev.value) && isFinite(cur.value) && prev.value !== cur.value) {
+      const diff = cur.value - prev.value;
+      const sign = diff > 0 ? "+" : "";
+      let delta = sign + fmtNum(diff);
+      if (prev.value !== 0) {
+        const pct = (diff / prev.value) * 100;
+        delta += ` (${sign}${fmtNum(pct)}%)`;
+      }
+      bits.push(t("trend.deltaPrev", { date: prev.date, delta }));
+    }
+  }
+  return bits;
 }
 
 function renderTrends(trends) {
@@ -866,7 +929,7 @@ function renderTrends(trends) {
 
     const value = document.createElement("div");
     value.className = "trend-value";
-    value.textContent = String(t.latest);
+    value.textContent = fmtNum(t.latest);
 
     const meta = document.createElement("div");
     meta.className = "trend-meta";
@@ -874,8 +937,16 @@ function renderTrends(trends) {
     const lastDate = t.points[t.points.length - 1].date;
     meta.textContent = t("trend.measurements", { n: t.count, from: firstDate, to: lastDate });
 
-    card.append(head, value, meta);
-    card.insertAdjacentHTML("beforeend", sparklineSvg(t.points));
+    const bits = trendBits(t);
+    if (bits.length) {
+      const sub = document.createElement("div");
+      sub.className = "trend-meta trend-sub";
+      sub.textContent = bits.join(" · ");
+      card.append(head, value, meta, sub);
+    } else {
+      card.append(head, value, meta);
+    }
+    card.insertAdjacentHTML("beforeend", sparklineSvg(t.points, t.ref_low, t.ref_high));
     trendsEl.appendChild(card);
   }
 }

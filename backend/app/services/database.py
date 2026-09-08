@@ -383,13 +383,47 @@ def delete_note(note_id: int) -> bool:
         return cur.rowcount > 0
 
 
+def _parse_ref_range(text: Any) -> tuple[float | None, float | None]:
+    """Разбирает строку референса в числовые границы (нижняя, верхняя).
+
+    Поддерживает "a-b", "<x", ">x". Возвращает (low, high), где None — нет границы.
+    """
+    if text is None:
+        return None, None
+    s = str(text).replace(",", ".").replace("–", "-").replace("—", "-").strip()
+    if not s:
+        return None, None
+    m = re.match(r"^[<≤]\s*([0-9]+(?:\.[0-9]+)?)", s)
+    if m:
+        return None, float(m.group(1))
+    m = re.match(r"^[>≥]\s*([0-9]+(?:\.[0-9]+)?)", s)
+    if m:
+        return float(m.group(1)), None
+    nums = [float(x) for x in re.findall(r"[0-9]+(?:\.[0-9]+)?", s)]
+    if len(nums) >= 2:
+        low, high = min(nums[0], nums[-1]), max(nums[0], nums[-1])
+        return low, high
+    return None, None
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    if n % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2
+
+
 def marker_trends(profile_id: int | None = None) -> list[dict[str, Any]]:
     """Динамика каждого маркера по хронологии записей (только числовые значения)."""
     with get_conn() as conn:
         if profile_id is None:
             rows = conn.execute(
                 """
-                SELECT r.created_at AS date, m.name, m.value, m.unit
+                SELECT r.created_at AS date, m.name, m.value, m.unit, m.reference_range
                 FROM markers m
                 JOIN records r ON r.id = m.record_id
                 WHERE m.value IS NOT NULL
@@ -400,7 +434,7 @@ def marker_trends(profile_id: int | None = None) -> list[dict[str, Any]]:
         else:
             rows = conn.execute(
                 """
-                SELECT r.created_at AS date, m.name, m.value, m.unit
+                SELECT r.created_at AS date, m.name, m.value, m.unit, m.reference_range
                 FROM markers m
                 JOIN records r ON r.id = m.record_id
                 WHERE m.value IS NOT NULL
@@ -418,12 +452,21 @@ def marker_trends(profile_id: int | None = None) -> list[dict[str, Any]]:
             name, {"name": name, "unit": row["unit"] or "", "points": []}
         )
         group["points"].append({"date": row["date"], "value": row["value"]})
+        lows: list[float] = group.setdefault("_lows", [])
+        highs: list[float] = group.setdefault("_highs", [])
+        low, high = _parse_ref_range(row["reference_range"])
+        if low is not None:
+            lows.append(low)
+        if high is not None:
+            highs.append(high)
 
     trends: list[dict[str, Any]] = []
     for group in groups.values():
         points = group["points"]
         group["count"] = len(points)
         group["latest"] = points[-1]["value"]
+        group["ref_low"] = _median(group.pop("_lows", []))
+        group["ref_high"] = _median(group.pop("_highs", []))
         group["trend"] = "single"
         if len(points) >= 2:
             first = points[0]["value"]
