@@ -7,11 +7,17 @@ from typing import Any
 
 from fpdf import FPDF
 from fpdf.fonts import FontFace
+from PIL import Image
 
-from app.services import i18n
+from app.services import i18n, media_store
+from app.services.logger import logger
 
 FONT_PATH = Path(__file__).resolve().parents[2] / "fonts" / "DejaVuSans.ttf"
 FONT_BOLD_PATH = Path(__file__).resolve().parents[2] / "fonts" / "DejaVuSans-Bold.ttf"
+
+PHOTO_MAX_W = 90.0
+PHOTO_MAX_H = 65.0
+PAGE_BOTTOM_MARGIN = 14.0
 
 
 def _fmt_value(marker: dict[str, Any]) -> str:
@@ -24,6 +30,47 @@ def _fmt_value(marker: dict[str, Any]) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
+
+
+def _embed_photo(pdf: FPDF, rec: dict[str, Any]) -> None:
+    """Встраивает оригинал фото анализа в PDF (миниатюра, по центру)."""
+    name = rec.get("image_path")
+    if not name:
+        return
+    path = media_store.path_for(name)
+    if not path.is_file():
+        return
+    try:
+        with Image.open(path) as img:
+            width_px, height_px = img.size
+            buf = BytesIO()
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            img.save(buf, format="JPEG", quality=88)
+            buf.seek(0)
+    except OSError:
+        logger.warning("Не удалось открыть оригинал анализа для PDF: %s", name)
+        return
+    if width_px <= 0 or height_px <= 0:
+        return
+
+    ratio = height_px / width_px
+    disp_w = min(PHOTO_MAX_W, pdf.epw)
+    disp_h = disp_w * ratio
+    if disp_h > PHOTO_MAX_H:
+        disp_h = PHOTO_MAX_H
+        disp_w = disp_h / ratio
+
+    if pdf.get_y() + disp_h > pdf.h - PAGE_BOTTOM_MARGIN - 6:
+        pdf.add_page()
+
+    pdf.set_font("DejaVu", "", 8)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 5, i18n.t("pdf.original_image"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    x = (pdf.w - disp_w) / 2
+    pdf.image(buf, x=x, y=pdf.get_y(), w=disp_w, h=disp_h)
+    pdf.set_y(pdf.get_y() + disp_h)
 
 
 def export_card_pdf(records: list[dict[str, Any]]) -> bytes:
@@ -67,44 +114,46 @@ def export_card_pdf(records: list[dict[str, Any]]) -> bytes:
             pdf.ln(1)
 
         markers = rec.get("markers") or []
-        if not markers:
+        if markers:
+            with pdf.table(
+                col_widths=(62, 24, 18, 50, 26),
+                text_align="LEFT",
+                padding=1,
+                line_height=5,
+            ) as table:
+                header = table.row()
+                for text in (
+                    i18n.t("pdf.h_col_name"),
+                    i18n.t("pdf.h_col_value"),
+                    i18n.t("pdf.h_col_unit"),
+                    i18n.t("pdf.h_col_ref"),
+                    i18n.t("pdf.h_col_status"),
+                ):
+                    header.cell(text)
+
+                for m in markers:
+                    row = table.row()
+                    row.cell(m.get("name") or "—")
+                    row.cell(_fmt_value(m))
+                    row.cell(m.get("unit") or "")
+                    row.cell(m.get("reference_range") or "—")
+                    status = m.get("status") or "unknown"
+                    status_text = status_labels.get(status, "")
+                    face = None
+                    if status == "normal":
+                        face = FontFace(fill_color=(210, 235, 210))
+                    elif status in ("elevated", "low"):
+                        face = FontFace(fill_color=(245, 220, 210))
+                    row.cell(status_text, style=face)
+            pdf.ln(4)
+        else:
             pdf.set_font("DejaVu", "", 9)
             pdf.set_text_color(120, 120, 120)
             pdf.cell(0, 5, i18n.t("pdf.no_markers"), new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(0, 0, 0)
             pdf.ln(3)
-            continue
 
-        with pdf.table(
-            col_widths=(62, 24, 18, 50, 26),
-            text_align="LEFT",
-            padding=1,
-            line_height=5,
-        ) as table:
-            header = table.row()
-            for text in (
-                i18n.t("pdf.h_col_name"),
-                i18n.t("pdf.h_col_value"),
-                i18n.t("pdf.h_col_unit"),
-                i18n.t("pdf.h_col_ref"),
-                i18n.t("pdf.h_col_status"),
-            ):
-                header.cell(text)
-
-            for m in markers:
-                row = table.row()
-                row.cell(m.get("name") or "—")
-                row.cell(_fmt_value(m))
-                row.cell(m.get("unit") or "")
-                row.cell(m.get("reference_range") or "—")
-                status = m.get("status") or "unknown"
-                status_text = status_labels.get(status, "")
-                face = None
-                if status == "normal":
-                    face = FontFace(fill_color=(210, 235, 210))
-                elif status in ("elevated", "low"):
-                    face = FontFace(fill_color=(245, 220, 210))
-                row.cell(status_text, style=face)
+        _embed_photo(pdf, rec)
         pdf.ln(4)
 
     buf = BytesIO()
