@@ -197,9 +197,16 @@ def create_record(
     date: str | None = None,
     profile_id: int | None = None,
 ) -> dict[str, Any]:
+    from app.services import marker_catalog
     from app.services.validation import annotate_markers
 
     created_at = _normalize_date(date) or datetime.now().strftime("%Y-%m-%d %H:%M")
+    markers = [
+        {**m, "name": marker_catalog.canonical_name(str(m.get("name", "")))}
+        if isinstance(m, dict) and (m.get("name") or "").strip()
+        else m
+        for m in (markers or [])
+    ]
     annotated = annotate_markers(markers)
     with get_conn() as conn:
         cur = conn.execute(
@@ -445,11 +452,16 @@ def marker_trends(profile_id: int | None = None) -> list[dict[str, Any]]:
                 (profile_id,),
             ).fetchall()
 
+    from app.services import marker_catalog
+
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
         name = row["name"]
+        entry = marker_catalog.entry_for(name)
+        key = entry["key"] if entry else name
+        label = entry["name"] if entry else " ".join(name.split())
         group = groups.setdefault(
-            name, {"name": name, "unit": row["unit"] or "", "points": []}
+            key, {"name": label, "unit": row["unit"] or "", "points": []}
         )
         group["points"].append({"date": row["date"], "value": row["value"]})
         lows: list[float] = group.setdefault("_lows", [])
@@ -601,26 +613,37 @@ def _update_reminders(
     markers: list[dict[str, Any]], created_at: str, profile_id: int | None
 ) -> None:
     """Обновляет last_reported у напоминаний, когда появляется новый показатель."""
+    from app.services import marker_catalog
+
     if not markers:
         return
-    names = [str(m.get("name", "")).strip() for m in markers if m.get("name")]
-    if not names:
+    keys = {
+        marker_catalog.canonical_key(str(m.get("name", "")))
+        for m in markers
+        if m.get("name")
+    }
+    keys.discard(None)
+    if not keys:
         return
     with get_conn() as conn:
-        for name in names:
-            if profile_id is None:
-                conn.execute(
-                    "UPDATE reminders SET last_reported = ? WHERE marker_name = ? "
-                    "AND (last_reported IS NULL OR last_reported < ?)",
-                    (created_at, name, created_at),
-                )
-            else:
-                conn.execute(
-                    "UPDATE reminders SET last_reported = ? WHERE marker_name = ? "
-                    "AND profile_id = ? "
-                    "AND (last_reported IS NULL OR last_reported < ?)",
-                    (created_at, name, profile_id, created_at),
-                )
+        if profile_id is None:
+            rows = conn.execute(
+                "SELECT id, marker_name FROM reminders"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, marker_name FROM reminders WHERE profile_id = ?",
+                (profile_id,),
+            ).fetchall()
+        for row in rows:
+            rkey = marker_catalog.canonical_key(row["marker_name"])
+            if rkey not in keys:
+                continue
+            conn.execute(
+                "UPDATE reminders SET last_reported = ? "
+                "WHERE id = ? AND (last_reported IS NULL OR last_reported < ?)",
+                (created_at, row["id"], created_at),
+            )
 
 
 def create_reminder(

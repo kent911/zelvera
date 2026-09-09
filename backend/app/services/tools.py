@@ -3,7 +3,18 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.services import articles_db, audit, critical, database, embeddings, i18n, kiwix, norms, settings_store
+from app.services import (
+    articles_db,
+    audit,
+    critical,
+    database,
+    embeddings,
+    i18n,
+    kiwix,
+    marker_catalog,
+    norms,
+    settings_store,
+)
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -315,9 +326,14 @@ def get_medical_card(days: int | None = None) -> str:
         except KeyError:
             continue
         for m in full.get("markers", []):
-            name = (m.get("name") or "").strip()
-            if name and name not in seen:
-                seen[name] = m
+            raw = (m.get("name") or "").strip()
+            if not raw:
+                continue
+            entry = marker_catalog.entry_for(raw)
+            key = entry["key"] if entry else raw
+            if key in seen:
+                continue
+            seen[key] = {**m, "name": entry["name"] if entry else raw}
     if not seen:
         return i18n.t("tool.no_markers")
     lines: list[str] = []
@@ -392,21 +408,30 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
             return i18n.t("tool.no_records_days", days=days)
         return i18n.t("tool.card_empty")
     groups: dict[str, list[tuple[str, Any]]] = {}
+    filter_key = marker_catalog.canonical_key(marker) if marker else None
+    filter_text = (marker or "").lower()
     for rec in records:
         try:
             full = database.get_record(rec["id"])
         except KeyError:
             continue
         for m in full.get("markers", []):
-            name = (m.get("name") or "").strip()
-            if not name:
+            raw = (m.get("name") or "").strip()
+            if not raw:
                 continue
-            if marker and marker.lower() not in name.lower():
-                continue
+            entry = marker_catalog.entry_for(raw)
+            key = entry["key"] if entry else raw
+            label = entry["name"] if entry else raw
+            if marker:
+                if filter_key:
+                    if key != filter_key and filter_text not in raw.lower():
+                        continue
+                elif filter_text not in raw.lower():
+                    continue
             value = m.get("value")
             if value is None:
                 continue
-            groups.setdefault(name, []).append((full.get("created_at", ""), value))
+            groups.setdefault(label, []).append((full.get("created_at", ""), value))
     if not groups:
         if marker:
             return i18n.t("tool.marker_not_found", marker=marker)

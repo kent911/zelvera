@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError, BaseModel, field_validator
 
-from app.services import audit, critical, database, i18n, media_store, validation
+from app.services import audit, critical, database, i18n, marker_catalog, media_store, validation
 from app.services.logger import logger
 from app.services.pdf_export import export_card_pdf
 
@@ -104,6 +104,12 @@ def _save_result(rec: RecordIn, profile_id: int | None) -> dict[str, Any]:
         date=rec.date,
         profile_id=profile_id,
     )
+
+
+@router.get("/markers/catalog")
+def markers_catalog() -> list[dict[str, Any]]:
+    """Канонический справочник лабораторных показателей (имена, категории)."""
+    return marker_catalog.list_catalog()
 
 
 @router.get("/records/trends")
