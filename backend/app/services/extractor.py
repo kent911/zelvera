@@ -90,7 +90,7 @@ async def _grounding_snippets(
     пустым спискам — вызывающий код тогда пропускает уточнение и оставляет
     исходный разбор.
     """
-    from app.services import kiwix
+    from app.services import kiwix, wiki_lookup
 
     empty: tuple[list[str], list[dict[str, Any]]] = ([], [])
     base = kiwix.get_base_url()
@@ -108,28 +108,17 @@ async def _grounding_snippets(
     sources: list[dict[str, Any]] = []
     for name in names[:UNKNOWN_LOOKUP_CAP]:
         try:
-            hits = await kiwix.search(name, zim, page_length=3)
-            if not hits:
+            info = await wiki_lookup.lookup_marker(name, zim)
+            if not info:
                 continue
-            top = hits[0]
-            article = ""
-            href = top.get("href") or ""
-            if href:
-                try:
-                    article = await kiwix.get_article(zim, href)
-                except Exception:  # noqa: BLE001
-                    article = ""
-            snippet = top.get("snippet") or ""
-            text = " ".join((snippet + "\n" + article).split())
-            if not text:
-                continue
-            title = top.get("title") or name
-            blocks.append(f"[{name}] {title}: {text[:SNIPPET_BUDGET]}")
+            blocks.append(
+                f"[{name}] {info['title']}: {info['snippet'][:SNIPPET_BUDGET]}"
+            )
             sources.append(
                 {
                     "marker": name,
-                    "title": title,
-                    "url": f"{base}/viewer#content/{zim}{href}" if href else "",
+                    "title": info["title"],
+                    "url": info.get("url", ""),
                 }
             )
         except Exception:  # noqa: BLE001

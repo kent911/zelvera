@@ -67,6 +67,11 @@ CREATE TABLE IF NOT EXISTS reminders (
     last_reported TEXT,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS wiki_cache (
+    key TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 

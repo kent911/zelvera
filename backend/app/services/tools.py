@@ -237,33 +237,20 @@ async def _wiki_grounding(markers: list[str]) -> str:
     if not zim:
         return ""
 
+    from app.services import wiki_lookup
+
     items: list[str] = []
     for name in names[:GROUNDING_MARKER_CAP]:
         try:
-            hits = await asyncio.wait_for(
-                kiwix.search(name, zim, page_length=3), timeout=GROUNDING_TIMEOUT
-            )
-            if not hits:
-                continue
-            top = hits[0]
-            href = top.get("href") or ""
-            article = ""
-            if href:
-                try:
-                    article = await asyncio.wait_for(
-                        kiwix.get_article(zim, href), timeout=GROUNDING_TIMEOUT
-                    )
-                except Exception:  # noqa: BLE001
-                    article = ""
-            text = " ".join(((top.get("snippet") or "") + " " + article).split())
-            if not text:
+            info = await wiki_lookup.lookup_marker(name, zim)
+            if not info:
                 continue
             items.append(
                 i18n.t(
                     "tool.wiki_item",
                     marker=name,
-                    title=top.get("title") or name,
-                    snippet=text[:GROUNDING_SNIPPET_BUDGET],
+                    title=info["title"],
+                    snippet=info["snippet"][:GROUNDING_SNIPPET_BUDGET],
                 )
             )
         except Exception:  # noqa: BLE001
