@@ -80,26 +80,32 @@ def _unknown_marker_names(markers: list[dict[str, Any]]) -> list[str]:
     return unknown
 
 
-async def _grounding_snippets(names: list[str]) -> list[str]:
+async def _grounding_snippets(
+    names: list[str],
+) -> tuple[list[str], list[dict[str, Any]]]:
     """Ищет справку по показателям в офлайн-Википедии (Kiwix).
 
-    Возвращает блоки текста «показатель → статья». Любые сбои (нет Kiwix,
-    нет сети/таймаут, ничего не найдено) приводят к пустому списку — вызывающий
-    код тогда пропускает уточнение и оставляет исходный разбор.
+    Возвращает (блоки текста «показатель → статья», источники для UI).
+    Любые сбои (нет Kiwix, нет сети/таймаут, ничего не найдено) приводят к
+    пустым спискам — вызывающий код тогда пропускает уточнение и оставляет
+    исходный разбор.
     """
     from app.services import kiwix
 
-    if not kiwix.get_base_url():
-        return []
+    empty: tuple[list[str], list[dict[str, Any]]] = ([], [])
+    base = kiwix.get_base_url()
+    if not base:
+        return empty
     try:
         zim = await kiwix.resolve_zim()
     except Exception:  # noqa: BLE001 — справка не должна ломать разбор анализов
         log.info("Kiwix недоступен — уточнение новых показателей пропущено")
-        return []
+        return empty
     if not zim:
-        return []
+        return empty
 
     blocks: list[str] = []
+    sources: list[dict[str, Any]] = []
     for name in names[:UNKNOWN_LOOKUP_CAP]:
         try:
             hits = await kiwix.search(name, zim, page_length=3)
@@ -117,10 +123,18 @@ async def _grounding_snippets(names: list[str]) -> list[str]:
             text = " ".join((snippet + "\n" + article).split())
             if not text:
                 continue
-            blocks.append(f"[{name}] {top.get('title')}: {text[:SNIPPET_BUDGET]}")
+            title = top.get("title") or name
+            blocks.append(f"[{name}] {title}: {text[:SNIPPET_BUDGET]}")
+            sources.append(
+                {
+                    "marker": name,
+                    "title": title,
+                    "url": f"{base}/viewer#content/{zim}{href}" if href else "",
+                }
+            )
         except Exception:  # noqa: BLE001
             continue
-    return blocks
+    return blocks, sources
 
 
 def _merge_refined(original: dict[str, Any], refined: dict[str, Any]) -> dict[str, Any]:
@@ -140,7 +154,7 @@ async def _grounded_refine(data: dict[str, Any]) -> dict[str, Any]:
         return data
 
     try:
-        snippets = await asyncio.wait_for(
+        snippets, sources = await asyncio.wait_for(
             _grounding_snippets(unknown), timeout=GROUNDING_TIMEOUT
         )
     except Exception:  # noqa: BLE001 — в т.ч. таймаут: уточнение опционально
@@ -157,7 +171,9 @@ async def _grounded_refine(data: dict[str, Any]) -> dict[str, Any]:
     )
     try:
         raw = await llm.complete([{"role": "user", "content": prompt}])
-        return _merge_refined(data, _normalize(_extract_json(raw)))
+        result = _merge_refined(data, _normalize(_extract_json(raw)))
+        result["wiki_sources"] = sources
+        return result
     except Exception as exc:  # noqa: BLE001 — уточнение опционально
         log.info("Уточнение через Википедию не удалось (%s); оставлен исходный разбор", exc)
         return data

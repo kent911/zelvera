@@ -1936,7 +1936,42 @@ function renderExtractResult(data) {
   closeBtn.addEventListener("click", hideExtractPanel);
   actions.append(addBtn, closeBtn);
 
-  extractResult.append(summary, table, raw, actions);
+  const sources = data.wiki_sources || [];
+  let wikiBlock = null;
+  if (sources.length) {
+    wikiBlock = document.createElement("div");
+    wikiBlock.className = "wiki-sources";
+    const wikiTitle = document.createElement("div");
+    wikiTitle.className = "wiki-sources-title";
+    wikiTitle.textContent = t("extract.wikiTitle");
+    const wikiNote = document.createElement("div");
+    wikiNote.className = "wiki-sources-note";
+    wikiNote.textContent = t("extract.wikiNote");
+    const wikiList = document.createElement("ul");
+    for (const s of sources) {
+      const li = document.createElement("li");
+      const marker = document.createElement("span");
+      marker.className = "wiki-sources-marker";
+      marker.textContent = s.marker || "";
+      li.append(marker, document.createTextNode(" — "));
+      if (s.url) {
+        const link = document.createElement("a");
+        link.href = s.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = s.title || s.marker || "";
+        li.appendChild(link);
+      } else {
+        li.appendChild(document.createTextNode(s.title || s.marker || ""));
+      }
+      wikiList.appendChild(li);
+    }
+    wikiBlock.append(wikiTitle, wikiNote, wikiList);
+  }
+
+  extractResult.append(summary, table);
+  if (wikiBlock) extractResult.appendChild(wikiBlock);
+  extractResult.append(raw, actions);
   setStatus(t("extract.found", { n: markers.length }));
 }
 

@@ -1006,6 +1006,46 @@ tr.marker-suspect-row td {
   gap: 8px;
 }
 
+.wiki-sources {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg-main);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.wiki-sources-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.wiki-sources-note {
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.wiki-sources ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+}
+
+.wiki-sources li {
+  margin-bottom: 2px;
+}
+
+.wiki-sources-marker {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.wiki-sources a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .primary-btn {
   background: var(--accent);
   border: none;
