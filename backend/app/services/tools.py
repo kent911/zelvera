@@ -204,6 +204,75 @@ def _filter_by_days(
     ]
 
 
+GROUNDING_MARKER_CAP = 3          # максимум показателей со справкой за раз
+GROUNDING_SNIPPET_BUDGET = 500    # символов справки на показатель
+GROUNDING_TIMEOUT = 15.0          # лимит на один запрос к Kiwix, сек
+
+
+def _is_unknown_marker(name: str) -> bool:
+    return marker_catalog.canonical_key(name) is None
+
+
+async def _wiki_grounding(markers: list[str]) -> str:
+    """Справка из офлайн-Википедии по показателям, которых нет в каталоге.
+
+    Возвращает текстовый блок для модели (или пустую строку). Любые сбои
+    Kiwix/сети/таймаута не должны ломать ответ по мед. карте.
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in markers:
+        name = " ".join(str(raw or "").split())
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        if _is_unknown_marker(name):
+            names.append(name)
+    if not names or not kiwix.get_base_url():
+        return ""
+    try:
+        zim = await asyncio.wait_for(kiwix.resolve_zim(), timeout=GROUNDING_TIMEOUT)
+    except Exception:  # noqa: BLE001 — справка опциональна
+        return ""
+    if not zim:
+        return ""
+
+    items: list[str] = []
+    for name in names[:GROUNDING_MARKER_CAP]:
+        try:
+            hits = await asyncio.wait_for(
+                kiwix.search(name, zim, page_length=3), timeout=GROUNDING_TIMEOUT
+            )
+            if not hits:
+                continue
+            top = hits[0]
+            href = top.get("href") or ""
+            article = ""
+            if href:
+                try:
+                    article = await asyncio.wait_for(
+                        kiwix.get_article(zim, href), timeout=GROUNDING_TIMEOUT
+                    )
+                except Exception:  # noqa: BLE001
+                    article = ""
+            text = " ".join(((top.get("snippet") or "") + " " + article).split())
+            if not text:
+                continue
+            items.append(
+                i18n.t(
+                    "tool.wiki_item",
+                    marker=name,
+                    title=top.get("title") or name,
+                    snippet=text[:GROUNDING_SNIPPET_BUDGET],
+                )
+            )
+        except Exception:  # noqa: BLE001
+            continue
+    if not items:
+        return ""
+    return "\n\n" + i18n.t("tool.wiki_header") + "\n" + "\n".join(items)
+
+
 async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
     args = arguments or {}
     audit.log_tool_call(name, args)
@@ -221,18 +290,16 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
         if name == "list_articles":
             return await asyncio.to_thread(list_articles)
         if name == "get_medical_card":
-            return await asyncio.to_thread(
-                get_medical_card, int(args.get("days")) if args.get("days") else None
+            return await get_medical_card(
+                int(args.get("days")) if args.get("days") else None
             )
         if name == "get_marker_trends":
-            return await asyncio.to_thread(
-                get_marker_trends,
+            return await get_marker_trends(
                 str(args.get("marker", "")) or None,
                 int(args.get("days")) if args.get("days") else None,
             )
         if name == "check_marker_norm":
-            return await asyncio.to_thread(
-                check_marker_norm,
+            return await check_marker_norm(
                 str(args.get("marker", "")),
                 args.get("value"),
                 str(args.get("unit", "") or ""),
@@ -312,7 +379,7 @@ def save_analysis_to_card(markers: list[Any], date: str | None = None) -> str:
     return i18n.t("tool.save_analysis_to_card.ok", names=names)
 
 
-def get_medical_card(days: int | None = None) -> str:
+async def get_medical_card(days: int | None = None) -> str:
     records = database.list_records(_current_profile_id())
     records = _filter_by_days(records, days)
     if not records:
@@ -320,6 +387,7 @@ def get_medical_card(days: int | None = None) -> str:
             return i18n.t("tool.no_records_days", days=days)
         return i18n.t("tool.card_empty")
     seen: dict[str, dict[str, Any]] = {}
+    unknown: list[str] = []
     for rec in records:
         try:
             full = database.get_record(rec["id"])
@@ -330,6 +398,8 @@ def get_medical_card(days: int | None = None) -> str:
             if not raw:
                 continue
             entry = marker_catalog.entry_for(raw)
+            if entry is None:
+                unknown.append(raw)
             key = entry["key"] if entry else raw
             if key in seen:
                 continue
@@ -396,11 +466,11 @@ def get_medical_card(days: int | None = None) -> str:
         )
     body = "\n".join(lines)
     if header:
-        return "\n\n" + "\n\n".join(header) + "\n\n---\n" + body
-    return body
+        body = "\n\n" + "\n\n".join(header) + "\n\n---\n" + body
+    return body + await _wiki_grounding(unknown)
 
 
-def get_marker_trends(marker: str | None = None, days: int | None = None) -> str:
+async def get_marker_trends(marker: str | None = None, days: int | None = None) -> str:
     records = database.list_records(_current_profile_id())
     records = _filter_by_days(records, days)
     if not records:
@@ -408,6 +478,7 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
             return i18n.t("tool.no_records_days", days=days)
         return i18n.t("tool.card_empty")
     groups: dict[str, list[tuple[str, Any]]] = {}
+    unknown: list[str] = []
     filter_key = marker_catalog.canonical_key(marker) if marker else None
     filter_text = (marker or "").lower()
     for rec in records:
@@ -420,6 +491,8 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
             if not raw:
                 continue
             entry = marker_catalog.entry_for(raw)
+            if entry is None:
+                unknown.append(raw)
             key = entry["key"] if entry else raw
             label = entry["name"] if entry else raw
             if marker:
@@ -434,7 +507,9 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
             groups.setdefault(label, []).append((full.get("created_at", ""), value))
     if not groups:
         if marker:
-            return i18n.t("tool.marker_not_found", marker=marker)
+            return i18n.t("tool.marker_not_found", marker=marker) + await _wiki_grounding(
+                [marker]
+            )
         return i18n.t("tool.no_numeric_markers")
     lines: list[str] = []
     for name in sorted(groups):
@@ -455,10 +530,10 @@ def get_marker_trends(marker: str | None = None, days: int | None = None) -> str
         lines.append(
             i18n.t("tool.trend_line", name=name, series=series, n=len(pts), trend=trend)
         )
-    return "\n".join(lines)
+    return "\n".join(lines) + await _wiki_grounding(unknown)
 
 
-def check_marker_norm(
+async def check_marker_norm(
     marker: str,
     value: Any,
     unit: str = "",
@@ -480,7 +555,7 @@ def check_marker_norm(
                 age = None
     result = norms.check_norm(marker, value, unit, sex, age)
     if result is None:
-        return i18n.t("norm.not_found", marker=marker)
+        return i18n.t("norm.not_found", marker=marker) + await _wiki_grounding([marker])
     if result["value"] is None:
         return i18n.t("norm.not_numeric", value=result["raw"])
     head = f"{result['label']}: {result['raw']} {result['unit']}".strip()
