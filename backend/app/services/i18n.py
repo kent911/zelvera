@@ -313,6 +313,32 @@ RU = {
 Текст анализов:
 \"\"\"{text}\"\"\"
 """,
+    "extraction_grounded_prompt": """Ты — медицинский анализатор лабораторных анализов. Ты уже извлёк показатели из бланка, но часть названий показателей для тебя новая или неоднозначная. Чтобы вывод был объективным, ниже дана справка из Википедии по этим показателям.
+
+С опорой на Википедию уточни такие показатели: приведи названия к общепринятому виду, проверь единицы измерения и референсный диапазон. Остальные показатели не меняй. Значения из бланка не выдумывай и не искажай. Если справка не помогла или не относится к показателю — оставь показатель как был.
+
+Извлечённые ранее показатели (JSON):
+{markers_json}
+
+Справка из Википедии:
+{snippets}
+
+Верни ТОЛЬКО валидный JSON без пояснений, в формате:
+{{
+  "date": "ГГГГ-ММ-ДД" | null,
+  "markers": [
+    {{
+      "name": "Гемоглобин",
+      "value": 145,
+      "unit": "г/л",
+      "reference_range": "120-160",
+      "status": "normal" | "high" | "low" | "unknown",
+      "raw_text": "Гемоглобин 145 г/л"
+    }}
+  ],
+  "summary": "Итоговое резюме на русском: что в норме, что отклонено, на что обратить внимание с учётом уточнённых показателей."
+}}
+""",
     "analysis_system": """Ты — медицинский аналитик. Ты помогаешь человеку понимать
 его анализы в контексте научных данных. Ты НЕ врач и НЕ ставишь диагнозы,
 НЕ назначаешь лечение. Подчёркивай, что информация носит ознакомительный
@@ -642,6 +668,32 @@ Format:
 
 Lab results text:
 \"\"\"{text}\"\"\"
+""",
+    "extraction_grounded_prompt": """You are a medical lab results analyzer. You already extracted markers from the form, but some of the marker names are new or ambiguous to you. To make the conclusion objective, below is reference information from Wikipedia about these markers.
+
+Using Wikipedia, refine such markers: bring their names to the commonly accepted form, verify the units and the reference range. Do not change the other markers. Do not invent or distort values from the form. If the reference does not help or is irrelevant, keep the marker as it was.
+
+Previously extracted markers (JSON):
+{markers_json}
+
+Reference from Wikipedia:
+{snippets}
+
+Return ONLY valid JSON without explanations, in the format:
+{{
+  "date": "YYYY-MM-DD" | null,
+  "markers": [
+    {{
+      "name": "Hemoglobin",
+      "value": 145,
+      "unit": "g/L",
+      "reference_range": "120-160",
+      "status": "normal" | "high" | "low" | "unknown",
+      "raw_text": "Hemoglobin 145 g/L"
+    }}
+  ],
+  "summary": "A final summary in English: what is normal, what is deviated, what to look at considering the refined markers."
+}}
 """,
     "analysis_system": """You are a medical analyst. You help a person understand
 their lab results in the context of scientific data. You are NOT a doctor,
