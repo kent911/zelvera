@@ -83,6 +83,16 @@ on `windows-latest`, verifies that `Zelvera.exe` exists and uploads the
 `Zelvera-windows` artifact — runs on push/PR or manually
 (workflow_dispatch).
 
+A separate workflow `.github/workflows/tests.yml` on `ubuntu-latest` runs
+`pytest` (folder `backend/tests`): marker catalog, reference norms, Wikipedia
+help cache and grounding, marker extraction. Locally:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
 ## Using an OpenAI-compatible API (optional)
 
 In `backend/.env` set:
@@ -160,6 +170,10 @@ The "Lab photo" and "Document (PDF/DOCX)" buttons in the chat:
 - **PDF/DOCX**: text is extracted locally (PyMuPDF / python-docx), form tables are read row by row.
 - Then the LLM extracts health markers into JSON: `{name, value, unit, reference_range, status}`.
 - The result is shown as a table in the UI; the "Ask AI" button sends the parse into the chat.
+- If a marker name is not found in the catalog (new/unfamiliar/garbled
+  marker), the app looks it up in the offline Wikipedia (Kiwix) and refines
+  the parse; a "Refined via Wikipedia" block with article links appears under
+  the table. If Kiwix is unavailable, the original parse is kept.
 
 Photo recognition requires a vision model in Ollama:
 
@@ -189,7 +203,32 @@ Some markers have critical thresholds (for example, hemoglobin below
 - in the record list a "⚠ N crit." badge appears;
 - the `get_medical_card` AI tool prints a "WARNING: CRITICAL deviations that
   require immediate medical attention" block at the start of a reply;
-- the thresholds and synonyms database lives in `backend/app/services/critical.py`.
+- the thresholds and synonyms database lives in `backend/app/services/critical.py`,
+  while canonical marker names and synonyms live in
+  `backend/app/services/marker_catalog.py`.
+
+## Marker catalog and Wikipedia help
+
+The single marker catalog (`backend/app/services/marker_catalog.py`) contains
+51 markers, 16 categories and 242 synonyms (Russian/English names and
+abbreviations). It is used everywhere a marker name needs to be matched:
+
+- name normalization when writing to the medical card ("Hb", "HGB" and
+  "Hemoglobin" are the same);
+- grouping dynamics in trends and labels in alarms/reminders;
+- the `GET /api/markers/catalog` API — the full list for the UI.
+
+If a marker is missing from the catalog, the app queries the offline Wikipedia
+through Kiwix and caches the found help in the `wiki_cache` table (SQLite) for
+7 days — including the negative "not found" result, to avoid repeating the
+search. The help is used:
+
+- when parsing documents (an extra LLM pass + a sources block in the UI);
+- in the `get_medical_card`, `get_marker_trends` and `check_marker_norm` chat
+  tools — the model gets help for unfamiliar markers.
+
+Any Kiwix, network or timeout failure does not affect the main answer: the help
+is simply omitted.
 
 ## Ollama settings menu
 
@@ -252,7 +291,17 @@ The chat supports tool calls (read-only, no writes to the database):
 - `get_medical_card(days)` — current markers from the active profile's
   medical record (optionally — for the last N days);
 - `get_marker_trends(marker, days)` — marker dynamics over dates,
-  number of measurements and trend direction.
+  number of measurements and trend direction;
+- `check_marker_norm(marker, value, unit, sex, age)` — checks a value against
+  the reference-norms reference (sex- and age-aware);
+- `save_analysis_to_card(markers, date)` — saves discussed markers to the
+  medical card as a single record;
+- `search_wikipedia(query, limit)` and `list_kiwix_books()` — search in the
+  offline Wikipedia (Kiwix).
+
+The record-reading tools (`get_medical_card`, `get_marker_trends`,
+`check_marker_norm`) automatically add Wikipedia help for markers missing from
+the catalog (see the section above).
 
 Tools work with the single health profile: edit the profile in the header
 (pencil button) and the AI will answer based on that profile's data.
@@ -322,6 +371,8 @@ Implemented:
 - notes (AI takeaways) with PDF export;
 - health profiles and lab-retest reminders;
 - AI tools (function calling, read-only) over the active profile's data;
+- marker catalog with name normalization, parse refinement and chat help via
+  the offline Wikipedia (with caching), pytest tests in CI;
 - action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
 
 Possible next steps (not prioritized):
@@ -351,11 +402,18 @@ backend/app/
   services/audit.py  # user action audit
   services/document.py   # text extraction from PDF/DOCX + chunking
   services/extractor.py  # LLM extraction of health markers into JSON
+  services/marker_catalog.py # marker catalog: categories and synonyms
+  services/critical.py   # critical marker thresholds (alarms)
+  services/norms.py      # reference-norms reference (sex/age)
+  services/kiwix.py      # offline Wikipedia (Kiwix) client
+  services/wiki_lookup.py# Wikipedia help for a marker + SQLite cache
+  services/i18n.py       # RU/EN localization
   services/database.py   # SQLite: records, markers, articles, profiles, reminders
   services/embeddings.py # embeddings via Ollama / OpenAI
   services/articles_db.py# ChromaDB: article chunks and semantic search
   services/settings_store.py # runtime model settings (data/settings.json)
   services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
+backend/tests/         # pytest: catalog, norms, cache/grounding, extraction
 frontend/
   index.html         # chat UI, recognition panel, profiles, reminders
   css/style.css
