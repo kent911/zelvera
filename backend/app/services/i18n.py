@@ -286,15 +286,23 @@ RU = {
 - date: приведи к формату ГГГГ-ММ-ДД. Если даты нет или она не читается, ставь null.
 - Если значение не распознано, ставь value = null.
 - status: high — выше нормы, low — ниже нормы, normal — в норме, unknown — норма неизвестна.
+- Ниже список известных показателей (канонические названия и их синонимы/аббревиатуры).
+  Если название в бланке — синоним или аббревиатура показателя из списка,
+  используй его каноническое название из списка.
+- Если показателя в списке нет — оставь название ровно как в бланке,
+  не подменяй его похожим.
 - Игнорируй заголовки, логотипы и служебные строки без показателей.
 - Не выдумывай данные, которых нет в тексте.
+
+Известные показатели:
+{catalog}
 
 Текст анализов:
 \"\"\"{text}\"\"\"
 """,
     "extraction_retry_prompt": """Ты — медицинский анализатор лабораторных анализов. Ниже дан распознанный текст бланка. Извлеки из него медицинские показатели и дату анализа.
 
-ПРЕДЫДУЩИЙ ТВОЙ ОТВЕТ НЕ БЫЛ ВАЛИДНЫМ JSON. Теперь верни СТРОГО ОДИН JSON-объект и НИЧЕГО больше: без пояснений, без markdown (```), без текста до '{' и после '}'. Начинай ответ с '{' и заканчивай '}'.
+ПРЕДЫДУЩИЙ ТВОЙ ОТВЕТ НЕ БЫЛ ВАЛИДНЫМ JSON. Теперь верни СТРОГО ОДИН JSON-объект и НИЧЕГО больше: без пояснений, без markdown (```), без текста до '{{' и после '}}'. Начинай ответ с '{{' и заканчивай '}}'.
 
 Формат:
 {{
@@ -311,6 +319,11 @@ RU = {
   ],
   "summary": "Краткое резюме на русском: что в норме, что отклонено."
 }}
+
+Список известных показателей (если название в бланке — синоним или
+аббревиатура из списка, используй каноническое название; если показателя
+в списке нет — оставь название ровно как в бланке):
+{catalog}
 
 Текст анализов:
 \"\"\"{text}\"\"\"
@@ -644,15 +657,23 @@ Rules:
 - date: convert to YYYY-MM-DD format. If the date is absent or unreadable, set null.
 - If a value is not recognized, set value = null.
 - status: high — above normal, low — below normal, normal — in range, unknown — normal unknown.
+- Below is a list of known markers (canonical names and their synonyms/abbreviations).
+  If the name in the form is a synonym or abbreviation of a marker from the list,
+  use its canonical name from the list.
+- If a marker is not in the list — keep the name exactly as in the form,
+  do not replace it with a similar one.
 - Ignore headers, logos and service lines without markers.
 - Do not invent data that is not in the text.
+
+Known markers:
+{catalog}
 
 Lab results text:
 \"\"\"{text}\"\"\"
 """,
     "extraction_retry_prompt": """You are a medical lab results analyzer. Below is the recognized text of a lab results form. Extract the medical markers and the analysis date from it.
 
-YOUR PREVIOUS RESPONSE WAS NOT VALID JSON. Now return STRICTLY ONE JSON object and nothing else: no explanations, no markdown (```), no text before '{' or after '}'. Start your answer with '{' and end it with '}'.
+YOUR PREVIOUS RESPONSE WAS NOT VALID JSON. Now return STRICTLY ONE JSON object and nothing else: no explanations, no markdown (```), no text before '{{' or after '}}'. Start your answer with '{{' and end it with '}}'.
 
 Format:
 {{
@@ -669,6 +690,11 @@ Format:
   ],
   "summary": "A short summary in English: what is normal, what is deviated."
 }}
+
+List of known markers (if the name in the form is a synonym or abbreviation
+from the list, use the canonical name; if a marker is not in the list — keep
+the name exactly as in the form):
+{catalog}
 
 Lab results text:
 \"\"\"{text}\"\"\"

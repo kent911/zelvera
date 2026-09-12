@@ -25,3 +25,16 @@ def test_unknown_marker_returns_none():
 
 def test_canonical_name_falls_back_to_input():
     assert marker_catalog.canonical_name("Интерлейкин-6") == "Интерлейкин-6"
+
+
+def test_prompt_hint_contains_names_and_abbreviations():
+    hint = marker_catalog.prompt_hint("ru")
+    assert "Гемоглобин" in hint
+    assert "HGB" in hint
+    assert "Общий анализ крови" in hint
+
+
+def test_prompt_hint_english_labels():
+    hint = marker_catalog.prompt_hint("en")
+    assert "Complete blood count" in hint
+    assert "Гемоглобин" in hint

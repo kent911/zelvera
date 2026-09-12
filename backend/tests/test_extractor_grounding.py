@@ -43,9 +43,11 @@ def test_extraction_refines_unknown_marker(db, monkeypatch):
         ),
     ]
     calls = {"n": 0}
+    prompts: list[str] = []
 
     async def fake_complete(messages):
         calls["n"] += 1
+        prompts.append(messages[0]["content"])
         return responses[min(calls["n"] - 1, len(responses) - 1)]
 
     monkeypatch.setattr(extractor.llm, "complete", fake_complete)
@@ -55,6 +57,8 @@ def test_extraction_refines_unknown_marker(db, monkeypatch):
     assert calls["n"] == 2
     assert result["summary"] == "refined"
     assert result["wiki_sources"][0]["title"] == "Interleukin 6"
+    assert "Известные показатели" in prompts[0]
+    assert "Гемоглобин" in prompts[0]
 
 
 def test_extraction_skips_wikipedia_when_all_known(db, monkeypatch):
@@ -82,3 +86,31 @@ def test_extraction_skips_wikipedia_when_all_known(db, monkeypatch):
     assert calls["n"] == 1
     assert "wiki_sources" not in result
     assert calls["search"] == 0
+
+
+def test_extraction_retries_on_invalid_json(db, monkeypatch):
+    responses = [
+        "not a json at all",
+        json.dumps(
+            {
+                "markers": [{"name": "Гемоглобин", "value": 140, "unit": "г/л"}],
+                "summary": "ok",
+            },
+            ensure_ascii=False,
+        ),
+    ]
+    calls = {"n": 0}
+    prompts: list[str] = []
+
+    async def fake_complete(messages):
+        calls["n"] += 1
+        prompts.append(messages[0]["content"])
+        return responses[min(calls["n"] - 1, len(responses) - 1)]
+
+    monkeypatch.setattr(extractor.llm, "complete", fake_complete)
+
+    result = asyncio.run(extractor.extract_markers("HGB 140"))
+
+    assert calls["n"] == 2
+    assert result["markers"][0]["name"] == "Гемоглобин"
+    assert "Гемоглобин" in prompts[1]

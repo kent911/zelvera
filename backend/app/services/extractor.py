@@ -177,9 +177,10 @@ async def extract_markers(text: str) -> dict[str, Any]:
     и уточнение разбора моделью."""
     last_error: ValueError | None = None
     data: dict[str, Any] | None = None
+    catalog = marker_catalog.prompt_hint(i18n.get_lang())
     for key in ("extraction_prompt", "extraction_retry_prompt"):
         try:
-            prompt = i18n.t(key).format(text=text[:8000])
+            prompt = i18n.t(key).format(text=text[:8000], catalog=catalog)
             raw = await llm.complete([{"role": "user", "content": prompt}])
             data = _normalize(_extract_json(raw))
             break
@@ -190,4 +191,11 @@ async def extract_markers(text: str) -> dict[str, Any]:
         raise last_error or ValueError(i18n.t("extract.bad_json"))
     if not data.get("markers"):
         return data
+    unknown = _unknown_marker_names(data["markers"])
+    if unknown:
+        log.info(
+            "Распознавание: %d показатель(ей) вне каталога: %s",
+            len(unknown),
+            ", ".join(unknown[:5]),
+        )
     return await _grounded_refine(data)

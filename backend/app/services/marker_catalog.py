@@ -11,6 +11,7 @@
 
 Каталог не содержит медицинских норм и не заменяет врача.
 """
+from functools import lru_cache
 from typing import Any
 
 # Категории показателей (коды для группировки/отображения).
@@ -32,6 +33,26 @@ CATEGORIES: tuple[str, ...] = (
     "enzymes",        # ферменты
     "other",          # прочее
 )
+
+# Человекочитаемые названия категорий для промпта распознавания (RU/EN).
+CATEGORY_LABELS: dict[str, dict[str, str]] = {
+    "cbc": {"ru": "Общий анализ крови", "en": "Complete blood count"},
+    "onco": {"ru": "Онкомаркеры", "en": "Tumor markers"},
+    "inflammation": {"ru": "Маркеры воспаления", "en": "Inflammation markers"},
+    "liver": {"ru": "Функция печени", "en": "Liver function"},
+    "kidney": {"ru": "Функция почек", "en": "Kidney function"},
+    "lipids": {"ru": "Липидный обмен", "en": "Lipid profile"},
+    "carbohydrate": {"ru": "Углеводный обмен", "en": "Carbohydrate metabolism"},
+    "iron": {"ru": "Обмен железа", "en": "Iron metabolism"},
+    "electrolytes": {"ru": "Электролиты", "en": "Electrolytes"},
+    "coagulation": {"ru": "Свёртываемость", "en": "Coagulation"},
+    "cardio": {"ru": "Сердечные маркеры", "en": "Cardiac markers"},
+    "thyroid": {"ru": "Щитовидная железа", "en": "Thyroid"},
+    "vitamins": {"ru": "Витамины", "en": "Vitamins"},
+    "proteins": {"ru": "Белки", "en": "Proteins"},
+    "enzymes": {"ru": "Ферменты", "en": "Enzymes"},
+    "other": {"ru": "Прочее", "en": "Other"},
+}
 
 
 def _norm(name: str) -> str:
@@ -254,3 +275,36 @@ def list_catalog() -> list[dict[str, Any]]:
         {"key": e["key"], "name": e["name"], "category": e["category"]}
         for e in CATALOG
     ]
+
+
+@lru_cache(maxsize=4)
+def prompt_hint(lang: str = "ru") -> str:
+    """Список каталога для промпта распознавания, сгруппированный по категориям.
+
+    В каждой строке — категория и показатели вида «Имя (синоним, синоним)».
+    Каноническое имя и его дубликаты из синонимов исключаются. Результат
+    кешируется: каталог статичен.
+    """
+    idx = "en" if str(lang).lower().startswith("en") else "ru"
+    by_cat: dict[str, list[str]] = {}
+    for entry in CATALOG:
+        name = entry["name"]
+        low = name.lower()
+        seen: set[str] = set()
+        extra: list[str] = []
+        for syn in entry.get("synonyms", []):
+            text = str(syn).strip()
+            key = text.lower()
+            if not text or key in seen or key == entry["key"] or key in low:
+                continue
+            seen.add(key)
+            extra.append(text)
+        by_cat.setdefault(entry["category"], []).append(
+            f"{name} ({', '.join(extra)})" if extra else name
+        )
+    lines: list[str] = []
+    for cat, items in by_cat.items():
+        label = CATEGORY_LABELS.get(cat, {}).get(idx, cat)
+        lines.append(f"{label}: " + "; ".join(items))
+    return "\n".join(lines)
+
