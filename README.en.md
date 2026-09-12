@@ -170,6 +170,10 @@ The "Lab photo" and "Document (PDF/DOCX)" buttons in the chat:
 - **PDF/DOCX**: text is extracted locally (PyMuPDF / python-docx), form tables are read row by row.
 - Then the LLM extracts health markers into JSON: `{name, value, unit, reference_range, status}`.
 - The result is shown as a table in the UI; the "Ask AI" button sends the parse into the chat.
+- The prompt includes the catalog of known markers (canonical names and
+  synonyms/abbreviations grouped by category), so the model maps `HGB`, `WBC`,
+  `ALT` to canonical names right away. If a marker is not in the catalog, its
+  name is kept as in the form (no substitution).
 - If a marker name is not found in the catalog (new/unfamiliar/garbled
   marker), the app looks it up in the offline Wikipedia (Kiwix) and refines
   the parse; a "Refined via Wikipedia" block with article links appears under
@@ -215,6 +219,8 @@ abbreviations). It is used everywhere a marker name needs to be matched:
 
 - name normalization when writing to the medical card ("Hb", "HGB" and
   "Hemoglobin" are the same);
+- the document-recognition prompt — the model maps synonyms and abbreviations
+  from the form to canonical names right away;
 - grouping dynamics in trends and labels in alarms/reminders;
 - the `GET /api/markers/catalog` API — the full list for the UI.
 
