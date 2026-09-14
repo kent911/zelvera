@@ -1067,9 +1067,9 @@ tr.marker-suspect-row td {
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 10px;
-  max-height: 45vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -1119,6 +1119,61 @@ tr.marker-suspect-row td {
   color: var(--text-dim);
   margin-top: 4px;
 }
+
+.trend-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.compare-panel {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.compare-panel.hidden {
+  display: none;
+}
+
+.compare-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.compare-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.compare-toolbar select {
+  background: var(--bg-main);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  max-width: 240px;
+}
+
+.compare-summary {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.compare-table td.change-up { color: #7dd3fc; font-weight: 600; }
+.compare-table td.change-down { color: #fbbf24; font-weight: 600; }
+.compare-table td.change-stable { color: var(--text-dim); }
+.compare-table td.change-appeared { color: #4ade80; font-weight: 600; }
+.compare-table td.change-disappeared { color: #f87171; font-weight: 600; }
+.compare-table td.change-unknown { color: var(--text-dim); }
 
 /* Records / мед. карта */
 .records {

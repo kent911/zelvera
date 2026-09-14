@@ -67,6 +67,8 @@ const cardView = document.getElementById("card-view");
 const recordsEl = document.getElementById("records");
 const btnRefresh = document.getElementById("btn-refresh");
 const btnTrends = document.getElementById("btn-trends");
+const btnCompare = document.getElementById("btn-compare");
+const comparePanel = document.getElementById("compare-panel");
 const btnExportPdf = document.getElementById("btn-export-pdf");
 const trendsEl = document.getElementById("trends");
 const navItems = document.querySelectorAll(".nav-item");
@@ -657,7 +659,9 @@ async function loadRecords() {
   try {
     const res = await fetch(`/api/records?${profileQuery()}`);
     const records = await res.json();
-    renderRecords(records);
+    recordsCache = Array.isArray(records) ? records : [];
+    renderRecords(recordsCache);
+    if (compareVisible) fillCompareSelects();
   } catch (err) {
     recordsEl.innerHTML = `<div class="record-empty">${escapeHtml(t("card.errorLoad", { msg: err.message }))}</div>`;
   }
@@ -834,46 +838,91 @@ function fmtNum(v) {
   return String(r);
 }
 
-function sparklineSvg(points, refLow, refHigh, w = 120, h = 40) {
-  const vals = points.map((p) => p.value);
+function fmtDate(d) {
+  return String(d || "").slice(0, 10);
+}
+
+function trendChartSvg(points, refLow, refHigh) {
+  const W = 600;
+  const H = 180;
+  const m = { top: 14, right: 14, bottom: 24, left: 48 };
+  const vals = points.map((p) => Number(p.value));
+  if (!vals.length || vals.some((v) => !isFinite(v))) return "";
   let min = Math.min(...vals);
   let max = Math.max(...vals);
   const lo = refLow == null ? null : Number(refLow);
   const hi = refHigh == null ? null : Number(refHigh);
-  if (lo != null) min = Math.min(min, lo);
-  if (hi != null) max = Math.max(max, hi);
-  const pad = (max - min) * 0.08 || 1;
+  if (lo != null && isFinite(lo)) min = Math.min(min, lo);
+  if (hi != null && isFinite(hi)) max = Math.max(max, hi);
+  const pad = (max - min) * 0.1 || 1;
   min -= pad;
   max += pad;
   const range = max - min || 1;
-  const step = w / Math.max(vals.length - 1, 1);
-  const yOf = (v) => h - 4 - ((v - min) / range) * (h - 8);
+  const iw = W - m.left - m.right;
+  const ih = H - m.top - m.bottom;
+  const step = iw / Math.max(points.length - 1, 1);
+  const xOf = (i) => m.left + i * step;
+  const yOf = (v) => m.top + ih - ((v - min) / range) * ih;
 
-  let band = "";
-  const yLow = lo == null ? null : yOf(lo);
-  const yHigh = hi == null ? null : yOf(hi);
-  const line = (y) =>
-    `<line x1="0" x2="${w}" y1="${y}" y2="${y}" stroke="rgba(125,211,252,0.8)" stroke-width="1" stroke-dasharray="3,2"/>`;
-  if (yLow != null && yHigh != null) {
-    const top = Math.min(yLow, yHigh);
-    band =
-      `<rect x="0" y="${top}" width="${w}" height="${Math.abs(yHigh - yLow)}" fill="rgba(56,189,248,0.13)"/>` +
-      line(yHigh) + line(yLow);
-  } else if (yLow != null) {
-    band = line(yLow);
-  } else if (yHigh != null) {
-    band = line(yHigh);
+  let grid = "";
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i += 1) {
+    const v = min + (range * i) / ticks;
+    const y = yOf(v);
+    grid +=
+      `<line x1="${m.left}" x2="${W - m.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" ` +
+      `stroke="rgba(148,163,184,0.18)" stroke-width="1"/>` +
+      `<text x="${m.left - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" ` +
+      `fill="#94a3b8" font-size="10">${fmtNum(v)}</text>`;
   }
 
-  const coords = vals.map((v, i) => {
-    const x = i * step;
-    const y = yOf(v);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  const yLo = lo != null && isFinite(lo) ? yOf(lo) : null;
+  const yHi = hi != null && isFinite(hi) ? yOf(hi) : null;
+  const dashed = (y) =>
+    `<line x1="${m.left}" x2="${W - m.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" ` +
+    `stroke="rgba(125,211,252,0.8)" stroke-width="1" stroke-dasharray="4,3"/>`;
+  let band = "";
+  if (yLo != null && yHi != null) {
+    const top = Math.min(yLo, yHi);
+    band =
+      `<rect x="${m.left}" y="${top.toFixed(1)}" width="${iw}" ` +
+      `height="${Math.abs(yHi - yLo).toFixed(1)}" fill="rgba(56,189,248,0.12)"/>` +
+      dashed(yHi) + dashed(yLo);
+  } else if (yLo != null) {
+    band = dashed(yLo);
+  } else if (yHi != null) {
+    band = dashed(yHi);
+  }
+
+  const coords = points.map((p, i) => `${xOf(i).toFixed(1)},${yOf(Number(p.value)).toFixed(1)}`);
+  let dots = "";
+  points.forEach((p, i) => {
+    const cx = xOf(i);
+    const cy = yOf(Number(p.value));
+    dots +=
+      `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="#38bdf8">` +
+      `<title>${escapeHtml(fmtDate(p.date))}: ${escapeHtml(String(p.value))}</title></circle>`;
   });
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="sparkline">
-    ${band}
-    <polyline points="${coords.join(" ")}" fill="none" stroke="#38bdf8" stroke-width="2"/>
-  </svg>`;
+
+  const idxs =
+    points.length > 2
+      ? [0, Math.floor((points.length - 1) / 2), points.length - 1]
+      : points.map((_, i) => i);
+  let xlabels = "";
+  for (const i of idxs) {
+    const anchor = i === 0 ? "start" : i === points.length - 1 ? "end" : "middle";
+    xlabels +=
+      `<text x="${xOf(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}" ` +
+      `fill="#94a3b8" font-size="10">${escapeHtml(fmtDate(points[i].date))}</text>`;
+  }
+
+  return (
+    `<svg class="trend-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">` +
+    grid + band +
+    `<polyline points="${coords.join(" ")}" fill="none" stroke="#38bdf8" stroke-width="2"/>` +
+    dots + xlabels +
+    `</svg>`
+  );
 }
 
 function trendBits(t) {
@@ -946,9 +995,165 @@ function renderTrends(trends) {
     } else {
       card.append(head, value, meta);
     }
-    card.insertAdjacentHTML("beforeend", sparklineSvg(t.points, t.ref_low, t.ref_high));
+    card.insertAdjacentHTML("beforeend", trendChartSvg(t.points, t.ref_low, t.ref_high));
     trendsEl.appendChild(card);
   }
+}
+
+let recordsCache = [];
+let compareVisible = false;
+
+const COMPARE_CHANGE_KEYS = {
+  up: "compare.changeUp",
+  down: "compare.changeDown",
+  stable: "compare.changeStable",
+  appeared: "compare.appeared",
+  disappeared: "compare.disappeared",
+  unknown: "compare.changeUnknown",
+};
+
+function statusBadge(status) {
+  const st = status || "unknown";
+  return `<span class="marker-status ${st}">${escapeHtml(statusLabel(st))}</span>`;
+}
+
+function recordOptionLabel(rec) {
+  const parts = [rec.created_at];
+  if (rec.source_name) parts.push(rec.source_name);
+  parts.push(`#${rec.id}`);
+  return parts.join(" · ");
+}
+
+function fillCompareSelects() {
+  const selects = comparePanel.querySelectorAll("select");
+  if (selects.length < 2 || !recordsCache.length) return;
+  const opts = recordsCache
+    .map((r) => `<option value="${r.id}">${escapeHtml(recordOptionLabel(r))}</option>`)
+    .join("");
+  selects.forEach((sel) => {
+    const prev = sel.value;
+    sel.innerHTML = opts;
+    if (prev) sel.value = prev;
+  });
+  if (recordsCache.length >= 2) {
+    if (!selects[0].value) selects[0].value = String(recordsCache[1].id);
+    if (!selects[1].value) selects[1].value = String(recordsCache[0].id);
+  }
+}
+
+function renderCompareToolbar() {
+  comparePanel.innerHTML = "";
+  if (recordsCache.length < 2) {
+    comparePanel.innerHTML = `<div class="record-empty">${t("compare.empty")}</div>`;
+    return;
+  }
+  const bar = document.createElement("div");
+  bar.className = "compare-toolbar";
+  const mkSelect = (labelKey) => {
+    const label = document.createElement("label");
+    label.textContent = t(labelKey);
+    const sel = document.createElement("select");
+    label.appendChild(sel);
+    return { label, sel };
+  };
+  const first = mkSelect("compare.selectA");
+  const second = mkSelect("compare.selectB");
+  const run = document.createElement("button");
+  run.className = "primary-btn";
+  run.textContent = t("compare.run");
+  run.addEventListener("click", () =>
+    runCompare(Number(first.sel.value), Number(second.sel.value))
+  );
+  bar.append(first.label, second.label, run);
+  const result = document.createElement("div");
+  result.id = "compare-result";
+  comparePanel.append(bar, result);
+  fillCompareSelects();
+}
+
+function toggleCompare() {
+  compareVisible = !compareVisible;
+  comparePanel.classList.toggle("hidden", !compareVisible);
+  btnCompare.textContent = compareVisible ? t("compare.hide") : t("compare.run");
+  if (compareVisible) renderCompareToolbar();
+}
+
+async function runCompare(aId, bId) {
+  const box = document.getElementById("compare-result");
+  if (!box) return;
+  if (!aId || !bId || aId === bId) {
+    box.innerHTML = `<div class="record-empty">${t("compare.pick")}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="record-empty">${t("compare.loading")}</div>`;
+  try {
+    const res = await fetch(`/api/records/compare?a=${aId}&b=${bId}`);
+    if (!res.ok) throw new Error(res.status);
+    renderCompareResult(await res.json());
+  } catch (err) {
+    box.innerHTML = `<div class="record-empty">${escapeHtml(
+      t("compare.error", { msg: err.message })
+    )}</div>`;
+  }
+}
+
+function renderCompareResult(data) {
+  const box = document.getElementById("compare-result");
+  if (!box) return;
+  const s = data.summary || {};
+  const parts = [
+    t("compare.summary", {
+      total: s.total || 0,
+      up: s.up || 0,
+      down: s.down || 0,
+      stable: s.stable || 0,
+    }),
+  ];
+  if (s.appeared || s.disappeared) {
+    parts.push(
+      t("compare.summaryExtra", {
+        appeared: s.appeared || 0,
+        disappeared: s.disappeared || 0,
+      })
+    );
+  }
+  const summary = document.createElement("div");
+  summary.className = "compare-summary";
+  summary.textContent = parts.join(" · ");
+
+  const table = document.createElement("table");
+  table.className = "markers-table compare-table";
+  table.innerHTML =
+    "<thead><tr>" +
+    ["compare.marker", "compare.before", "compare.after", "compare.delta", "compare.status"]
+      .map((k) => `<th>${t(k)}</th>`)
+      .join("") +
+    "</tr></thead>";
+  const tbody = document.createElement("tbody");
+  for (const row of data.markers || []) {
+    const delta =
+      row.delta == null
+        ? ""
+        : (row.delta > 0 ? "+" : "") +
+          fmtNum(row.delta) +
+          (row.delta_pct == null
+            ? ""
+            : ` (${row.delta > 0 ? "+" : ""}${fmtNum(row.delta_pct)}%)`);
+    const changeLabel = COMPARE_CHANGE_KEYS[row.change]
+      ? t(COMPARE_CHANGE_KEYS[row.change])
+      : row.change;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(String(row.value_a ?? "—"))} ${escapeHtml(row.unit || "")}</td>
+      <td>${escapeHtml(String(row.value_b ?? "—"))} ${escapeHtml(row.unit || "")}</td>
+      <td class="change-${row.change}">${escapeHtml(delta || changeLabel)}</td>
+      <td>${statusBadge(row.status_a)} → ${statusBadge(row.status_b)}</td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  box.innerHTML = "";
+  box.append(summary, table);
 }
 
 let trendsVisible = false;
@@ -967,6 +1172,7 @@ async function toggleTrends() {
   }
 }
 btnTrends.addEventListener("click", toggleTrends);
+btnCompare.addEventListener("click", toggleCompare);
 
 async function exportPdf() {
   try {
