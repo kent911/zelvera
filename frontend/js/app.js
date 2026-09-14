@@ -1074,7 +1074,8 @@ function renderCompareToolbar() {
 function toggleCompare() {
   compareVisible = !compareVisible;
   comparePanel.classList.toggle("hidden", !compareVisible);
-  btnCompare.textContent = compareVisible ? t("compare.hide") : t("compare.run");
+  btnCompare.dataset.i18n = compareVisible ? "compare.hide" : "compare.run";
+  btnCompare.textContent = t(btnCompare.dataset.i18n);
   if (compareVisible) renderCompareToolbar();
 }
 
