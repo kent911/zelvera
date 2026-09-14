@@ -385,6 +385,7 @@ Implemented:
 - AI tools (function calling, read-only) over the active profile's data;
 - marker catalog with name normalization, parse refinement and chat help via
   the offline Wikipedia (with caching), pytest tests in CI;
+- marker trend charts with a norm corridor and two-record comparison;
 - action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
 
 Possible next steps (not prioritized):
