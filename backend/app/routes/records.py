@@ -6,7 +6,16 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError, BaseModel, field_validator
 
-from app.services import audit, critical, database, i18n, marker_catalog, media_store, validation
+from app.services import (
+    audit,
+    compare,
+    critical,
+    database,
+    i18n,
+    marker_catalog,
+    media_store,
+    validation,
+)
 from app.services.logger import logger
 from app.services.pdf_export import export_card_pdf
 
@@ -115,6 +124,18 @@ def markers_catalog() -> list[dict[str, Any]]:
 @router.get("/records/trends")
 def get_trends(profile_id: int | None = None) -> list[dict[str, Any]]:
     return database.marker_trends(_require_profile(profile_id))
+
+
+@router.get("/records/compare")
+def compare_records(a: int, b: int) -> dict[str, Any]:
+    """Построчное сравнение двух записей мед. карты (a — раньше, b — позже)."""
+    try:
+        first = database.get_record(a)
+        second = database.get_record(b)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=i18n.t("record.not_found")) from exc
+    audit.log_action("record_compare", f"a={a}, b={b}")
+    return compare.build_comparison(first, second)
 
 
 @router.post("/records")
