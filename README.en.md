@@ -116,7 +116,8 @@ The key is stored only locally and is never sent anywhere except the API you cho
 | POST | `/api/documents/extract` | Photo/PDF/DOCX → recognized text + health markers (JSON) |
 | POST | `/api/records` | Save a lab-result record (markers) to the medical record |
 | GET | `/api/records` | List of record cards (`?profile_id=` — profile only, `critical_count`) |
-| GET | `/api/records/trends` | Marker dynamics over dates (`?profile_id=`) |
+| GET | `/api/records/trends` | Marker dynamics over dates (`?profile_id=`), including the norm corridor `ref_low`/`ref_high` |
+| GET | `/api/records/compare` | Compare two records (`?a=&b=`) — per-marker changes |
 | GET | `/api/records/export.pdf` | Export the medical record to PDF (`?profile_id=`) |
 | GET | `/api/records/{id}` | Record with markers (critical ones have the `critical` field) |
 | DELETE | `/api/records/{id}` | Delete a record from the card |
@@ -195,6 +196,11 @@ Recognized markers are automatically saved into `data/medical.db` (excluded from
 The "My medical card" tab shows lab history: date, source, number of markers,
 summary. Records expand into a marker table and can be deleted with the
 "Delete" button.
+
+The "Trends" button shows a chart per marker with the norm corridor (dashed
+bounds and a shaded band), dates and value points. The "Compare" button opens
+a panel: pick two tests (earlier/later) and get a table of changes — increase,
+decrease, appeared/disappeared marker and status change.
 
 ### Critical deviations (alarms)
 
