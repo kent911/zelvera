@@ -47,6 +47,28 @@ RU = {
     "analysis.no_articles_note": "Примечание: в базе научных статей не нашлось материалов по вашим показателям.\n\n",
     "analysis.articles_not_found": "Подходящие научные статьи не найдены — отчёт будет по самим показателям.",
     "analysis.article_ref": "[Статья «{title}»] {chunk}",
+    "longterm.no_data": "Нет числовых показателей за выбранный период.",
+    "longterm.empty_period": "Нет анализов за выбранный период.",
+    "longterm.flag.insufficient": "мало данных",
+    "longterm.flag.stable_normal": "стабильно в норме",
+    "longterm.flag.persistent_high": "стойко выше нормы",
+    "longterm.flag.persistent_low": "стойко ниже нормы",
+    "longterm.flag.fluctuation": "колебания",
+    "longterm.flag.improving": "улучшение",
+    "longterm.flag.worsening": "ухудшение",
+    "longterm.flag.trend_up": "рост",
+    "longterm.flag.trend_down": "снижение",
+    "longterm.status.normal": "норма",
+    "longterm.status.high": "выше нормы",
+    "longterm.status.low": "ниже нормы",
+    "longterm.status.mixed": "смешанно",
+    "longterm.status.unknown": "нет данных",
+    "longterm.prompt.span": "Период: {span}",
+    "longterm.prompt.records": "Анализов по годам: {counts}",
+    "longterm.prompt.year_count": "{year}: {n}",
+    "longterm.prompt.marker": "Показатель: {name} ({unit}), норма {ref}, флаг: {flag}, измерений: {n}",
+    "longterm.prompt.year_value": "{year}: медиана {median} (n={n}, {status})",
+    "longterm.disclaimer": "Отчёт носит ознакомительный характер и не заменяет консультацию врача.",
     "documents.unsupported": "Неподдерживаемый формат. Принимаются: {exts}",
     "documents.empty_file": "Пустой файл.",
     "documents.too_large": "Файл слишком большой (макс. 50 МБ).",
@@ -373,6 +395,27 @@ RU = {
 {articles_text}
 
 Составь персонализированный аналитический отчёт по этим данным.""",
+    "longterm_system": """Ты — медицинский аналитик. Тебе дают многолетнюю сводку
+лабораторных показателей одного человека (медианы по годам). Нужно дать
+обзорную оценку динамики здоровья за период. Ты НЕ врач и НЕ ставишь
+диагнозы, НЕ назначаешь лечение.
+
+Структура отчёта:
+1. Общая картина за период: сколько лет и анализов, как менялись ключевые
+   показатели.
+2. Показатели со стойкими отклонениями (флаг «стойко выше/ниже нормы») —
+   что это и почему важно наблюдать.
+3. Положительная динамика и ухудшения относительно ранних лет.
+4. На что обратить внимание и какие данные стоит добавить (без назначений).
+5. Дисклеймер: отчёт носит ознакомительный характер и не заменяет врача.
+
+Опирайся только на приведённую сводку, не выдумывай значения и годы,
+которых нет в данных. Отвечай структурированно и понятно на русском языке.""",
+    "longterm_user": """Многолетняя сводка показателей пользователя из мед. карты:
+
+{summary}
+
+Составь общий отчёт о состоянии здоровья за период и динамике показателей.""",
     "summary_prompt": """Ты — научный редактор. Ниже фрагмент медицинской научной статьи.
 Напиши краткое резюме этого фрагмента на русском языке (3-5 предложений):
 о чём говорится, методы, ключевые результаты, выводы.
@@ -421,6 +464,28 @@ EN = {
     "analysis.no_articles_note": "Note: no materials matching your markers were found in the articles database.\n\n",
     "analysis.articles_not_found": "No relevant scientific articles found — the report will be based on the markers alone.",
     "analysis.article_ref": "[Article «{title}»] {chunk}",
+    "longterm.no_data": "No numeric markers for the selected period.",
+    "longterm.empty_period": "No records for the selected period.",
+    "longterm.flag.insufficient": "not enough data",
+    "longterm.flag.stable_normal": "stable within norm",
+    "longterm.flag.persistent_high": "persistently above norm",
+    "longterm.flag.persistent_low": "persistently below norm",
+    "longterm.flag.fluctuation": "fluctuating",
+    "longterm.flag.improving": "improving",
+    "longterm.flag.worsening": "worsening",
+    "longterm.flag.trend_up": "rising",
+    "longterm.flag.trend_down": "falling",
+    "longterm.status.normal": "normal",
+    "longterm.status.high": "above norm",
+    "longterm.status.low": "below norm",
+    "longterm.status.mixed": "mixed",
+    "longterm.status.unknown": "no data",
+    "longterm.prompt.span": "Period: {span}",
+    "longterm.prompt.records": "Tests by year: {counts}",
+    "longterm.prompt.year_count": "{year}: {n}",
+    "longterm.prompt.marker": "Marker: {name} ({unit}), norm {ref}, flag: {flag}, measurements: {n}",
+    "longterm.prompt.year_value": "{year}: median {median} (n={n}, {status})",
+    "longterm.disclaimer": "The report is informational and does not replace a doctor's consultation.",
     "documents.unsupported": "Unsupported format. Accepted: {exts}",
     "documents.empty_file": "Empty file.",
     "documents.too_large": "File is too large (max 50 MB).",
@@ -744,6 +809,26 @@ Relevant scientific fragments from the articles database:
 {articles_text}
 
 Compose a personalized analytical report based on this data.""",
+    "longterm_system": """You are a medical analyst. You are given a multi-year
+summary of one person's lab markers (medians by year). Give an overview of
+their health dynamics over the period. You are NOT a doctor: do not make
+diagnoses or prescribe treatment.
+
+Report structure:
+1. Overall picture: how many years and tests, how key markers changed.
+2. Markers with persistent deviations (flag "persistently above/below norm") —
+   what they mean and why monitoring matters.
+3. Positive dynamics and worsening compared to earlier years.
+4. What to pay attention to and which data to add (no prescriptions).
+5. Disclaimer: the report is informational and does not replace a doctor.
+
+Rely only on the provided summary; do not invent values or years that are not
+in the data. Answer in a structured, clear way in English.""",
+    "longterm_user": """Multi-year summary of the user's markers from the medical card:
+
+{summary}
+
+Compose an overall report on their health over the period and marker dynamics.""",
     "summary_prompt": """You are a scientific editor. Below is a fragment of a medical scientific article.
 Write a short summary of this fragment in English (3-5 sentences):
 what it is about, methods, key results, conclusions.

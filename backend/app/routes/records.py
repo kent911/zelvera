@@ -1,9 +1,10 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
+import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import ValidationError, BaseModel, field_validator
 
 from app.services import (
@@ -12,6 +13,8 @@ from app.services import (
     critical,
     database,
     i18n,
+    llm,
+    longterm,
     marker_catalog,
     media_store,
     validation,
@@ -136,6 +139,70 @@ def compare_records(a: int, b: int) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=i18n.t("record.not_found")) from exc
     audit.log_action("record_compare", f"a={a}, b={b}")
     return compare.build_comparison(first, second)
+
+
+def _full_records(profile_id: int | None) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for rec in database.list_records(profile_id):
+        try:
+            records.append(database.get_record(rec["id"]))
+        except KeyError:
+            continue
+    return records
+
+
+@router.get("/records/longterm")
+def get_longterm(
+    profile_id: int | None = None,
+    from_year: int | None = Query(None, alias="from"),
+    to_year: int | None = Query(None, alias="to"),
+) -> dict[str, Any]:
+    """Годовая сводка показателей за период (для таблицы/графика и отчёта)."""
+    _require_profile(profile_id)
+    records = _full_records(profile_id)
+    return longterm.build_longterm(records, from_year, to_year)
+
+
+def _sse(text: str) -> str:
+    return f"data: {json.dumps({'content': text}, ensure_ascii=False)}\n\n"
+
+
+@router.post("/records/longterm/report")
+async def longterm_report(
+    profile_id: int | None = None,
+    from_year: int | None = Query(None, alias="from"),
+    to_year: int | None = Query(None, alias="to"),
+) -> StreamingResponse:
+    """ИИ-отчёт о здоровье за период по годовой сводке (SSE-стриминг)."""
+    _require_profile(profile_id)
+    records = await asyncio.to_thread(_full_records, profile_id)
+    data = longterm.build_longterm(records, from_year, to_year)
+    if not data["markers"]:
+        raise HTTPException(status_code=400, detail=i18n.t("longterm.no_data"))
+    summary = longterm.to_prompt_text(data)
+    audit.log_action(
+        "longterm_report",
+        f"years={data.get('years')}, markers={len(data['markers'])}",
+    )
+    messages = [
+        {"role": "system", "content": i18n.t("longterm_system")},
+        {"role": "user", "content": i18n.t("longterm_user", summary=summary)},
+    ]
+
+    async def event_stream():
+        yield _sse(i18n.t("longterm.disclaimer") + "\n\n")
+        try:
+            async for chunk in llm.stream_chat(messages):
+                yield _sse(chunk)
+        except llm.LLMError as exc:
+            yield _sse(f"{i18n.t('error.prefix')} {exc}")
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/records")
