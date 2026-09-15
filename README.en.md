@@ -205,7 +205,8 @@ a panel: pick two tests (earlier/later) and get a table of changes — increase,
 decrease, appeared/disappeared marker and status change.
 
 The "Multi-year report" button collects all tests for the selected period
-(e.g. 2018-2025) into a marker-by-year table: median, measurement count and a
+(e.g. 2018-2025; years are entered manually, defaulting to the earliest and
+latest record) into a marker-by-year table: median, measurement count and a
 row assessment (persistently above/below norm, improving, worsening,
 fluctuating). The "Generate AI report" button builds an overall health text for
 the period from that summary; the report is informational and does not replace
