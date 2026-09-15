@@ -1185,33 +1185,33 @@ function availableYears() {
   return { min: Math.min(...ys), max: Math.max(...ys) };
 }
 
-function fillYearSelects(fromSel, toSel) {
+function fillYearInputs(fromInput, toInput) {
   const span = availableYears();
-  if (!span) return false;
-  const years = [];
-  for (let y = span.min; y <= span.max; y++) years.push(y);
-  const opts = years.map((y) => `<option value="${y}">${y}</option>`).join("");
-  fromSel.innerHTML = opts;
-  toSel.innerHTML = opts;
-  fromSel.value = String(span.min);
-  toSel.value = String(span.max);
-  return true;
+  const now = new Date().getFullYear();
+  const min = span ? span.min : now - 7;
+  const max = span ? span.max : now;
+  [fromInput, toInput].forEach((input) => {
+    input.min = String(Math.min(min, 1900));
+    input.max = String(max + 1);
+    input.placeholder = "ГГГГ";
+  });
+  fromInput.value = String(min);
+  toInput.value = String(max);
 }
 
 function renderLongtermToolbar() {
   longtermPanel.innerHTML = "";
-  if (!availableYears()) {
-    longtermPanel.innerHTML = `<div class="record-empty">${t("longterm.empty")}</div>`;
-    return;
-  }
   const bar = document.createElement("div");
   bar.className = "compare-toolbar";
   const mkYear = (labelKey) => {
     const label = document.createElement("label");
     label.textContent = t(labelKey);
-    const sel = document.createElement("select");
-    label.appendChild(sel);
-    return { label, sel };
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = "1";
+    input.className = "year-input";
+    label.appendChild(input);
+    return { label, input };
   };
   const from = mkYear("longterm.from");
   const to = mkYear("longterm.to");
@@ -1219,19 +1219,19 @@ function renderLongtermToolbar() {
   run.className = "primary-btn";
   run.textContent = t("longterm.build");
   run.addEventListener("click", () =>
-    runLongterm(Number(from.sel.value), Number(to.sel.value))
+    runLongterm(Number(from.input.value), Number(to.input.value))
   );
   const report = document.createElement("button");
   report.className = "action-btn";
   report.textContent = t("longterm.report");
   report.addEventListener("click", () =>
-    runLongtermReport(Number(from.sel.value), Number(to.sel.value))
+    runLongtermReport(Number(from.input.value), Number(to.input.value))
   );
   bar.append(from.label, to.label, run, report);
   const result = document.createElement("div");
   result.id = "longterm-result";
   longtermPanel.append(bar, result);
-  fillYearSelects(from.sel, to.sel);
+  fillYearInputs(from.input, to.input);
 }
 
 function toggleLongterm() {

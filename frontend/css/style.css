@@ -1152,7 +1152,8 @@ tr.marker-suspect-row td {
   color: var(--text-dim);
 }
 
-.compare-toolbar select {
+.compare-toolbar select,
+.compare-toolbar .year-input {
   background: var(--bg-main);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1160,6 +1161,10 @@ tr.marker-suspect-row td {
   padding: 6px 8px;
   font-size: 12px;
   max-width: 240px;
+}
+
+.compare-toolbar .year-input {
+  width: 84px;
 }
 
 .compare-summary {
