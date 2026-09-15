@@ -118,6 +118,8 @@ The key is stored only locally and is never sent anywhere except the API you cho
 | GET | `/api/records` | List of record cards (`?profile_id=` — profile only, `critical_count`) |
 | GET | `/api/records/trends` | Marker dynamics over dates (`?profile_id=`), including the norm corridor `ref_low`/`ref_high` |
 | GET | `/api/records/compare` | Compare two records (`?a=&b=`) — per-marker changes |
+| GET | `/api/records/longterm` | Per-year marker summary for a period (`?from=&to=`) |
+| POST | `/api/records/longterm/report` | AI health report for the period based on the yearly summary (SSE stream) |
 | GET | `/api/records/export.pdf` | Export the medical record to PDF (`?profile_id=`) |
 | GET | `/api/records/{id}` | Record with markers (critical ones have the `critical` field) |
 | DELETE | `/api/records/{id}` | Delete a record from the card |
@@ -201,6 +203,13 @@ The "Trends" button shows a chart per marker with the norm corridor (dashed
 bounds and a shaded band), dates and value points. The "Compare" button opens
 a panel: pick two tests (earlier/later) and get a table of changes — increase,
 decrease, appeared/disappeared marker and status change.
+
+The "Multi-year report" button collects all tests for the selected period
+(e.g. 2018-2025) into a marker-by-year table: median, measurement count and a
+row assessment (persistently above/below norm, improving, worsening,
+fluctuating). The "Generate AI report" button builds an overall health text for
+the period from that summary; the report is informational and does not replace
+a doctor.
 
 ### Critical deviations (alarms)
 
@@ -386,6 +395,7 @@ Implemented:
 - marker catalog with name normalization, parse refinement and chat help via
   the offline Wikipedia (with caching), pytest tests in CI;
 - marker trend charts with a norm corridor and two-record comparison;
+- long-term report: per-year marker summary and an AI health assessment for a period;
 - action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
 
 Possible next steps (not prioritized):
