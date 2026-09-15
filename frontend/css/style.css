@@ -1175,6 +1175,74 @@ tr.marker-suspect-row td {
 .compare-table td.change-disappeared { color: #f87171; font-weight: 600; }
 .compare-table td.change-unknown { color: var(--text-dim); }
 
+/* Долгосрочный анализ */
+.longterm-panel {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.longterm-panel.hidden {
+  display: none;
+}
+
+.longterm-scroll {
+  overflow-x: auto;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.longterm-table td,
+.longterm-table th {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.longterm-table td:first-child,
+.longterm-table th:first-child,
+.longterm-table td:nth-child(2),
+.longterm-table th:nth-child(2) {
+  text-align: left;
+}
+
+.longterm-table td.change-high { color: #f87171; font-weight: 600; }
+.longterm-table td.change-low { color: #60a5fa; font-weight: 600; }
+.longterm-table td.change-normal { color: #4ade80; }
+
+.longterm-flag {
+  font-size: 12px;
+}
+
+.longterm-flag.flag-persistent_high,
+.longterm-flag.flag-worsening { color: #f87171; font-weight: 600; }
+.longterm-flag.flag-persistent_low { color: #60a5fa; font-weight: 600; }
+.longterm-flag.flag-improving { color: #4ade80; font-weight: 600; }
+.longterm-flag.flag-fluctuation { color: #fbbf24; }
+.longterm-flag.flag-insufficient { color: var(--text-dim); }
+
+.longterm-report {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--bg-main);
+}
+
+.longterm-disclaimer {
+  font-size: 12px;
+  color: var(--text-dim);
+  border-left: 3px solid var(--accent, #7dd3fc);
+  padding-left: 10px;
+  margin-bottom: 10px;
+}
+
+.longterm-report-text {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.longterm-report.error .longterm-report-text {
+  color: #f87171;
+}
+
 /* Records / мед. карта */
 .records {
   flex: 1;

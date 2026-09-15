@@ -69,6 +69,8 @@ const btnRefresh = document.getElementById("btn-refresh");
 const btnTrends = document.getElementById("btn-trends");
 const btnCompare = document.getElementById("btn-compare");
 const comparePanel = document.getElementById("compare-panel");
+const btnLongterm = document.getElementById("btn-longterm");
+const longtermPanel = document.getElementById("longterm-panel");
 const btnExportPdf = document.getElementById("btn-export-pdf");
 const trendsEl = document.getElementById("trends");
 const navItems = document.querySelectorAll(".nav-item");
@@ -662,6 +664,7 @@ async function loadRecords() {
     recordsCache = Array.isArray(records) ? records : [];
     renderRecords(recordsCache);
     if (compareVisible) fillCompareSelects();
+    if (longtermVisible) renderLongtermToolbar();
   } catch (err) {
     recordsEl.innerHTML = `<div class="record-empty">${escapeHtml(t("card.errorLoad", { msg: err.message }))}</div>`;
   }
@@ -1157,6 +1160,234 @@ function renderCompareResult(data) {
   box.append(summary, table);
 }
 
+let longtermVisible = false;
+
+const LONGTERM_FLAG_KEYS = {
+  insufficient: "longterm.flag.insufficient",
+  stable_normal: "longterm.flag.stableNormal",
+  persistent_high: "longterm.flag.persistentHigh",
+  persistent_low: "longterm.flag.persistentLow",
+  fluctuation: "longterm.flag.fluctuation",
+  improving: "longterm.flag.improving",
+  worsening: "longterm.flag.worsening",
+  trend_up: "longterm.flag.trendUp",
+  trend_down: "longterm.flag.trendDown",
+};
+
+function recordYear(rec) {
+  const s = String((rec && rec.created_at) || "");
+  return /^\d{4}/.test(s) ? Number(s.slice(0, 4)) : null;
+}
+
+function availableYears() {
+  const ys = recordsCache.map(recordYear).filter((y) => y !== null);
+  if (!ys.length) return null;
+  return { min: Math.min(...ys), max: Math.max(...ys) };
+}
+
+function fillYearSelects(fromSel, toSel) {
+  const span = availableYears();
+  if (!span) return false;
+  const years = [];
+  for (let y = span.min; y <= span.max; y++) years.push(y);
+  const opts = years.map((y) => `<option value="${y}">${y}</option>`).join("");
+  fromSel.innerHTML = opts;
+  toSel.innerHTML = opts;
+  fromSel.value = String(span.min);
+  toSel.value = String(span.max);
+  return true;
+}
+
+function renderLongtermToolbar() {
+  longtermPanel.innerHTML = "";
+  if (!availableYears()) {
+    longtermPanel.innerHTML = `<div class="record-empty">${t("longterm.empty")}</div>`;
+    return;
+  }
+  const bar = document.createElement("div");
+  bar.className = "compare-toolbar";
+  const mkYear = (labelKey) => {
+    const label = document.createElement("label");
+    label.textContent = t(labelKey);
+    const sel = document.createElement("select");
+    label.appendChild(sel);
+    return { label, sel };
+  };
+  const from = mkYear("longterm.from");
+  const to = mkYear("longterm.to");
+  const run = document.createElement("button");
+  run.className = "primary-btn";
+  run.textContent = t("longterm.build");
+  run.addEventListener("click", () =>
+    runLongterm(Number(from.sel.value), Number(to.sel.value))
+  );
+  const report = document.createElement("button");
+  report.className = "action-btn";
+  report.textContent = t("longterm.report");
+  report.addEventListener("click", () =>
+    runLongtermReport(Number(from.sel.value), Number(to.sel.value))
+  );
+  bar.append(from.label, to.label, run, report);
+  const result = document.createElement("div");
+  result.id = "longterm-result";
+  longtermPanel.append(bar, result);
+  fillYearSelects(from.sel, to.sel);
+}
+
+function toggleLongterm() {
+  longtermVisible = !longtermVisible;
+  longtermPanel.classList.toggle("hidden", !longtermVisible);
+  btnLongterm.dataset.i18n = longtermVisible ? "longterm.hide" : "longterm.show";
+  btnLongterm.textContent = t(btnLongterm.dataset.i18n);
+  if (longtermVisible) renderLongtermToolbar();
+}
+
+function longtermStatusClass(status) {
+  return status === "high" || status === "low" || status === "normal"
+    ? `change-${status}`
+    : "";
+}
+
+function renderLongtermTable(data) {
+  const box = document.getElementById("longterm-result");
+  if (!box) return;
+  const years = data.years || [];
+  if (!years.length) {
+    box.innerHTML = `<div class="record-empty">${t("longterm.empty")}</div>`;
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "longterm-scroll";
+  const table = document.createElement("table");
+  table.className = "markers-table longterm-table";
+  const head =
+    `<th>${t("longterm.marker")}</th><th>${t("longterm.norm")}</th>` +
+    years.map((y) => `<th>${y}</th>`).join("") +
+    `<th>${t("longterm.flag")}</th>`;
+  table.innerHTML = `<thead><tr>${head}</tr></thead>`;
+  const tbody = document.createElement("tbody");
+  for (const m of data.markers || []) {
+    const ref =
+      m.ref_low != null && m.ref_high != null
+        ? `${fmtNum(m.ref_low)}-${fmtNum(m.ref_high)}`
+        : m.ref_high != null
+        ? `< ${fmtNum(m.ref_high)}`
+        : m.ref_low != null
+        ? `> ${fmtNum(m.ref_low)}`
+        : "-";
+    const cells = years
+      .map((y) => {
+        const st = (m.years || {})[String(y)];
+        if (!st || st.median == null) return "<td>-</td>";
+        const title = t("longterm.cellTitle", {
+          min: fmtNum(st.min),
+          max: fmtNum(st.max),
+          n: st.count,
+        });
+        return `<td class="${longtermStatusClass(st.status)}" title="${escapeHtml(
+          title
+        )}">${escapeHtml(fmtNum(st.median))}</td>`;
+      })
+      .join("");
+    const flagKey = LONGTERM_FLAG_KEYS[m.flag];
+    const flag = flagKey ? t(flagKey) : m.flag;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(m.name)} ${escapeHtml(m.unit || "")}</td>
+      <td>${escapeHtml(ref)}</td>
+      ${cells}
+      <td class="longterm-flag flag-${m.flag}">${escapeHtml(flag)}</td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  box.innerHTML = "";
+  box.appendChild(wrap);
+}
+
+async function runLongterm(fromYear, toYear) {
+  const box = document.getElementById("longterm-result");
+  if (!box) return;
+  if (!fromYear || !toYear || fromYear > toYear) {
+    box.innerHTML = `<div class="record-empty">${t("longterm.badRange")}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="record-empty">${t("longterm.loading")}</div>`;
+  try {
+    const res = await fetch(
+      `/api/records/longterm?from=${fromYear}&to=${toYear}`
+    );
+    if (!res.ok) throw new Error(res.status);
+    renderLongtermTable(await res.json());
+  } catch (err) {
+    box.innerHTML = `<div class="record-empty">${escapeHtml(
+      t("longterm.error", { msg: err.message })
+    )}</div>`;
+  }
+}
+
+async function runLongtermReport(fromYear, toYear) {
+  const box = document.getElementById("longterm-result");
+  if (!box) return;
+  if (!fromYear || !toYear || fromYear > toYear) {
+    box.innerHTML = `<div class="record-empty">${t("longterm.badRange")}</div>`;
+    return;
+  }
+  box.innerHTML = "";
+  const report = document.createElement("div");
+  report.className = "longterm-report";
+  const note = document.createElement("div");
+  note.className = "longterm-disclaimer";
+  note.textContent = t("longterm.disclaimer");
+  report.append(note);
+  const textEl = document.createElement("div");
+  textEl.className = "longterm-report-text";
+  report.appendChild(textEl);
+  box.appendChild(report);
+
+  let acc = "";
+  try {
+    const res = await fetch(
+      `/api/records/longterm/report?from=${fromYear}&to=${toYear}`,
+      { method: "POST" }
+    );
+    if (!res.ok || !res.body) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const data = await res.json();
+        if (data.detail) detail = data.detail;
+      } catch { /* not JSON */ }
+      throw new Error(detail);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const msg = JSON.parse(payload);
+          if (msg.content) {
+            acc += msg.content;
+            textEl.textContent = acc;
+          }
+        } catch { /* bad chunk */ }
+      }
+    }
+  } catch (err) {
+    textEl.textContent = `${t("error.prefix")} ${err.message}`;
+    report.classList.add("error");
+  }
+}
+
 let trendsVisible = false;
 async function toggleTrends() {
   trendsVisible = !trendsVisible;
@@ -1174,6 +1405,7 @@ async function toggleTrends() {
 }
 btnTrends.addEventListener("click", toggleTrends);
 btnCompare.addEventListener("click", toggleCompare);
+btnLongterm.addEventListener("click", toggleLongterm);
 
 async function exportPdf() {
   try {

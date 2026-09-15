@@ -5,11 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zelvera — локальный медицинский ассистент</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=20" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20" />
-  <link rel="stylesheet" href="css/style.css?v=20" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=21" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=21" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=21" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=21" />
+  <link rel="stylesheet" href="css/style.css?v=21" />
 </head>
 <body>
   <div id="app">
@@ -101,12 +101,14 @@
         <header class="chat-header">
           <h1 data-i18n="card.title">Моя медицинская карта</h1>
           <div class="actions">
+            <button class="action-btn" id="btn-longterm" data-i18n="longterm.show">Отчёт за годы</button>
             <button class="action-btn" id="btn-compare" data-i18n="compare.run">Сравнить</button>
             <button class="action-btn" id="btn-trends" data-i18n="card.trends">Динамика</button>
             <button class="action-btn" id="btn-export-pdf" data-i18n="card.exportPdf">Экспорт PDF</button>
             <button class="action-btn" id="btn-refresh" data-i18n="card.refresh">Обновить</button>
           </div>
         </header>
+        <div id="longterm-panel" class="longterm-panel hidden"></div>
         <div id="compare-panel" class="compare-panel hidden"></div>
         <div id="reminders" class="reminders"></div>
         <div id="trends" class="trends hidden"></div>
@@ -334,7 +336,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=20"></script>
-  <script src="js/app.js?v=20"></script>
+  <script src="js/i18n.js?v=21"></script>
+  <script src="js/app.js?v=21"></script>
 </body>
 </html>
