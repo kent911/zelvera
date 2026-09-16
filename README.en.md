@@ -134,6 +134,8 @@ The key is stored only locally and is never sent anywhere except the API you cho
 | POST | `/api/settings/ollama-models` | List of models from a running Ollama |
 | POST | `/api/settings/ollama-pull` | Download a model into Ollama (`ollama pull`, background task) |
 | GET | `/api/settings/ollama-pull/{model}` | Model download status |
+| POST | `/api/settings/telegram-test` | Validate the Telegram bot token (`getMe`) |
+| GET | `/api/settings/telegram-status` | Telegram bot status: configured/running, STT/TTS |
 | GET | `/api/logs` | Latest lines of the app log |
 | GET | `/api/logs/download` | Download the log (.log) |
 | POST | `/api/logs/client` | Write a frontend error into the log/audit |
@@ -370,6 +372,27 @@ In the "My medical card" tab:
 - the reminder tells you in how many days the test should be retaken
   (or flags an overdue item).
 
+## Telegram bot
+
+An optional long-polling bot (no public HTTPS or webhooks required). It
+starts together with the server when a token and a list of allowed Telegram
+IDs are set.
+
+Setup:
+
+1. Create a bot via `@BotFather` and get the token.
+2. In "Settings" → "Telegram bot" paste the token and your Telegram ID
+   (get your ID via `@userinfobot`) and press "Check token".
+3. Choose whether you need voice messages and re-test reminders, then save.
+
+Features: text chat with the AI (using your medical card and articles),
+a photo of a lab report with recognition and confirmation before saving to
+the card, voice messages (recognition via faster-whisper, spoken answers via
+edge-tts, packages from `backend/requirements-voice.txt`) and push reminders.
+
+The bot replies only to users on the allow-list. The token is stored in
+`backend/.env` or the data folder (never committed to git).
+
 ## Voice input
 
 The chat has a microphone button — speech recognition via
@@ -397,6 +420,7 @@ Implemented:
   the offline Wikipedia (with caching), pytest tests in CI;
 - marker trend charts with a norm corridor and two-record comparison;
 - long-term report: per-year marker summary and an AI health assessment for a period;
+- Telegram bot: text chat, lab-report photos into the card, voice messages, reminders;
 - action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
 
 Possible next steps (not prioritized):
@@ -421,6 +445,8 @@ backend/app/
   routes/notes.py    # notes (AI takeaways on articles) + PDF export
   routes/profiles.py # health profiles (CRUD + current profile)
   routes/reminders.py# lab-retest reminders
+  services/telegram_bot.py # Telegram bot: chat, lab-report photos, reminders
+  services/voice.py  # optional STT/TTS for Telegram (faster-whisper, edge-tts)
   services/llm.py    # Ollama / OpenAI client + function calling
   services/tools.py  # AI tools (article search, medical record reads)
   services/audit.py  # user action audit

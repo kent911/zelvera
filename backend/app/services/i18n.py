@@ -192,6 +192,8 @@ RU = {
     "audit.error": "Ошибка",
     "settings.model_required": "Укажите название модели.",
     "settings.kiwix_url_required": "Укажите адрес Kiwix (например, http://192.168.1.50:8080).",
+    "settings.telegram_token_required": "Укажите токен Telegram-бота.",
+    "settings.telegram_token_invalid": "Telegram отклонил токен. Проверьте значение от @BotFather.",
     "settings.ollama_unreachable": "Ollama недоступна по адресу {url}: {err}",
     "llm.no_api_key": "Не задан ключ USER_LLM_API_KEY. Добавьте его в backend/.env или переключите LLM_BACKEND на ollama.",
     "llm.tools_api_error": "Ошибка API при вызове инструментов: {err}",
@@ -436,6 +438,31 @@ RU = {
 {parts}
 \"\"\"
 """,
+    # --- Telegram-бот ---
+    "telegram.cmd_start": "Начать",
+    "telegram.cmd_help": "Справка",
+    "telegram.cmd_reset": "Сбросить диалог",
+    "telegram.start": "Здравствуйте! Я медицинский ИИ-ассистент Zelvera.\n\nМожно просто писать вопросы в чат, отправить фото бланка анализов (распознаю и предложу сохранить в мед. карту) или голосовое сообщение. Напоминания о пересдаче анализов приходят сюда автоматически.\n\nКоманды: /help — справка, /reset — очистить историю диалога.\n\nОтвечаю на основе вашей мед. карты, базы статей и офлайн-Википедии. Я не врач и не ставлю диагнозы.",
+    "telegram.help": "Что я умею:\n\n• Ответы на вопросы об анализах и здоровье (с учётом вашей мед. карты).\n• Фото бланка анализов — распознаю показатели и предложу сохранить в карту.\n• Голосовые сообщения — распознаю речь (если включено).\n• Напоминания о пересдаче анализов.\n\nКоманды: /start, /help, /reset.",
+    "telegram.reset": "История диалога очищена. Можете начать заново.",
+    "telegram.empty_answer": "Не удалось сформировать ответ. Попробуйте переформулировать вопрос.",
+    "telegram.photo_failed": "Не удалось обработать файл. Попробуйте отправить более чёткое фото бланка.",
+    "telegram.no_markers": "На изображении не найдено показателей. Убедитесь, что бланк хорошо читается и попадает в кадр целиком.",
+    "telegram.analysis_header": "Распознано показателей: {n}",
+    "telegram.analysis_date": "Дата анализа: {date}",
+    "telegram.analysis_hint": "Сохранить в мед. карту?",
+    "telegram.btn_save": "Сохранить в карту",
+    "telegram.btn_cancel": "Отмена",
+    "telegram.saved": "Сохранено",
+    "telegram.saved_record": "Запись #{id} сохранена в мед. карту.",
+    "telegram.canceled": "Сохранение отменено.",
+    "telegram.save_expired": "Данные уже неактуальны, пришлите фото заново.",
+    "telegram.voice_disabled": "Распознавание речи отключено или недоступно. Напишите вопрос текстом или включите голос в настройках.",
+    "telegram.voice_failed": "Не удалось распознать голосовое сообщение. Попробуйте записать заново.",
+    "telegram.recognized": "Распознано: {text}",
+    "telegram.voice_title": "Ответ Zelvera",
+    "telegram.reminder_due": "Напоминание: пора пересдать показатель «{marker}» (прошло {days} дн., интервал {interval} дн.).",
+    "telegram.denied": "У вас нет доступа к этому боту.",
 }
 
 EN = {
@@ -609,6 +636,8 @@ EN = {
     "audit.error": "Error",
     "settings.model_required": "Please specify the model name.",
     "settings.kiwix_url_required": "Please specify the Kiwix address (e.g. http://192.168.1.50:8080).",
+    "settings.telegram_token_required": "Please specify the Telegram bot token.",
+    "settings.telegram_token_invalid": "Telegram rejected the token. Check the value from @BotFather.",
     "settings.ollama_unreachable": "Ollama is unreachable at {url}: {err}",
     "llm.no_api_key": "USER_LLM_API_KEY is not set. Add it to backend/.env or switch LLM_BACKEND to ollama.",
     "llm.tools_api_error": "API error while calling tools: {err}",
@@ -849,6 +878,31 @@ Partial summaries:
 {parts}
 \"\"\"
 """,
+    # --- Telegram bot ---
+    "telegram.cmd_start": "Start",
+    "telegram.cmd_help": "Help",
+    "telegram.cmd_reset": "Reset dialog",
+    "telegram.start": "Hello! I am Zelvera, a medical AI assistant.\n\nJust type your questions in chat, send a photo of a lab report (I will recognize the values and offer to save them to your medical card), or send a voice message. Re-test reminders are delivered here automatically.\n\nCommands: /help — help, /reset — clear dialog history.\n\nI answer based on your medical card, the article base and the offline Wikipedia. I am not a doctor and do not make diagnoses.",
+    "telegram.help": "What I can do:\n\n• Answer questions about tests and health (using your medical card).\n• Recognize a photo of a lab report and offer to save the values to the card.\n• Transcribe voice messages (if enabled).\n• Send re-test reminders.\n\nCommands: /start, /help, /reset.",
+    "telegram.reset": "Dialog history cleared. You can start over.",
+    "telegram.empty_answer": "Could not build an answer. Please rephrase your question.",
+    "telegram.photo_failed": "Could not process the file. Please send a clearer photo of the report.",
+    "telegram.no_markers": "No markers found in the image. Make sure the report is well lit and fully in frame.",
+    "telegram.analysis_header": "Markers recognized: {n}",
+    "telegram.analysis_date": "Test date: {date}",
+    "telegram.analysis_hint": "Save to the medical card?",
+    "telegram.btn_save": "Save to card",
+    "telegram.btn_cancel": "Cancel",
+    "telegram.saved": "Saved",
+    "telegram.saved_record": "Record #{id} saved to the medical card.",
+    "telegram.canceled": "Saving canceled.",
+    "telegram.save_expired": "The data is outdated, please send the photo again.",
+    "telegram.voice_disabled": "Speech recognition is disabled or unavailable. Type your question or enable voice in settings.",
+    "telegram.voice_failed": "Could not recognize the voice message. Please try recording again.",
+    "telegram.recognized": "Recognized: {text}",
+    "telegram.voice_title": "Zelvera answer",
+    "telegram.reminder_due": "Reminder: it is time to retest \"{marker}\" ({days} days passed, interval {interval} days).",
+    "telegram.denied": "You do not have access to this bot.",
 }
 
 _TABLES = {"ru": RU, "en": EN}

@@ -21,6 +21,12 @@ class SettingsUpdate(BaseModel):
     kiwix_base_url: str | None = None
     kiwix_zim_name: str | None = None
     lang: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_allowed_ids: str | None = None
+    telegram_voice_enabled: str | None = None
+    telegram_whisper_model: str | None = None
+    telegram_tts_voice: str | None = None
+    telegram_reminders_enabled: str | None = None
 
 
 class BaseUrlIn(BaseModel):
@@ -37,12 +43,15 @@ async def get_settings() -> dict[str, str]:
 
 @router.post("/settings")
 async def update_settings(body: SettingsUpdate) -> dict[str, str]:
-    saved = settings_store.update(
-        **{k: v for k, v in body.model_dump().items() if v is not None}
-    )
+    values = {k: v for k, v in body.model_dump().items() if v is not None}
+    saved = settings_store.update(**values)
     i18n.set_lang(saved.get("lang", i18n.get_lang()))
     saved["backend"] = env_settings.llm_backend
     audit.log_action("settings_update", f"модель={saved.get('chat_model')}")
+    if any(key.startswith("telegram_") for key in values):
+        from app.services.telegram_bot import bot as telegram_bot
+
+        await telegram_bot.restart()
     return saved
 
 
@@ -75,3 +84,44 @@ async def kiwix_books(body: KiwixBaseUrlIn) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     audit.log_action("settings_update", "kiwix: проверка списка книг")
     return {"books": books}
+
+
+class TelegramTokenIn(BaseModel):
+    telegram_bot_token: str
+
+
+@router.post("/settings/telegram-test")
+async def telegram_test(body: TelegramTokenIn) -> dict[str, Any]:
+    """Проверяет токен бота через getMe и возвращает имя/ID бота."""
+    token = body.telegram_bot_token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail=i18n.t("settings.telegram_token_required"))
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            data = resp.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if not data.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=str(data.get("description") or i18n.t("settings.telegram_token_invalid")),
+        )
+    result = data.get("result") or {}
+    audit.log_action("settings_update", "telegram: проверка токена")
+    return {"username": result.get("username", ""), "id": result.get("id")}
+
+
+@router.get("/settings/telegram-status")
+async def telegram_status() -> dict[str, Any]:
+    from app.services import voice
+    from app.services.telegram_bot import bot as telegram_bot
+
+    return {
+        "configured": telegram_bot.is_configured(),
+        "running": bool(telegram_bot._task and not telegram_bot._task.done()),
+        "recipients": len(telegram_bot.allowed_ids()),
+        "stt_available": voice.stt_available(),
+        "tts_available": voice.tts_available(),
+    }
+

@@ -108,6 +108,12 @@ const setChatModel = document.getElementById("set-chat-model");
 const setVisionModel = document.getElementById("set-vision-model");
 const setEmbedModel = document.getElementById("set-embed-model");
 const setNumCtx = document.getElementById("set-num-ctx");
+const setTelegramToken = document.getElementById("set-telegram-token");
+const setTelegramAllowedIds = document.getElementById("set-telegram-allowed-ids");
+const setTelegramVoice = document.getElementById("set-telegram-voice");
+const setTelegramReminders = document.getElementById("set-telegram-reminders");
+const btnTelegramTest = document.getElementById("btn-telegram-test");
+const telegramStatus = document.getElementById("telegram-status");
 const btnRefreshModels = document.getElementById("btn-refresh-models");
 const modelsStatus = document.getElementById("models-status");
 const notesView = document.getElementById("notes-view");
@@ -1915,6 +1921,12 @@ function setKiwixStatus(text, isError = false) {
   kiwixStatus.classList.toggle("err", isError);
 }
 
+function setTelegramStatus(text, isError = false) {
+  if (!telegramStatus) return;
+  telegramStatus.textContent = text;
+  telegramStatus.classList.toggle("err", isError);
+}
+
 let availableModels = [];
 
 function setupModelPicker(inputEl) {
@@ -1985,6 +1997,11 @@ async function openSettings() {
     setVisionModel.value = data.vision_model || "";
     setEmbedModel.value = data.embed_model || "";
     setNumCtx.value = data.num_ctx || "";
+    setTelegramToken.value = data.telegram_bot_token || "";
+    setTelegramAllowedIds.value = data.telegram_allowed_ids || "";
+    setTelegramVoice.checked = (data.telegram_voice_enabled || "1") !== "0";
+    setTelegramReminders.checked = (data.telegram_reminders_enabled || "1") !== "0";
+    setTelegramStatus("");
     const dirEl = document.getElementById("data-dir-path");
     if (dirEl) dirEl.textContent = data.data_dir || "—";
     settingsModal.classList.remove("hidden");
@@ -2029,6 +2046,33 @@ async function refreshKiwixBooks() {
 
 function closeSettings() {
   settingsModal.classList.add("hidden");
+}
+
+async function testTelegramToken() {
+  const token = setTelegramToken.value.trim();
+  if (!token) {
+    setTelegramStatus(t("settings.telegramTokenRequired"), true);
+    return;
+  }
+  setTelegramStatus(t("settings.telegramChecking"));
+  btnTelegramTest.disabled = true;
+  try {
+    const res = await fetch("/api/settings/telegram-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegram_bot_token: token }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setTelegramStatus(t("settings.error", { msg: data.detail || t("error.unknown") }), true);
+      return;
+    }
+    setTelegramStatus(t("settings.telegramOk", { name: data.username || data.id || "" }));
+  } catch (err) {
+    setTelegramStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    btnTelegramTest.disabled = false;
+  }
 }
 
 document.getElementById("btn-copy-dir")?.addEventListener("click", async () => {
@@ -2141,6 +2185,10 @@ async function saveSettings() {
     vision_model: setVisionModel.value.trim(),
     embed_model: setEmbedModel.value.trim(),
     num_ctx: setNumCtx.value.trim(),
+    telegram_bot_token: setTelegramToken.value.trim(),
+    telegram_allowed_ids: setTelegramAllowedIds.value.trim(),
+    telegram_voice_enabled: setTelegramVoice.checked ? "1" : "0",
+    telegram_reminders_enabled: setTelegramReminders.checked ? "1" : "0",
   };
   try {
     const res = await fetch("/api/settings", {
@@ -2166,6 +2214,7 @@ settingsCancel.addEventListener("click", closeSettings);
 settingsSave.addEventListener("click", saveSettings);
 btnRefreshModels.addEventListener("click", refreshOllamaModels);
 btnKiwixBooks.addEventListener("click", refreshKiwixBooks);
+btnTelegramTest?.addEventListener("click", testTelegramToken);
 settingsModal.addEventListener("click", (e) => {
   if (e.target === settingsModal) closeSettings();
 });

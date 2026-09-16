@@ -72,6 +72,23 @@ class Settings:
         ).rstrip("/")
         self.kiwix_zim_name: str = os.getenv("KIWIX_ZIM_NAME", "").strip()
 
+        self.telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        self.telegram_allowed_ids: str = os.getenv(
+            "TELEGRAM_ALLOWED_CHAT_IDS", ""
+        ).strip()
+        self.telegram_voice_enabled: bool = os.getenv(
+            "TELEGRAM_VOICE_ENABLED", "1"
+        ).strip().lower() in ("1", "true", "yes", "on")
+        self.telegram_whisper_model: str = os.getenv(
+            "TELEGRAM_WHISPER_MODEL", "small"
+        ).strip()
+        self.telegram_tts_voice: str = os.getenv(
+            "TELEGRAM_TTS_VOICE", "ru-RU-DmitryNeural"
+        ).strip()
+        self.telegram_reminders_enabled: bool = os.getenv(
+            "TELEGRAM_REMINDERS_ENABLED", "1"
+        ).strip().lower() in ("1", "true", "yes", "on")
+
         self.system_prompt: str = os.getenv(
             "SYSTEM_PROMPT",
             (

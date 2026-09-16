@@ -21,6 +21,11 @@ git pull
 log "Обновление зависимостей"
 ./venv/bin/pip install -r backend/requirements.txt
 
+if [ "${ZELVERA_VOICE:-0}" = "1" ]; then
+    log "Установка голосовых зависимостей Telegram-бота (faster-whisper, edge-tts)"
+    ./venv/bin/pip install -r backend/requirements-voice.txt
+fi
+
 log "Перезапуск сервиса"
 systemctl restart zelvera
 

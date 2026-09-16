@@ -393,6 +393,17 @@ nav {
   opacity: 0.75;
 }
 
+.field-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-check input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+}
+
 .modal-row {
   display: flex;
   align-items: center;

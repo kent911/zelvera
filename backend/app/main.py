@@ -13,6 +13,7 @@ from app.routes import analysis, articles, backup, chat, documents, kiwix, logs,
 from app.routes import settings as settings_route
 from app.services import audit, database
 from app.services.logger import logger
+from app.services.telegram_bot import bot as telegram_bot
 
 if getattr(sys, "frozen", False):
     FRONTEND_DIR = Path(sys._MEIPASS) / "frontend"
@@ -59,6 +60,13 @@ async def on_startup() -> None:
     database.init_db()
     audit.log_action("app_start", f"backend={settings.llm_backend}, model={settings.active_model}")
     logger.info("Приложение запущено (backend=%s, model=%s)", settings.llm_backend, settings.active_model)
+    await telegram_bot.start()
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await telegram_bot.stop()
+    audit.log_action("app_stop", "остановка приложения")
 
 if FRONTEND_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

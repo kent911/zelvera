@@ -22,6 +22,15 @@ DEFAULTS = {
     "vision_max_tokens": str(env_settings.ollama_vision_max_tokens),
     "kiwix_base_url": env_settings.kiwix_base_url,
     "kiwix_zim_name": env_settings.kiwix_zim_name,
+    "telegram_bot_token": env_settings.telegram_bot_token,
+    "telegram_allowed_ids": env_settings.telegram_allowed_ids,
+    "telegram_voice_enabled": "1" if env_settings.telegram_voice_enabled else "0",
+    "telegram_whisper_model": env_settings.telegram_whisper_model,
+    "telegram_tts_voice": env_settings.telegram_tts_voice,
+    "telegram_reminders_enabled": (
+        "1" if env_settings.telegram_reminders_enabled else "0"
+    ),
+    "telegram_offset": "0",
     "current_profile_id": "",
     "lang": "ru",
 }

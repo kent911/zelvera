@@ -1,0 +1,6 @@
+# Optional voice features for the Telegram bot.
+# Install only when voice messages are needed:
+#   pip install -r requirements-voice.txt
+# Without these packages the bot keeps working in text-only mode.
+faster-whisper==1.1.1
+edge-tts==7.0.0
