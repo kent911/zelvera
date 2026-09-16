@@ -463,6 +463,7 @@ RU = {
     "telegram.voice_title": "Ответ Zelvera",
     "telegram.reminder_due": "Напоминание: пора пересдать показатель «{marker}» (прошло {days} дн., интервал {interval} дн.).",
     "telegram.denied": "У вас нет доступа к этому боту.",
+    "telegram.setup_id": "Настройка бота: ваш Telegram ID — {id}.\nДобавьте его в Zelvera: «Настройки» → «Telegram-бот» → «Разрешённые Telegram ID», затем сохраните. После этого бот начнёт отвечать.",
 }
 
 EN = {
@@ -903,6 +904,7 @@ Partial summaries:
     "telegram.voice_title": "Zelvera answer",
     "telegram.reminder_due": "Reminder: it is time to retest \"{marker}\" ({days} days passed, interval {interval} days).",
     "telegram.denied": "You do not have access to this bot.",
+    "telegram.setup_id": "Bot setup: your Telegram ID is {id}.\nAdd it in Zelvera: \"Settings\" -> \"Telegram bot\" -> \"Allowed Telegram IDs\", then save. After that the bot will reply.",
 }
 
 _TABLES = {"ru": RU, "en": EN}

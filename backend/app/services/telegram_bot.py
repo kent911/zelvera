@@ -108,7 +108,7 @@ class TelegramBot:
         return _parse_allowed_ids(settings_store.get("telegram_allowed_ids") or "")
 
     def is_configured(self) -> bool:
-        return bool(self.token()) and bool(self.allowed_ids())
+        return bool(self.token())
 
     def _voice_enabled(self) -> bool:
         return (settings_store.get("telegram_voice_enabled") or "1").strip() == "1"
@@ -236,7 +236,11 @@ class TelegramBot:
         if chat_id is None:
             return
         if chat_id not in self.allowed_ids():
-            logger.info("Telegram: доступ запрещён для chat_id=%s", chat_id)
+            if not self.allowed_ids():
+                await self._send(chat_id, i18n.t("telegram.setup_id", id=chat_id))
+            else:
+                logger.info("Telegram: доступ запрещён для chat_id=%s", chat_id)
+                await self._send(chat_id, i18n.t("telegram.denied"))
             return
         if message.get("voice"):
             await self._handle_voice(chat_id, message)
