@@ -88,6 +88,7 @@ class Settings:
         self.telegram_reminders_enabled: bool = os.getenv(
             "TELEGRAM_REMINDERS_ENABLED", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
+        self.telegram_proxy: str = os.getenv("TELEGRAM_PROXY", "").strip()
 
         self.system_prompt: str = os.getenv(
             "SYSTEM_PROMPT",

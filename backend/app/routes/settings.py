@@ -27,6 +27,7 @@ class SettingsUpdate(BaseModel):
     telegram_whisper_model: str | None = None
     telegram_tts_voice: str | None = None
     telegram_reminders_enabled: str | None = None
+    telegram_proxy: str | None = None
 
 
 class BaseUrlIn(BaseModel):
@@ -97,11 +98,16 @@ async def telegram_test(body: TelegramTokenIn) -> dict[str, Any]:
     if not token:
         raise HTTPException(status_code=400, detail=i18n.t("settings.telegram_token_required"))
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        proxy = (settings_store.get("telegram_proxy") or "").strip() or None
+        async with httpx.AsyncClient(timeout=15, proxy=proxy) as client:
             resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
             data = resp.json()
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        order = f"{type(exc).__name__}: {exc}".strip().rstrip(":")
+        raise HTTPException(
+            status_code=502,
+            detail=i18n.t("settings.telegram_unreachable", err=order),
+        ) from exc
     if not data.get("ok"):
         raise HTTPException(
             status_code=400,

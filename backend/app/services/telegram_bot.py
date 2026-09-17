@@ -118,12 +118,17 @@ class TelegramBot:
             settings_store.get("telegram_reminders_enabled") or "1"
         ).strip() == "1"
 
+    def proxy(self) -> str | None:
+        return (settings_store.get("telegram_proxy") or "").strip() or None
+
     # --- жизненный цикл ---
     async def start(self) -> None:
         if self._task and not self._task.done():
             return
         if not self.is_configured():
-            logger.info("Telegram-бот не запущен: не задан токен или список ID")
+            logger.info(
+                "Telegram-бот не запущен: не задан токен. Задайте его в «Настройки» → «Telegram-бот»."
+            )
             return
         self._stop = asyncio.Event()
         self._task = asyncio.create_task(self._run(), name="telegram-poll")
@@ -131,9 +136,6 @@ class TelegramBot:
             self._reminder_task = asyncio.create_task(
                 self._reminder_loop(), name="telegram-reminders"
             )
-        logger.info(
-            "Telegram-бот запущен (получателей: %d)", len(self.allowed_ids())
-        )
         audit.log_action("telegram_start", f"ids={len(self.allowed_ids())}")
 
     async def stop(self) -> None:
@@ -181,8 +183,23 @@ class TelegramBot:
             async with httpx.AsyncClient(
                 base_url=f"{API_BASE}/bot{token}",
                 timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10),
+                proxy=self.proxy(),
             ) as client:
                 self._client = client
+                try:
+                    me = await self._api("getMe", {})
+                    logger.info(
+                        "Telegram-бот запущен: @%s (получателей: %d)",
+                        me.get("username", "?"),
+                        len(self.allowed_ids()),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "Telegram-бот: нет доступа к api.telegram.org (%s: %s). "
+                        "Проверьте интернет/DNS/прокси в контейнере.",
+                        type(exc).__name__,
+                        exc,
+                    )
                 try:
                     await self._api(
                         "setMyCommands",
@@ -209,7 +226,11 @@ class TelegramBot:
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:  # noqa: BLE001
-                        logger.warning("Telegram getUpdates: %s", exc)
+                        logger.warning(
+                            "Telegram getUpdates: %s: %s",
+                            type(exc).__name__,
+                            exc or "нет ответа от api.telegram.org",
+                        )
                         await asyncio.sleep(3)
                         continue
                     for update in updates or []:
@@ -553,7 +574,7 @@ class TelegramBot:
             raise ValueError("file_path is empty")
         token = self.token()
         url = f"{API_BASE}/file/bot{token}/{file_path}"
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=60, proxy=self.proxy()) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             return resp.content

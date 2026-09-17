@@ -110,6 +110,7 @@ const setEmbedModel = document.getElementById("set-embed-model");
 const setNumCtx = document.getElementById("set-num-ctx");
 const setTelegramToken = document.getElementById("set-telegram-token");
 const setTelegramAllowedIds = document.getElementById("set-telegram-allowed-ids");
+const setTelegramProxy = document.getElementById("set-telegram-proxy");
 const setTelegramVoice = document.getElementById("set-telegram-voice");
 const setTelegramReminders = document.getElementById("set-telegram-reminders");
 const btnTelegramTest = document.getElementById("btn-telegram-test");
@@ -1999,6 +2000,7 @@ async function openSettings() {
     setNumCtx.value = data.num_ctx || "";
     setTelegramToken.value = data.telegram_bot_token || "";
     setTelegramAllowedIds.value = data.telegram_allowed_ids || "";
+    setTelegramProxy.value = data.telegram_proxy || "";
     setTelegramVoice.checked = (data.telegram_voice_enabled || "1") !== "0";
     setTelegramReminders.checked = (data.telegram_reminders_enabled || "1") !== "0";
     setTelegramStatus("");
@@ -2187,6 +2189,7 @@ async function saveSettings() {
     num_ctx: setNumCtx.value.trim(),
     telegram_bot_token: setTelegramToken.value.trim(),
     telegram_allowed_ids: setTelegramAllowedIds.value.trim(),
+    telegram_proxy: setTelegramProxy.value.trim(),
     telegram_voice_enabled: setTelegramVoice.checked ? "1" : "0",
     telegram_reminders_enabled: setTelegramReminders.checked ? "1" : "0",
   };

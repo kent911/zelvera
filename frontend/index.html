@@ -5,11 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zelvera — локальный медицинский ассистент</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=23" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=23" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=23" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=23" />
-  <link rel="stylesheet" href="css/style.css?v=23" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=24" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=24" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=24" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=24" />
+  <link rel="stylesheet" href="css/style.css?v=24" />
 </head>
 <body>
   <div id="app">
@@ -224,6 +224,11 @@
           <input type="text" id="set-telegram-allowed-ids" placeholder="123456789, 987654321" />
           <span class="field-hint" data-i18n="settings.telegramAllowedIdsHint">Бот отвечает только этим пользователям. Свой ID можно узнать у @userinfobot.</span>
         </label>
+        <label class="field">
+          <span data-i18n="settings.telegramProxy">Прокси для Telegram (необязательно)</span>
+          <input type="text" id="set-telegram-proxy" placeholder="http://192.168.1.10:3128" />
+          <span class="field-hint" data-i18n="settings.telegramProxyHint">Укажите, если из контейнера нет прямого доступа к api.telegram.org (например, socks5://user:pass@host:1080).</span>
+        </label>
         <div class="modal-row">
           <button id="btn-telegram-test" class="action-btn" data-i18n="settings.telegramTest">Проверить токен</button>
           <span id="telegram-status" class="models-status"></span>
@@ -360,7 +365,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=23"></script>
-  <script src="js/app.js?v=23"></script>
+  <script src="js/i18n.js?v=24"></script>
+  <script src="js/app.js?v=24"></script>
 </body>
 </html>

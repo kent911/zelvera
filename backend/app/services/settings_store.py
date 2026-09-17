@@ -31,6 +31,7 @@ DEFAULTS = {
         "1" if env_settings.telegram_reminders_enabled else "0"
     ),
     "telegram_offset": "0",
+    "telegram_proxy": env_settings.telegram_proxy,
     "current_profile_id": "",
     "lang": "ru",
 }

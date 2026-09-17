@@ -393,6 +393,11 @@ edge-tts, packages from `backend/requirements-voice.txt`) and push reminders.
 The bot replies only to users on the allow-list. The token is stored in
 `backend/.env` or the data folder (never committed to git).
 
+If the container has no direct access to `api.telegram.org` (requests time
+out), set an HTTP/SOCKS proxy in the "Proxy for Telegram" field or via the
+`TELEGRAM_PROXY` variable (e.g. `socks5://host:1080`); SOCKS requires
+`pip install "httpx[socks]"`.
+
 ## Voice input
 
 The chat has a microphone button — speech recognition via
