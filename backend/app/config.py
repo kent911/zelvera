@@ -89,6 +89,9 @@ class Settings:
             "TELEGRAM_REMINDERS_ENABLED", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
         self.telegram_proxy: str = os.getenv("TELEGRAM_PROXY", "").strip()
+        self.telegram_force_ipv4: bool = os.getenv(
+            "TELEGRAM_FORCE_IPV4", "1"
+        ).strip().lower() in ("1", "true", "yes", "on")
 
         self.system_prompt: str = os.getenv(
             "SYSTEM_PROMPT",

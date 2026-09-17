@@ -32,6 +32,7 @@ DEFAULTS = {
     ),
     "telegram_offset": "0",
     "telegram_proxy": env_settings.telegram_proxy,
+    "telegram_force_ipv4": "1" if env_settings.telegram_force_ipv4 else "0",
     "current_profile_id": "",
     "lang": "ru",
 }

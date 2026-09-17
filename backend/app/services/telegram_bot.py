@@ -121,6 +121,19 @@ class TelegramBot:
     def proxy(self) -> str | None:
         return (settings_store.get("telegram_proxy") or "").strip() or None
 
+    def force_ipv4(self) -> bool:
+        return (settings_store.get("telegram_force_ipv4") or "1").strip() == "1"
+
+    def client_options(self) -> dict[str, Any]:
+        """Прокси или принудительный IPv4 (обход недоступного IPv6)."""
+        if self.proxy():
+            return {"proxy": self.proxy()}
+        if self.force_ipv4():
+            return {
+                "transport": httpx.AsyncHTTPTransport(local_address="0.0.0.0")
+            }
+        return {}
+
     # --- жизненный цикл ---
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -183,7 +196,7 @@ class TelegramBot:
             async with httpx.AsyncClient(
                 base_url=f"{API_BASE}/bot{token}",
                 timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10),
-                proxy=self.proxy(),
+                **self.client_options(),
             ) as client:
                 self._client = client
                 try:
@@ -574,7 +587,7 @@ class TelegramBot:
             raise ValueError("file_path is empty")
         token = self.token()
         url = f"{API_BASE}/file/bot{token}/{file_path}"
-        async with httpx.AsyncClient(timeout=60, proxy=self.proxy()) as client:
+        async with httpx.AsyncClient(timeout=60, **self.client_options()) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             return resp.content

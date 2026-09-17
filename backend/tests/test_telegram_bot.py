@@ -37,3 +37,22 @@ def test_days_since():
     assert telegram_bot._days_since(old) == 30
     assert telegram_bot._days_since("") is None
     assert telegram_bot._days_since("not-a-date") is None
+
+
+def test_client_options_prefers_proxy_then_ipv4(monkeypatch):
+    bot = telegram_bot.TelegramBot()
+    store: dict[str, str] = {}
+
+    monkeypatch.setattr(telegram_bot.settings_store, "get", lambda key: store.get(key, "1"))
+
+    store["telegram_proxy"] = "socks5://localhost:1080"
+    assert bot.client_options() == {"proxy": "socks5://localhost:1080"}
+
+    store["telegram_proxy"] = ""
+    store["telegram_force_ipv4"] = "1"
+    options = bot.client_options()
+    assert "transport" in options
+    assert isinstance(options["transport"], telegram_bot.httpx.AsyncHTTPTransport)
+
+    store["telegram_force_ipv4"] = "0"
+    assert bot.client_options() == {}
