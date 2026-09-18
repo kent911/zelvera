@@ -94,6 +94,14 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_profile",
+            "description": i18n.t("tool.get_profile.desc"),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_marker_trends",
             "description": i18n.t("tool.get_marker_trends.desc"),
             "parameters": {
@@ -280,6 +288,8 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
             return await get_medical_card(
                 int(args.get("days")) if args.get("days") else None
             )
+        if name == "get_profile":
+            return await asyncio.to_thread(get_profile)
         if name == "get_marker_trends":
             return await get_marker_trends(
                 str(args.get("marker", "")) or None,
@@ -364,6 +374,70 @@ def save_analysis_to_card(markers: list[Any], date: str | None = None) -> str:
         "record_save_chat", f"id={record['id']}, маркеров={len(cleaned)}"
     )
     return i18n.t("tool.save_analysis_to_card.ok", names=names)
+
+
+def _profile_data() -> dict[str, Any] | None:
+    candidates: list[int] = []
+    pid = _current_profile_id()
+    if pid is not None:
+        candidates.append(pid)
+    try:
+        candidates.extend(p["id"] for p in database.list_profiles())
+    except Exception:  # noqa: BLE001
+        pass
+    for candidate in candidates:
+        try:
+            return database.get_profile(candidate)
+        except KeyError:
+            continue
+    return None
+
+
+def profile_summary(profile: dict[str, Any]) -> str:
+    parts: list[str] = []
+    name = (profile.get("name") or "").strip()
+    if name:
+        parts.append(i18n.t("tool.profile.name", value=name))
+    birth_year = profile.get("birth_year")
+    if birth_year:
+        try:
+            age = datetime.now().year - int(birth_year)
+        except (TypeError, ValueError):
+            age = None
+        part = i18n.t("tool.profile.birth_year", value=birth_year)
+        if age is not None:
+            part += i18n.t("tool.profile.age", value=age)
+        parts.append(part)
+    if profile.get("blood_type"):
+        parts.append(i18n.t("tool.profile.blood", value=profile["blood_type"]))
+    if profile.get("height_cm"):
+        parts.append(i18n.t("tool.profile.height", value=profile["height_cm"]))
+    if profile.get("weight_kg"):
+        parts.append(i18n.t("tool.profile.weight", value=profile["weight_kg"]))
+    return ", ".join(parts)
+
+
+def profile_context() -> str:
+    """Компактная сводка профиля для системного сообщения чата."""
+    profile = _profile_data()
+    if not profile:
+        return ""
+    if not any(
+        profile.get(k)
+        for k in ("name", "birth_year", "height_cm", "weight_kg", "blood_type")
+    ):
+        return ""
+    return i18n.t("tool.profile.context", summary=profile_summary(profile))
+
+
+def get_profile() -> str:
+    profile = _profile_data()
+    if not profile:
+        return i18n.t("tool.get_profile.empty")
+    summary = profile_summary(profile)
+    if not summary:
+        return i18n.t("tool.get_profile.empty")
+    return i18n.t("tool.profile.title") + "\n" + summary
 
 
 async def get_medical_card(days: int | None = None) -> str:

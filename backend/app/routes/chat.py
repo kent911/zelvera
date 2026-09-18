@@ -118,6 +118,10 @@ async def chat(req: ChatRequest) -> StreamingResponse:
             },
         )
 
+    profile_text = tools.profile_context()
+    if profile_text:
+        messages.insert(1, {"role": "system", "content": profile_text})
+
     async def event_stream():
         start = time.monotonic()
         rounds = 0

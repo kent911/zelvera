@@ -314,6 +314,8 @@ The chat supports tool calls (read-only, no writes to the database):
 - `list_articles()` — list of uploaded articles;
 - `get_medical_card(days)` — current markers from the active profile's
   medical record (optionally — for the last N days);
+- `get_profile()` — profile details: name, birth year and age, blood type,
+  height, weight (also injected into the chat system context);
 - `get_marker_trends(marker, days)` — marker dynamics over dates,
   number of measurements and trend direction;
 - `check_marker_norm(marker, value, unit, sex, age)` — checks a value against

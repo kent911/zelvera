@@ -308,6 +308,9 @@ class TelegramBot:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": i18n.t("chat_system")}
         ]
+        profile_text = tools.profile_context()
+        if profile_text:
+            messages.append({"role": "system", "content": profile_text})
         messages.extend(history[-HISTORY_LIMIT:])
         messages.append({"role": "user", "content": text})
 
