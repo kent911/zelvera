@@ -395,10 +395,13 @@ The bot replies only to users on the allow-list. The token is stored in
 
 If the container has no direct access to `api.telegram.org` (requests time
 out), set an HTTP/SOCKS proxy in the "Proxy for Telegram" field or via the
-`TELEGRAM_PROXY` variable (e.g. `socks5://host:1080`); SOCKS requires
-`pip install "httpx[socks]"`. A common cause of timeouts is unreachable IPv6
-while `api.telegram.org` has an AAAA record: by default the bot connects over
-IPv4 only (the "Connect over IPv4 only" setting, `TELEGRAM_FORCE_IPV4`).
+`TELEGRAM_PROXY` variable (e.g. `socks5h://host:10808`). When
+`TELEGRAM_PROXY` is unset, the system proxy from `HTTPS_PROXY`/`ALL_PROXY`
+is used (the systemd unit reads `/etc/environment`; local addresses from
+`NO_PROXY` go direct). SOCKS proxies require the `socksio` package (already
+in `requirements.txt`). A common cause of timeouts is unreachable IPv6 while
+`api.telegram.org` has an AAAA record: by default the bot connects over IPv4
+only (the "Connect over IPv4 only" setting, `TELEGRAM_FORCE_IPV4`).
 
 ## Voice input
 

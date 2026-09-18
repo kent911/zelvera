@@ -395,7 +395,10 @@ Telegram ID.
 Если из контейнера нет прямого доступа к `api.telegram.org` (запросы
 завершаются таймаутом), укажите HTTP/SOCKS-прокси в поле «Прокси для
 Telegram» или переменной `TELEGRAM_PROXY` (например,
-`socks5://host:1080`); для SOCKS нужен `pip install "httpx[socks]"`.
+`socks5h://host:10808`). Если `TELEGRAM_PROXY` не задан, берётся
+системный прокси из `HTTPS_PROXY`/`ALL_PROXY` (юнит systemd читает
+`/etc/environment`, локальные адреса из `NO_PROXY` идут напрямую).
+SOCKS-прокси требует пакет `socksio` (уже в `requirements.txt`).
 Частая причина таймаутов — недоступный IPv6 при наличии AAAA-записи у
 `api.telegram.org`: по умолчанию бот подключается только по IPv4
 (настройка «Подключаться только по IPv4», переменная `TELEGRAM_FORCE_IPV4`).

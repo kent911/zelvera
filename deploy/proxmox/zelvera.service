@@ -9,6 +9,7 @@ Type=simple
 User=zelvera
 Group=zelvera
 WorkingDirectory=/opt/zelvera/backend
+EnvironmentFile=-/etc/environment
 Environment=ZELVERA_DATA_DIR=/opt/zelvera/data
 Environment=OLLAMA_BASE_URL=http://127.0.0.1:11434
 ExecStart=/opt/zelvera/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001

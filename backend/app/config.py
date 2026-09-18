@@ -88,7 +88,13 @@ class Settings:
         self.telegram_reminders_enabled: bool = os.getenv(
             "TELEGRAM_REMINDERS_ENABLED", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
-        self.telegram_proxy: str = os.getenv("TELEGRAM_PROXY", "").strip()
+        self.telegram_proxy: str = (
+            os.getenv("TELEGRAM_PROXY", "").strip()
+            or os.getenv("HTTPS_PROXY", "").strip()
+            or os.getenv("https_proxy", "").strip()
+            or os.getenv("ALL_PROXY", "").strip()
+            or os.getenv("all_proxy", "").strip()
+        )
         self.telegram_force_ipv4: bool = os.getenv(
             "TELEGRAM_FORCE_IPV4", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
