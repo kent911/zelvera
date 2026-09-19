@@ -68,7 +68,7 @@ RU = {
     "longterm.prompt.year_count": "{year}: {n}",
     "longterm.prompt.marker": "Показатель: {name} ({unit}), норма {ref}, флаг: {flag}, измерений: {n}",
     "longterm.prompt.year_value": "{year}: медиана {median} (n={n}, {status})",
-    "longterm.disclaimer": "Отчёт носит ознакомительный характер и не заменяет консультацию врача.",
+    "longterm.disclaimer": "Не является медицинской консультацией.",
     "documents.unsupported": "Неподдерживаемый формат. Принимаются: {exts}",
     "documents.empty_file": "Пустой файл.",
     "documents.too_large": "Файл слишком большой (макс. 50 МБ).",
@@ -248,6 +248,9 @@ RU = {
 Ты помогаешь разбираться в анализах и научных статьях, но ты НЕ врач,
 не ставишь диагнозы и не назначаешь лечение. Если вопрос вне твоей
 компетенции — честно скажи об этом и посоветуй обратиться к врачу.
+В ответах о здоровье в самом конце добавляй ровно одну короткую строку:
+«Не является медицинской консультацией». Не пиши длинных дисклеймеров
+и не повторяй «я не врач, не ставлю диагнозы и не назначаю лечение».
 Если для ответа нужны данные из базы научных статей или медицинской
 карты — используй доступные инструменты, не говори «не имею доступа».
 
@@ -420,7 +423,7 @@ RU = {
    что это и почему важно наблюдать.
 3. Положительная динамика и ухудшения относительно ранних лет.
 4. На что обратить внимание и какие данные стоит добавить (без назначений).
-5. Дисклеймер: отчёт носит ознакомительный характер и не заменяет врача.
+5. Не добавляй дисклеймеров про «не врач» — короткая строка добавляется автоматически.
 
 Опирайся только на приведённую сводку, не выдумывай значения и годы,
 которых нет в данных. Отвечай структурированно и понятно на русском языке.""",
@@ -453,7 +456,7 @@ RU = {
     "telegram.cmd_start": "Начать",
     "telegram.cmd_help": "Справка",
     "telegram.cmd_reset": "Сбросить диалог",
-    "telegram.start": "Здравствуйте! Я медицинский ИИ-ассистент Zelvera.\n\nМожно просто писать вопросы в чат, отправить фото бланка анализов (распознаю и предложу сохранить в мед. карту) или голосовое сообщение. Напоминания о пересдаче анализов приходят сюда автоматически.\n\nКоманды: /help — справка, /reset — очистить историю диалога.\n\nОтвечаю на основе вашей мед. карты, базы статей и офлайн-Википедии. Я не врач и не ставлю диагнозы.",
+    "telegram.start": "Здравствуйте! Я медицинский ИИ-ассистент Zelvera.\n\nМожно просто писать вопросы в чат, отправить фото бланка анализов (распознаю и предложу сохранить в мед. карту) или голосовое сообщение. Напоминания о пересдаче анализов приходят сюда автоматически.\n\nКоманды: /help — справка, /reset — очистить историю диалога.\n\nОтвечаю на основе вашей мед. карты, базы статей и офлайн-Википедии.",
     "telegram.help": "Что я умею:\n\n• Ответы на вопросы об анализах и здоровье (с учётом вашей мед. карты).\n• Фото бланка анализов — распознаю показатели и предложу сохранить в карту.\n• Голосовые сообщения — распознаю речь (если включено).\n• Напоминания о пересдаче анализов.\n\nКоманды: /start, /help, /reset.",
     "telegram.reset": "История диалога очищена. Можете начать заново.",
     "telegram.empty_answer": "Не удалось сформировать ответ. Попробуйте переформулировать вопрос.",
@@ -524,7 +527,7 @@ EN = {
     "longterm.prompt.year_count": "{year}: {n}",
     "longterm.prompt.marker": "Marker: {name} ({unit}), norm {ref}, flag: {flag}, measurements: {n}",
     "longterm.prompt.year_value": "{year}: median {median} (n={n}, {status})",
-    "longterm.disclaimer": "The report is informational and does not replace a doctor's consultation.",
+    "longterm.disclaimer": "This is not medical advice.",
     "documents.unsupported": "Unsupported format. Accepted: {exts}",
     "documents.empty_file": "Empty file.",
     "documents.too_large": "File is too large (max 50 MB).",
@@ -704,6 +707,9 @@ EN = {
 You help people understand lab results and scientific articles, but you are NOT a doctor:
 you do not make diagnoses or prescribe treatment. If a question is outside your competence,
 say so honestly and advise consulting a doctor.
+For health-related answers, add exactly one short line at the very end:
+"This is not medical advice." Do not write long disclaimers and do not repeat
+"I am not a doctor, I do not make diagnoses or prescribe treatment".
 If answering requires data from the articles database or the medical card,
 use the available tools — do not say "I have no access".
 
@@ -872,7 +878,7 @@ Report structure:
    what they mean and why monitoring matters.
 3. Positive dynamics and worsening compared to earlier years.
 4. What to pay attention to and which data to add (no prescriptions).
-5. Disclaimer: the report is informational and does not replace a doctor.
+5. Do not add disclaimers about "not a doctor" — a short line is added automatically.
 
 Rely only on the provided summary; do not invent values or years that are not
 in the data. Answer in a structured, clear way in English.""",
@@ -905,7 +911,7 @@ Partial summaries:
     "telegram.cmd_start": "Start",
     "telegram.cmd_help": "Help",
     "telegram.cmd_reset": "Reset dialog",
-    "telegram.start": "Hello! I am Zelvera, a medical AI assistant.\n\nJust type your questions in chat, send a photo of a lab report (I will recognize the values and offer to save them to your medical card), or send a voice message. Re-test reminders are delivered here automatically.\n\nCommands: /help — help, /reset — clear dialog history.\n\nI answer based on your medical card, the article base and the offline Wikipedia. I am not a doctor and do not make diagnoses.",
+    "telegram.start": "Hello! I am Zelvera, a medical AI assistant.\n\nJust type your questions in chat, send a photo of a lab report (I will recognize the values and offer to save them to your medical card), or send a voice message. Re-test reminders are delivered here automatically.\n\nCommands: /help — help, /reset — clear dialog history.\n\nI answer based on your medical card, the article base and the offline Wikipedia.",
     "telegram.help": "What I can do:\n\n• Answer questions about tests and health (using your medical card).\n• Recognize a photo of a lab report and offer to save the values to the card.\n• Transcribe voice messages (if enabled).\n• Send re-test reminders.\n\nCommands: /start, /help, /reset.",
     "telegram.reset": "Dialog history cleared. You can start over.",
     "telegram.empty_answer": "Could not build an answer. Please rephrase your question.",
