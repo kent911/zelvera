@@ -389,7 +389,9 @@ Setup:
 
 Features: text chat with the AI (using your medical card and articles),
 a photo of a lab report with recognition and confirmation before saving to
-the card, voice messages (recognition via faster-whisper, spoken answers via
+the card (send it as a photo or as an image file — files are not compressed
+and are recognized more accurately), voice messages (recognition via
+faster-whisper, spoken answers via
 edge-tts, packages from `backend/requirements-voice.txt`) and push reminders.
 
 The bot replies only to users on the allow-list. The token is stored in

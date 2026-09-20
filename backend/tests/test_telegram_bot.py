@@ -39,6 +39,22 @@ def test_days_since():
     assert telegram_bot._days_since("not-a-date") is None
 
 
+def test_database_create_from_telegram_sets_profile(db, monkeypatch):
+    profile = db.create_profile("Tg user", 1980)
+    monkeypatch.setattr(
+        telegram_bot.tools, "_current_profile_id", lambda: profile["id"]
+    )
+    parsed = {
+        "summary": "",
+        "date": "2026-01-02",
+        "markers": [{"name": "HGB", "value": 140, "unit": "г/л"}],
+    }
+    record = telegram_bot.database_create_from_telegram(parsed)
+    assert record["profile_id"] == profile["id"]
+    assert record["markers"]
+    assert db.list_records(profile["id"])
+
+
 def test_client_options_prefers_proxy_then_ipv4(monkeypatch):
     bot = telegram_bot.TelegramBot()
     store: dict[str, str] = {}

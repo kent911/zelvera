@@ -282,6 +282,11 @@ class TelegramBot:
         if message.get("photo"):
             await self._handle_photo(chat_id, message)
             return
+        document = message.get("document") or {}
+        mime = str(document.get("mime_type") or "").lower()
+        if document and mime.startswith("image/"):
+            await self._handle_image(chat_id, document.get("file_id"), mime)
+            return
         text = (message.get("text") or "").strip()
         if not text:
             return
@@ -351,11 +356,15 @@ class TelegramBot:
 
     # --- фото анализа ---
     async def _handle_photo(self, chat_id: int, message: dict[str, Any]) -> None:
-        await self._typing(chat_id)
         photos = message.get("photo") or []
         if not photos:
             return
-        file_id = photos[-1].get("file_id")
+        await self._handle_image(chat_id, photos[-1].get("file_id"), "image/jpeg")
+
+    async def _handle_image(
+        self, chat_id: int, file_id: str | None, mime: str
+    ) -> None:
+        await self._typing(chat_id)
         try:
             data = await self._download_file(file_id)
         except Exception as exc:  # noqa: BLE001
@@ -364,7 +373,7 @@ class TelegramBot:
             return
         try:
             image_b64 = document.encode_image_bytes(BytesIO(data))
-            text = await llm.ocr_image(image_b64, "image/jpeg")
+            text = await llm.ocr_image(image_b64, mime or "image/jpeg")
             parsed = await extractor.extract_markers(text)
         except (llm.LLMError, document.DocumentError, ValueError) as exc:
             logger.warning("Telegram: ошибка распознавания: %s", exc)
@@ -433,12 +442,15 @@ class TelegramBot:
                     chat_id,
                     message_id,
                     i18n.t("telegram.saved_record", id=record.get("id", "")),
+                    clear_buttons=True,
                 )
         elif data == "tg_cancel":
             self._pending.pop(chat_id, None)
             await self._answer_callback(callback_id, i18n.t("telegram.canceled"))
             if message_id is not None:
-                await self._edit(chat_id, message_id, i18n.t("telegram.canceled"))
+                await self._edit(
+                    chat_id, message_id, i18n.t("telegram.canceled"), clear_buttons=True
+                )
 
     # --- голосовые ---
     async def _handle_voice(self, chat_id: int, message: dict[str, Any]) -> None:
@@ -550,17 +562,23 @@ class TelegramBot:
                 logger.warning("Telegram sendMessage: %s", exc)
                 return
 
-    async def _edit(self, chat_id: int, message_id: int, text: str) -> None:
+    async def _edit(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        clear_buttons: bool = False,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text[:MESSAGE_LIMIT],
+            "disable_web_page_preview": True,
+        }
+        if clear_buttons:
+            payload["reply_markup"] = {"inline_keyboard": []}
         try:
-            await self._api(
-                "editMessageText",
-                {
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "text": text[:MESSAGE_LIMIT],
-                    "disable_web_page_preview": True,
-                },
-            )
+            await self._api("editMessageText", payload)
         except Exception as exc:  # noqa: BLE001
             logger.debug("Telegram editMessageText: %s", exc)
 
@@ -629,10 +647,11 @@ def database_create_from_telegram(parsed: dict[str, Any]) -> dict[str, Any]:
     from app.services import database
 
     return database.create_record(
-        source_name="telegram",
+        source_name=i18n.t("record.source_telegram"),
         summary=parsed.get("summary", "") or "",
         markers=parsed.get("markers", []),
         date=parsed.get("date"),
+        profile_id=tools._current_profile_id(),
     )
 
 
