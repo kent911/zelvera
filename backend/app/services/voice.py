@@ -64,13 +64,22 @@ async def transcribe(data: bytes, model_name: str = "small") -> str:
     return await asyncio.to_thread(_transcribe_sync, data, model_name)
 
 
-async def synthesize(text: str, voice: str = "ru-RU-DmitryNeural") -> bytes:
-    """Синтезирует речь (mp3). Пустая строка, если TTS недоступен."""
+async def synthesize(
+    text: str, voice: str = "ru-RU-DmitryNeural", proxy: str | None = None
+) -> bytes:
+    """Синтезирует речь (mp3). Пустая строка, если TTS недоступен.
+
+    ``proxy`` нужен, когда у контейнера нет прямого доступа к сервисам
+    Microsoft (edge-tts ходит к ним по HTTPS/WSS).
+    """
     if not text.strip() or not tts_available():
         return b""
     import edge_tts
 
-    communicate = edge_tts.Communicate(text, voice)
+    try:
+        communicate = edge_tts.Communicate(text, voice, proxy=proxy)
+    except TypeError:
+        communicate = edge_tts.Communicate(text, voice)
     buffer = bytearray()
     async for chunk in communicate.stream():
         if chunk.get("type") == "audio":

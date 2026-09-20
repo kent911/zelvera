@@ -485,10 +485,12 @@ class TelegramBot:
             return
         try:
             audio = await voice.synthesize(
-                text, settings_store.get("telegram_tts_voice") or "ru-RU-DmitryNeural"
+                text,
+                settings_store.get("telegram_tts_voice") or "ru-RU-DmitryNeural",
+                proxy=self.proxy(),
             )
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Telegram: ошибка синтеза речи: %s", exc)
+            logger.warning("Telegram: ошибка синтеза речи: %s", exc)
             return
         if not audio:
             return
@@ -499,7 +501,7 @@ class TelegramBot:
                 files={"audio": ("answer.mp3", audio, "audio/mpeg")},
             )
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Telegram: не удалось отправить голосовой ответ: %s", exc)
+            logger.warning("Telegram: не удалось отправить голосовой ответ: %s", exc)
 
     # --- напоминания ---
     async def _reminder_loop(self) -> None:
