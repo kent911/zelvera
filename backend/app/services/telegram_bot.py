@@ -9,6 +9,7 @@ settings_store (настройки в UI) с фолбэком на переме�
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import html
 import time
 from datetime import datetime
@@ -17,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from app.config import DATA_DIR
 from app.services import (
     audit,
     document,
@@ -40,6 +42,7 @@ REMINDER_INTERVAL = 1800
 NOTIFY_COOLDOWN = 20 * 3600
 MAX_PENDING_IMAGES = 3
 API_RETRIES = 3
+LOCK_PATH = DATA_DIR / "telegram.lock"
 
 
 def split_message(text: str, limit: int = MESSAGE_LIMIT) -> list[str]:
@@ -100,6 +103,7 @@ class TelegramBot:
         self._history: dict[int, list[dict[str, str]]] = {}
         self._pending: dict[int, dict[str, Any]] = {}
         self._notified: dict[int, float] = {}
+        self._lock_file = None
 
     # --- конфигурация ---
     def token(self) -> str:
@@ -136,6 +140,36 @@ class TelegramBot:
         return {}
 
     # --- жизненный цикл ---
+    def _acquire_lock(self) -> bool:
+        """Не даёт двум экземплярам опрашивать одного бота одновременно."""
+        try:
+            LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+            lock_file = open(LOCK_PATH, "w")
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            logger.error(
+                "Telegram-бот: другой процесс уже опрашивает бота (%s). "
+                "Этот экземпляр не запускает polling — проверьте дубли "
+                "(pgrep -af uvicorn).",
+                LOCK_PATH,
+            )
+            return False
+        self._lock_file = lock_file
+        return True
+
+    def _release_lock(self) -> None:
+        if self._lock_file is None:
+            return
+        try:
+            fcntl.flock(self._lock_file, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            self._lock_file.close()
+        except OSError:
+            pass
+        self._lock_file = None
+
     async def start(self) -> None:
         if self._task and not self._task.done():
             return
@@ -143,6 +177,8 @@ class TelegramBot:
             logger.info(
                 "Telegram-бот не запущен: не задан токен. Задайте его в «Настройки» → «Telegram-бот»."
             )
+            return
+        if not self._acquire_lock():
             return
         self._stop = asyncio.Event()
         self._task = asyncio.create_task(self._run(), name="telegram-poll")
@@ -164,6 +200,7 @@ class TelegramBot:
         self._task = None
         self._reminder_task = None
         self._client = None
+        self._release_lock()
 
     async def restart(self) -> None:
         await self.stop()
@@ -260,11 +297,19 @@ class TelegramBot:
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:  # noqa: BLE001
-                        logger.warning(
-                            "Telegram getUpdates: %s: %s",
-                            type(exc).__name__,
-                            exc or "нет ответа от api.telegram.org",
-                        )
+                        text = str(exc)
+                        if "Conflict" in text:
+                            logger.error(
+                                "Telegram getUpdates: конфликт опроса — бота опрашивает "
+                                "другой процесс/устройство. Остановите лишний экземпляр "
+                                "(pgrep -af uvicorn / systemctl status zelvera)."
+                            )
+                        else:
+                            logger.warning(
+                                "Telegram getUpdates: %s: %s",
+                                type(exc).__name__,
+                                exc or "нет ответа от api.telegram.org",
+                            )
                         await asyncio.sleep(3)
                         continue
                     for update in updates or []:

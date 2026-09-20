@@ -75,6 +75,19 @@ def test_client_options_prefers_proxy_then_ipv4(monkeypatch):
     assert bot.client_options() == {}
 
 
+def test_lock_prevents_second_instance(monkeypatch, tmp_path):
+    monkeypatch.setattr(telegram_bot, "LOCK_PATH", tmp_path / "telegram.lock")
+    first = telegram_bot.TelegramBot()
+    second = telegram_bot.TelegramBot()
+
+    assert first._acquire_lock() is True
+    assert second._acquire_lock() is False
+
+    first._release_lock()
+    assert second._acquire_lock() is True
+    second._release_lock()
+
+
 class _FakeResponse:
     status_code = 200
 

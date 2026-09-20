@@ -407,6 +407,12 @@ in `requirements.txt`). A common cause of timeouts is unreachable IPv6 while
 `api.telegram.org` has an AAAA record: by default the bot connects over IPv4
 only (the "Connect over IPv4 only" setting, `TELEGRAM_FORCE_IPV4`).
 
+If the bot answers only every other message, check whether two processes poll
+the same bot at once (`pgrep -af uvicorn`, `systemctl status zelvera`):
+Telegram delivers updates to only one of them. The bot holds a lock file
+`data/telegram.lock` and a second instance will not start polling; the log
+will show "another process is already polling the bot".
+
 ## Voice input
 
 The chat has a microphone button — speech recognition via

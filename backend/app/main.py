@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -59,7 +60,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 async def on_startup() -> None:
     database.init_db()
     audit.log_action("app_start", f"backend={settings.llm_backend}, model={settings.active_model}")
-    logger.info("Приложение запущено (backend=%s, model=%s)", settings.llm_backend, settings.active_model)
+    logger.info(
+        "Приложение запущено (pid=%d, backend=%s, model=%s)",
+        os.getpid(),
+        settings.llm_backend,
+        settings.active_model,
+    )
     await telegram_bot.start()
 
 
