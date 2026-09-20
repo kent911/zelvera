@@ -39,6 +39,7 @@ PHOTO_CAPTION_LIMIT = 1000
 REMINDER_INTERVAL = 1800
 NOTIFY_COOLDOWN = 20 * 3600
 MAX_PENDING_IMAGES = 3
+API_RETRIES = 3
 
 
 def split_message(text: str, limit: int = MESSAGE_LIMIT) -> list[str]:
@@ -177,17 +178,37 @@ class TelegramBot:
     ) -> Any:
         if self._client is None:
             raise RuntimeError("Telegram client is not running")
-        if files:
-            resp = await self._client.post(f"/{method}", data=payload or {}, files=files)
-        else:
-            resp = await self._client.post(f"/{method}", json=payload or {})
-        try:
-            data = resp.json()
-        except ValueError as exc:
-            raise RuntimeError(f"Telegram: некорректный ответ ({resp.status_code})") from exc
-        if not data.get("ok"):
-            raise RuntimeError(str(data.get("description") or data))
-        return data.get("result")
+        last_exc: Exception | None = None
+        for attempt in range(API_RETRIES):
+            try:
+                if files:
+                    resp = await self._client.post(
+                        f"/{method}", data=payload or {}, files=files
+                    )
+                else:
+                    resp = await self._client.post(f"/{method}", json=payload or {})
+                try:
+                    data = resp.json()
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"Telegram: некорректный ответ ({resp.status_code})"
+                    ) from exc
+                if not data.get("ok"):
+                    raise RuntimeError(str(data.get("description") or data))
+                return data.get("result")
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                last_exc = exc
+                logger.warning(
+                    "Telegram %s: сетевая ошибка (%s: %s), попытка %d/%d",
+                    method,
+                    type(exc).__name__,
+                    exc or "нет ответа",
+                    attempt + 1,
+                    API_RETRIES,
+                )
+                if attempt + 1 < API_RETRIES:
+                    await asyncio.sleep(2 * (attempt + 1))
+        raise last_exc if last_exc else RuntimeError("Telegram: нет соединения")
 
     async def _run(self) -> None:
         token = self.token()
@@ -251,8 +272,9 @@ class TelegramBot:
                         settings_store.update(telegram_offset=str(self._offset))
                         try:
                             await self._handle_update(update)
-                        except Exception:  # noqa: BLE001
+                        except Exception as exc:  # noqa: BLE001
                             logger.exception("Telegram: ошибка обработки update")
+                            await self._notify_failure(update, exc)
         except asyncio.CancelledError:
             pass
         except Exception:  # noqa: BLE001
@@ -261,6 +283,20 @@ class TelegramBot:
             self._client = None
 
     # --- приём сообщений ---
+    async def _notify_failure(self, update: dict[str, Any], exc: Exception) -> None:
+        """Сообщает пользователю, что обработка не удалась, чтобы не было тишины."""
+        message = update.get("message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        if chat_id is None:
+            callback = update.get("callback_query") or {}
+            chat_id = ((callback.get("message") or {}).get("chat") or {}).get("id")
+        if chat_id is None or chat_id not in self.allowed_ids():
+            return
+        try:
+            await self._send(chat_id, f"{i18n.t('error.prefix')} {exc}")
+        except Exception:  # noqa: BLE001
+            logger.debug("Telegram: не удалось отправить сообщение об ошибке")
+
     async def _handle_update(self, update: dict[str, Any]) -> None:
         if "callback_query" in update:
             await self._handle_callback(update["callback_query"])

@@ -1,4 +1,5 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
+import asyncio
 from datetime import datetime, timedelta
 
 from app.services import telegram_bot
@@ -72,3 +73,54 @@ def test_client_options_prefers_proxy_then_ipv4(monkeypatch):
 
     store["telegram_force_ipv4"] = "0"
     assert bot.client_options() == {}
+
+
+class _FakeResponse:
+    status_code = 200
+
+    def json(self):
+        return {"ok": True, "result": 42}
+
+
+class _FlakyClient:
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.calls = 0
+
+    async def post(self, *_args, **_kwargs):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise telegram_bot.httpx.ConnectError("boom")
+        return _FakeResponse()
+
+
+def test_api_retries_transient_network_errors(monkeypatch):
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(telegram_bot.asyncio, "sleep", no_sleep)
+    bot = telegram_bot.TelegramBot()
+    bot._client = _FlakyClient(failures=2)
+
+    result = asyncio.run(bot._api("sendMessage", {"chat_id": 1, "text": "hi"}))
+
+    assert result == 42
+    assert bot._client.calls == 3
+
+
+def test_api_raises_after_all_retries(monkeypatch):
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(telegram_bot.asyncio, "sleep", no_sleep)
+    bot = telegram_bot.TelegramBot()
+    bot._client = _FlakyClient(failures=99)
+
+    try:
+        asyncio.run(bot._api("sendMessage", {}))
+    except telegram_bot.httpx.ConnectError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("ожидалась сетевая ошибка")
+
+    assert bot._client.calls == telegram_bot.API_RETRIES
