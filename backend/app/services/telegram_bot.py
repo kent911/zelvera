@@ -34,7 +34,8 @@ from app.services import (
 from app.services.logger import logger
 
 API_BASE = "https://api.telegram.org"
-POLL_TIMEOUT = 8
+POLL_TIMEOUT = 0
+POLL_IDLE_SLEEP = 1.0
 MESSAGE_LIMIT = 4000
 HISTORY_LIMIT = 16
 PHOTO_CAPTION_LIMIT = 1000
@@ -258,7 +259,7 @@ class TelegramBot:
         try:
             async with httpx.AsyncClient(
                 base_url=f"{API_BASE}/bot{token}",
-                timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10),
+                timeout=httpx.Timeout(60, connect=10),
                 limits=self.client_limits(),
                 **self.client_options(),
             ) as client:
@@ -328,6 +329,8 @@ class TelegramBot:
                             await self._notify_failure(update, exc)
                         self._offset = int(update.get("update_id", 0)) + 1
                         settings_store.update(telegram_offset=str(self._offset))
+                    if not updates:
+                        await asyncio.sleep(POLL_IDLE_SLEEP)
         except asyncio.CancelledError:
             pass
         except Exception:  # noqa: BLE001
