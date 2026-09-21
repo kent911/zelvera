@@ -88,6 +88,12 @@ def test_lock_prevents_second_instance(monkeypatch, tmp_path):
     second._release_lock()
 
 
+def test_client_limits_disable_keepalive():
+    limits = telegram_bot.TelegramBot().client_limits()
+    assert limits.max_keepalive_connections == 0
+    assert limits.max_connections == 10
+
+
 class _FakeResponse:
     status_code = 200
 

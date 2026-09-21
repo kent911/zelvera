@@ -34,7 +34,7 @@ from app.services import (
 from app.services.logger import logger
 
 API_BASE = "https://api.telegram.org"
-POLL_TIMEOUT = 25
+POLL_TIMEOUT = 8
 MESSAGE_LIMIT = 4000
 HISTORY_LIMIT = 16
 PHOTO_CAPTION_LIMIT = 1000
@@ -138,6 +138,11 @@ class TelegramBot:
                 "transport": httpx.AsyncHTTPTransport(local_address="0.0.0.0")
             }
         return {}
+
+    def client_limits(self) -> httpx.Limits:
+        """Без keep-alive: прокси закрывает простаивающие соединения, и httpx
+        затем получает ``RemoteProtocolError`` на повторно взятом соединении."""
+        return httpx.Limits(max_keepalive_connections=0, max_connections=10)
 
     # --- жизненный цикл ---
     def _acquire_lock(self) -> bool:
@@ -254,6 +259,7 @@ class TelegramBot:
             async with httpx.AsyncClient(
                 base_url=f"{API_BASE}/bot{token}",
                 timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10),
+                limits=self.client_limits(),
                 **self.client_options(),
             ) as client:
                 self._client = client
