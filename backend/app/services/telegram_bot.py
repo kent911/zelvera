@@ -43,6 +43,7 @@ REMINDER_INTERVAL = 1800
 NOTIFY_COOLDOWN = 20 * 3600
 MAX_PENDING_IMAGES = 3
 API_RETRIES = 3
+ANSWER_TIMEOUT = 240
 LOCK_PATH = DATA_DIR / "telegram.lock"
 
 
@@ -400,6 +401,31 @@ class TelegramBot:
 
     # --- текстовый чат ---
     async def _answer(self, chat_id: int, text: str) -> str:
+        typing_task = asyncio.create_task(
+            self._typing_loop(chat_id), name="telegram-typing"
+        )
+        slow_task = asyncio.create_task(
+            self._slow_notice(chat_id), name="telegram-slow-notice"
+        )
+        try:
+            return await self._answer_inner(chat_id, text)
+        finally:
+            for task in (typing_task, slow_task):
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    async def _slow_notice(self, chat_id: int, delay: float = 25.0) -> None:
+        """Если ответ готовится долго — сообщаем, что бот не завис."""
+        await asyncio.sleep(delay)
+        try:
+            await self._send(chat_id, i18n.t("telegram.thinking"))
+        except Exception:  # noqa: BLE001
+            logger.debug("Telegram: не удалось отправить сообщение о задержке")
+
+    async def _answer_inner(self, chat_id: int, text: str) -> str:
         await self._typing(chat_id)
         history = self._history.setdefault(chat_id, [])
         messages: list[dict[str, Any]] = [
@@ -421,18 +447,30 @@ class TelegramBot:
             return result
 
         acc = ""
-        try:
-            async for chunk in llm.chat_with_tools(
-                messages, tools.TOOLS, tool_executor
-            ):
-                if isinstance(chunk, str):
-                    acc += chunk
-        except llm.LLMError:
+
+        async def generate_text() -> str:
+            result = ""
             try:
-                async for chunk in llm.stream_chat(messages):
-                    acc += chunk
-            except llm.LLMError as exc:
-                return f"{i18n.t('error.prefix')} {exc}"
+                async for chunk in llm.chat_with_tools(
+                    messages, tools.TOOLS, tool_executor
+                ):
+                    if isinstance(chunk, str):
+                        result += chunk
+            except llm.LLMError:
+                try:
+                    async for chunk in llm.stream_chat(messages):
+                        result += chunk
+                except llm.LLMError as exc:
+                    return f"{i18n.t('error.prefix')} {exc}"
+            return result
+
+        try:
+            acc = await asyncio.wait_for(generate_text(), ANSWER_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Telegram: ответ не получен за %d c — модель занята", ANSWER_TIMEOUT
+            )
+            return i18n.t("telegram.answer_timeout")
 
         history.append({"role": "user", "content": text})
         history.append({"role": "assistant", "content": acc})
@@ -692,6 +730,12 @@ class TelegramBot:
             await self._api("sendChatAction", {"chat_id": chat_id, "action": "typing"})
         except Exception:  # noqa: BLE001
             pass
+
+    async def _typing_loop(self, chat_id: int, interval: float = 4.0) -> None:
+        """Держит индикатор «печатает…», пока бот думает над ответом."""
+        while True:
+            await self._typing(chat_id)
+            await asyncio.sleep(interval)
 
     async def _download_file(self, file_id: str | None) -> bytes:
         if not file_id:

@@ -455,7 +455,7 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
     }
     t0 = time.monotonic()
     done_data: dict | None = None
-    async with httpx.AsyncClient(timeout=None) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10)) as client:
         try:
             async with client.stream("POST", url, json=payload) as resp:
                 if resp.status_code != 200:
