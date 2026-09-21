@@ -16,6 +16,10 @@ fi
 cd "${ZELVERA_HOME}"
 
 log "Загрузка новых изменений из GitHub"
+if ! git diff --quiet -- run.py; then
+    log "Сброс локальной правки run.py (теперь host/port/reload задаются через env)"
+    git checkout -- run.py
+fi
 git pull
 
 log "Обновление зависимостей"

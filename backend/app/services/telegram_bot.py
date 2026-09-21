@@ -313,13 +313,15 @@ class TelegramBot:
                         await asyncio.sleep(3)
                         continue
                     for update in updates or []:
-                        self._offset = int(update.get("update_id", 0)) + 1
-                        settings_store.update(telegram_offset=str(self._offset))
                         try:
                             await self._handle_update(update)
+                        except asyncio.CancelledError:
+                            raise
                         except Exception as exc:  # noqa: BLE001
                             logger.exception("Telegram: ошибка обработки update")
                             await self._notify_failure(update, exc)
+                        self._offset = int(update.get("update_id", 0)) + 1
+                        settings_store.update(telegram_offset=str(self._offset))
         except asyncio.CancelledError:
             pass
         except Exception:  # noqa: BLE001

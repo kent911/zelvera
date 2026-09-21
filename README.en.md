@@ -46,6 +46,11 @@ python run.py
 
 Open http://127.0.0.1:8000 in your browser.
 
+`run.py` listens on `0.0.0.0:8000` and does **not** enable auto-reload — this
+is the safe mode for a service (a reload during a bot answer loses the
+message). For development enable it with `ZELVERA_DEV=1 python run.py`.
+Host and port are set via `ZELVERA_HOST` and `ZELVERA_PORT`.
+
 ## Desktop window (Step 6, pywebview)
 
 ```bash
