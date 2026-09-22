@@ -383,6 +383,7 @@ class TelegramBot:
         text = (message.get("text") or "").strip()
         if not text:
             return
+        logger.info("Telegram: запрос от %s: %s", chat_id, text[:80])
         if text.startswith("/"):
             await self._handle_command(chat_id, text)
             return
@@ -427,6 +428,7 @@ class TelegramBot:
 
     async def _answer_inner(self, chat_id: int, text: str) -> str:
         await self._typing(chat_id)
+        t0 = time.monotonic()
         history = self._history.setdefault(chat_id, [])
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": i18n.t("chat_system")}
@@ -482,6 +484,11 @@ class TelegramBot:
                 await self._send_kiwix_image(chat_id, img)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Telegram: не удалось отправить картинку: %s", exc)
+        logger.info(
+            "Telegram: ответ готов за %.1f c (символов: %d)",
+            time.monotonic() - t0,
+            len(acc),
+        )
         return acc.strip() or i18n.t("telegram.empty_answer")
 
     # --- фото анализа ---
