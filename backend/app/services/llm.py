@@ -199,6 +199,7 @@ async def _complete_with_tools_ollama(
         "messages": messages,
         "tools": tools,
         "stream": False,
+        "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=300) as client:
@@ -258,6 +259,11 @@ async def _num_ctx() -> int:
         return 32768
 
 
+async def _keep_alive() -> str:
+    """Как долго Ollama держит модель в памяти (холодная загрузка 26b ~20 c)."""
+    return (settings_store.get("ollama_keep_alive") or "30m").strip() or "30m"
+
+
 async def _vision_max_tokens() -> int | None:
     """Лимит токенов для описания картинок (не для OCR).
 
@@ -284,6 +290,7 @@ async def _describe_ollama(image_b64: str) -> str:
             {"role": "user", "content": i18n.t("image_prompt"), "images": [image_b64]}
         ],
         "stream": False,
+        "keep_alive": await _keep_alive(),
         "options": options,
     }
     async with httpx.AsyncClient(timeout=900) as client:
@@ -318,6 +325,7 @@ async def _ocr_ollama(image_b64: str) -> str:
             {"role": "user", "content": i18n.t("vision_prompt"), "images": [image_b64]}
         ],
         "stream": False,
+        "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=900) as client:
@@ -410,6 +418,7 @@ async def _complete_ollama(messages: list[ChatMessage]) -> str:
         "model": model,
         "messages": messages,
         "stream": False,
+        "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
     async with httpx.AsyncClient(timeout=300) as client:
@@ -451,6 +460,7 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
         "model": model,
         "messages": messages,
         "stream": True,
+        "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
     t0 = time.monotonic()

@@ -28,6 +28,10 @@ ollama serve
 - чат и vision-распознавание фото: `gemma4:26b`
 - эмбеддинги для статей: `nomic-embed-text` (`ollama pull nomic-embed-text`)
 
+Модель держится в памяти Ollama 30 минут (`OLLAMA_KEEP_ALIVE`, по умолчанию
+`30m`), иначе первый запрос после простоя платит за холодную загрузку
+(~20 c для 26b).
+
 ### 2. Backend
 
 ```bash

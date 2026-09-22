@@ -28,6 +28,10 @@ Default models (configurable in `backend/.env`):
 - chat and vision-based photo recognition: `gemma4:26b`
 - embeddings for articles: `nomic-embed-text` (`ollama pull nomic-embed-text`)
 
+The model is kept in Ollama memory for 30 minutes (`OLLAMA_KEEP_ALIVE`,
+default `30m`); otherwise the first request after idle pays the cold load
+(~20 s for a 26b model).
+
 ### 2. Backend
 
 ```bash

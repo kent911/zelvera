@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.services import i18n, settings_store
 
-from .llm import LLMError
+from .llm import LLMError, _keep_alive
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -20,7 +20,11 @@ async def _embed_ollama(texts: list[str]) -> list[list[float]]:
     base_url = settings_store.get("ollama_base_url")
     model = settings_store.get("embed_model")
     url = f"{base_url}/api/embed"
-    payload = {"model": model, "input": texts}
+    payload = {
+        "model": model,
+        "input": texts,
+        "keep_alive": await _keep_alive(),
+    }
     async with httpx.AsyncClient(timeout=180) as client:
         try:
             resp = await client.post(url, json=payload)

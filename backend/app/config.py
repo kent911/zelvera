@@ -45,6 +45,9 @@ class Settings:
         self.ollama_embed_model: str = os.getenv(
             "OLLAMA_EMBED_MODEL", "nomic-embed-text"
         ).strip()
+        self.ollama_keep_alive: str = (
+            os.getenv("OLLAMA_KEEP_ALIVE", "30m").strip() or "30m"
+        )
         try:
             self.ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
         except ValueError:
