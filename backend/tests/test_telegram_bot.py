@@ -127,6 +127,81 @@ def test_api_retries_transient_network_errors(monkeypatch):
     assert bot._client.calls == 3
 
 
+def test_memory_command_shares_web_facts(db, monkeypatch):
+    profile = db.create_profile("Egor", 1985)
+    monkeypatch.setattr(
+        telegram_bot.memory, "current_profile_id", lambda: profile["id"]
+    )
+    db.upsert_memory_fact(
+        "allergy", "пенициллин", "аллергия", profile_id=profile["id"], source="chat"
+    )
+    db.set_memory_portrait(profile["id"], "Аллергия на пенициллин.")
+    bot = telegram_bot.TelegramBot()
+    text = bot._memory_text()
+    assert "пенициллин" in text
+    assert "Аллергия на пенициллин" in text
+
+
+def test_memory_command_empty(db, monkeypatch):
+    profile = db.create_profile("Egor")
+    monkeypatch.setattr(
+        telegram_bot.memory, "current_profile_id", lambda: profile["id"]
+    )
+    bot = telegram_bot.TelegramBot()
+    assert bot._memory_text() == telegram_bot.i18n.t("telegram.memory_empty")
+
+
+def test_telegram_recall_sees_web_fact(db, monkeypatch):
+    profile = db.create_profile("Egor")
+    db.upsert_memory_fact(
+        "allergy", "пенициллин", "аллергия", profile_id=profile["id"], source="chat"
+    )
+    ctx = telegram_bot.memory.recall_context("аллергия", profile["id"])
+    assert "пенициллин" in ctx
+
+
+def test_handle_memory_command_sends_facts(db, monkeypatch):
+    profile = db.create_profile("Egor")
+    monkeypatch.setattr(
+        telegram_bot.memory, "current_profile_id", lambda: profile["id"]
+    )
+    db.upsert_memory_fact(
+        "lifestyle", "сон", "сплю 5 часов", profile_id=profile["id"]
+    )
+    sent: list[str] = []
+    bot = telegram_bot.TelegramBot()
+
+    async def fake_send(_chat_id, text, reply_markup=None):
+        sent.append(text)
+
+    monkeypatch.setattr(bot, "_send", fake_send)
+    asyncio.run(bot._handle_command(42, "/memory"))
+    assert sent
+    assert "сон" in sent[0]
+
+
+def test_reset_does_not_wipe_memory(db, monkeypatch):
+    profile = db.create_profile("Egor")
+    monkeypatch.setattr(
+        telegram_bot.memory, "current_profile_id", lambda: profile["id"]
+    )
+    db.upsert_memory_fact(
+        "allergy", "йод", "нельзя", profile_id=profile["id"]
+    )
+    sent: list[str] = []
+    bot = telegram_bot.TelegramBot()
+    bot._history[7] = [{"role": "user", "content": "hi"}]
+
+    async def fake_send(_chat_id, text, reply_markup=None):
+        sent.append(text)
+
+    monkeypatch.setattr(bot, "_send", fake_send)
+    asyncio.run(bot._handle_command(7, "/reset"))
+    assert 7 not in bot._history
+    assert db.list_memory_facts(profile["id"])
+    assert telegram_bot.i18n.t("telegram.reset") in sent[0]
+
+
 def test_api_raises_after_all_retries(monkeypatch):
     async def no_sleep(_seconds):
         return None

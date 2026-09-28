@@ -287,6 +287,7 @@ class TelegramBot:
                             "commands": [
                                 {"command": "start", "description": i18n.t("telegram.cmd_start")},
                                 {"command": "help", "description": i18n.t("telegram.cmd_help")},
+                                {"command": "memory", "description": i18n.t("telegram.cmd_memory")},
                                 {"command": "reset", "description": i18n.t("telegram.cmd_reset")},
                             ]
                         },
@@ -398,8 +399,32 @@ class TelegramBot:
             await self._send(chat_id, i18n.t("telegram.reset"))
         elif command == "/start":
             await self._send(chat_id, i18n.t("telegram.start"))
+        elif command == "/memory":
+            await self._send(chat_id, self._memory_text())
         else:
             await self._send(chat_id, i18n.t("telegram.help"))
+
+    def _memory_text(self) -> str:
+        snap = memory.snapshot()
+        facts = snap.get("facts") or []
+        portrait = ((snap.get("portrait") or {}) or {}).get("content") or ""
+        if not facts and not portrait.strip():
+            return i18n.t("telegram.memory_empty")
+        parts = [i18n.t("telegram.memory_header")]
+        if portrait.strip():
+            parts.append(i18n.t("telegram.memory_portrait", text=portrait.strip()))
+        if facts:
+            lines = [
+                i18n.t(
+                    "memory.fact_line",
+                    category=f.get("category") or "other",
+                    name=f.get("key") or "",
+                    value=f.get("value") or "",
+                )
+                for f in facts
+            ]
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)
 
     # --- текстовый чат ---
     async def _answer(self, chat_id: int, text: str) -> str:

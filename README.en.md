@@ -427,6 +427,8 @@ the card (send it as a photo or as an image file — files are not compressed
 and are recognized more accurately), voice messages (recognition via
 faster-whisper, spoken answers via
 edge-tts, packages from `backend/requirements-voice.txt`) and push reminders.
+L0–L3 facts are shared with the web Memory tab: `/memory` lists them,
+`/reset` clears only the Telegram dialog history.
 
 The bot replies only to users on the allow-list. The token is stored in
 `backend/.env` or the data folder (never committed to git).
