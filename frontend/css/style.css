@@ -1627,3 +1627,74 @@ tr.marker-suspect-row td {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+#memory-view {
+  overflow: hidden;
+}
+
+.memory-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+#memory-view .records {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 8px;
+}
+
+#memory-view .memory-section-title {
+  margin: 8px 0 0;
+}
+
+.memory-portrait {
+  margin: 12px 20px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-side);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.memory-portrait.empty {
+  color: var(--text-dim);
+}
+
+.memory-section-title {
+  margin: 16px 20px 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.memory-cat {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.memory-form {
+  margin: 8px 20px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-side);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memory-form-actions {
+  display: flex;
+  gap: 8px;
+}

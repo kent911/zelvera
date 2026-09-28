@@ -16,7 +16,8 @@ from app.services import (
     settings_store,
 )
 
-TOOLS: list[dict[str, Any]] = [
+def get_tools() -> list[dict[str, Any]]:
+    return [
     {
         "type": "function",
         "function": {
@@ -183,11 +184,71 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
-]
+    {
+        "type": "function",
+        "function": {
+            "name": "search_memory",
+            "description": i18n.t("tool.search_memory.desc"),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": i18n.t("tool.search_memory.query"),
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_memory",
+            "description": i18n.t("tool.list_memory.desc"),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_memory_fact",
+            "description": i18n.t("tool.save_memory_fact.desc"),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": i18n.t("tool.save_memory_fact.category"),
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": i18n.t("tool.save_memory_fact.key"),
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": i18n.t("tool.save_memory_fact.value"),
+                    },
+                },
+                "required": ["key", "value"],
+            },
+        },
+    },
+    ]
+
+
+TOOLS = get_tools()
 
 
 def _current_profile_id() -> int | None:
-    return settings_store.get_current_profile_id()
+    pid = settings_store.get_current_profile_id()
+    if pid is not None:
+        return pid
+    try:
+        profiles = database.list_profiles()
+    except Exception:
+        return None
+    return profiles[0]["id"] if profiles else None
 
 
 def _filter_by_days(
@@ -308,6 +369,19 @@ async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
                 save_analysis_to_card,
                 list(args.get("markers") or []),
                 str(args.get("date") or "") or None,
+            )
+        if name == "search_memory":
+            return await asyncio.to_thread(
+                search_memory, str(args.get("query", "") or "")
+            )
+        if name == "list_memory":
+            return await asyncio.to_thread(list_memory)
+        if name == "save_memory_fact":
+            return await asyncio.to_thread(
+                save_memory_fact,
+                str(args.get("category") or "other"),
+                str(args.get("key") or ""),
+                str(args.get("value") or ""),
             )
         return i18n.t("tool.unknown", name=name)
     except Exception as exc:
@@ -639,3 +713,64 @@ async def check_marker_norm(
         )
     )
     return "\n".join(lines)
+
+
+def search_memory(query: str) -> str:
+    q = (query or "").strip()
+    if not q:
+        return i18n.t("tool.search_empty")
+    facts = database.search_memory_facts(q, _current_profile_id(), 8)
+    if not facts:
+        return i18n.t("tool.search_memory.empty")
+    return "\n".join(
+        i18n.t(
+            "tool.search_memory.item",
+            category=f.get("category") or "other",
+            name=f.get("key") or "",
+            value=f.get("value") or "",
+        )
+        for f in facts
+    )
+
+
+def list_memory() -> str:
+    facts = database.list_memory_facts(_current_profile_id())
+    if not facts:
+        return i18n.t("tool.list_memory.empty")
+    return "\n".join(
+        i18n.t(
+            "tool.search_memory.item",
+            category=f.get("category") or "other",
+            name=f.get("key") or "",
+            value=f.get("value") or "",
+        )
+        for f in facts
+    )
+
+
+def save_memory_fact(category: str, key: str, value: str) -> str:
+    k = " ".join((key or "").split())
+    v = " ".join((value or "").split())
+    if not k or not v:
+        return i18n.t("tool.save_memory_fact.empty")
+    cat = (category or "other").strip().lower() or "other"
+    if cat not in (
+        "allergy",
+        "condition",
+        "medication",
+        "lifestyle",
+        "preference",
+        "family",
+        "symptom",
+        "other",
+    ):
+        cat = "other"
+    fact = database.upsert_memory_fact(
+        cat, k, v, profile_id=_current_profile_id(), source="tool"
+    )
+    return i18n.t(
+        "tool.save_memory_fact.ok",
+        category=fact["category"],
+        name=fact["key"],
+        value=fact["value"],
+    )

@@ -119,6 +119,19 @@ const telegramStatus = document.getElementById("telegram-status");
 const btnRefreshModels = document.getElementById("btn-refresh-models");
 const modelsStatus = document.getElementById("models-status");
 const notesView = document.getElementById("notes-view");
+const memoryView = document.getElementById("memory-view");
+const memoryStatus = document.getElementById("memory-status");
+const memoryPortrait = document.getElementById("memory-portrait");
+const memorySummaries = document.getElementById("memory-summaries");
+const memoryFacts = document.getElementById("memory-facts");
+const btnRefreshMemory = document.getElementById("btn-refresh-memory");
+const btnAddMemory = document.getElementById("btn-add-memory");
+const btnResetMemory = document.getElementById("btn-reset-memory");
+const memoryForm = document.getElementById("memory-form");
+const memoryCat = document.getElementById("memory-cat");
+const memoryKey = document.getElementById("memory-key");
+const memoryValue = document.getElementById("memory-value");
+const memoryCancel = document.getElementById("memory-cancel");
 const notesList = document.getElementById("notes-list");
 const notesStatus = document.getElementById("notes-status");
 const btnRefreshNotes = document.getElementById("btn-refresh-notes");
@@ -620,9 +633,11 @@ function switchView(view) {
   cardView.classList.toggle("hidden", view !== "card");
   articlesView.classList.toggle("hidden", view !== "articles");
   notesView.classList.toggle("hidden", view !== "notes");
+  if (memoryView) memoryView.classList.toggle("hidden", view !== "memory");
   if (view === "card") loadRecords();
   if (view === "articles") loadArticles();
   if (view === "notes") loadNotes();
+  if (view === "memory") loadMemory();
 }
 
 async function saveRecord(record, originalFile) {
@@ -1832,6 +1847,198 @@ async function deleteNote(id) {
   await fetch(`/api/notes/${id}`, { method: "DELETE" });
   loadNotes();
 }
+
+function setMemoryStatus(text, isError = false) {
+  if (!memoryStatus) return;
+  memoryStatus.textContent = text;
+  memoryStatus.classList.toggle("err", isError);
+}
+
+async function loadMemory() {
+  if (!memoryFacts) return;
+  memoryFacts.innerHTML = `<div class="record-empty">${t("card.loading")}</div>`;
+  setMemoryStatus("");
+  try {
+    const res = await fetch("/api/memory");
+    if (!res.ok) throw new Error(res.statusText || String(res.status));
+    const data = await res.json();
+    renderMemory(data);
+  } catch (err) {
+    memoryFacts.innerHTML = `<div class="record-empty">${escapeHtml(t("memory.error", { msg: err.message }))}</div>`;
+  }
+}
+
+function renderMemory(data) {
+  const n = data && data.messages ? data.messages : 0;
+  setMemoryStatus(t("memory.messagesCount", { n }));
+
+  if (memoryPortrait) {
+    const text = data && data.portrait && data.portrait.content
+      ? data.portrait.content
+      : t("memory.portraitEmpty");
+    memoryPortrait.textContent = text;
+    memoryPortrait.classList.toggle("empty", !(data && data.portrait && data.portrait.content));
+  }
+
+  if (memorySummaries) {
+    const summaries = (data && data.summaries) || [];
+    memorySummaries.innerHTML = "";
+    if (summaries.length) {
+      const title = document.createElement("div");
+      title.className = "memory-section-title";
+      title.textContent = t("memory.summariesTitle");
+      memorySummaries.appendChild(title);
+      for (const s of summaries) {
+        const card = document.createElement("div");
+        card.className = "record-card";
+        const meta = document.createElement("div");
+        meta.className = "record-date";
+        meta.textContent = s.created_at || "";
+        const body = document.createElement("div");
+        body.className = "summary";
+        body.textContent = s.content || "";
+        card.append(meta, body);
+        memorySummaries.appendChild(card);
+      }
+    }
+  }
+
+  const facts = (data && data.facts) || [];
+  memoryFacts.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "memory-section-title";
+  title.textContent = t("memory.factsTitle");
+  memoryFacts.appendChild(title);
+  if (!facts.length) {
+    const empty = document.createElement("div");
+    empty.className = "record-empty";
+    empty.textContent = t("memory.empty");
+    memoryFacts.appendChild(empty);
+    return;
+  }
+  for (const f of facts) {
+    const card = document.createElement("div");
+    card.className = "record-card";
+    const head = document.createElement("div");
+    head.className = "record-head";
+    const meta = document.createElement("div");
+    meta.className = "record-meta";
+    const cat = document.createElement("span");
+    cat.className = "memory-cat";
+    cat.textContent = t("memory.cat." + (f.category || "other"));
+    const key = document.createElement("div");
+    key.className = "record-date";
+    key.textContent = f.key || "";
+    const srcKey = "memory.src." + (f.source || "chat");
+    const src = document.createElement("div");
+    src.className = "record-source";
+    src.textContent = t(srcKey);
+    meta.append(cat, key, src);
+    const actions = document.createElement("div");
+    actions.className = "record-actions";
+    const del = document.createElement("button");
+    del.className = "danger-btn";
+    del.textContent = t("card.delete");
+    del.addEventListener("click", () => deleteMemoryFact(f.id));
+    actions.appendChild(del);
+    head.append(meta, actions);
+    const body = document.createElement("div");
+    body.className = "summary";
+    body.textContent = f.value || "";
+    card.append(head, body);
+    if (f.evidence) {
+      const ev = document.createElement("div");
+      ev.className = "record-source";
+      ev.textContent = f.evidence;
+      card.appendChild(ev);
+    }
+    memoryFacts.appendChild(card);
+  }
+}
+
+async function deleteMemoryFact(id) {
+  if (!confirm(t("memory.deleteConfirm"))) return;
+  try {
+    const res = await fetch(`/api/memory/facts/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(res.statusText || String(res.status));
+  } catch (err) {
+    setMemoryStatus(t("memory.error", { msg: err.message }), true);
+    return;
+  }
+  loadMemory();
+}
+
+const MEMORY_CATS = ["allergy", "condition", "medication", "lifestyle", "preference", "family", "symptom", "other"];
+
+function fillMemoryCatSelect() {
+  if (!memoryCat) return;
+  const prev = memoryCat.value || "other";
+  memoryCat.innerHTML = "";
+  for (const c of MEMORY_CATS) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = t("memory.cat." + c);
+    memoryCat.appendChild(opt);
+  }
+  memoryCat.value = MEMORY_CATS.includes(prev) ? prev : "other";
+}
+
+function toggleMemoryForm(show) {
+  if (!memoryForm) return;
+  memoryForm.classList.toggle("hidden", !show);
+  if (show) {
+    fillMemoryCatSelect();
+    if (memoryKey) memoryKey.focus();
+  }
+}
+
+async function submitMemoryFact(ev) {
+  if (ev) ev.preventDefault();
+  const key = memoryKey ? memoryKey.value.trim() : "";
+  const value = memoryValue ? memoryValue.value.trim() : "";
+  if (!key || !value) return;
+  const category = memoryCat && memoryCat.value ? memoryCat.value : "other";
+  try {
+    const res = await fetch("/api/memory/facts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value, category }),
+    });
+    if (!res.ok) {
+      let detail = res.statusText || String(res.status);
+      try {
+        const data = await res.json();
+        if (data.detail) detail = data.detail;
+      } catch { /* not JSON */ }
+      throw new Error(detail);
+    }
+  } catch (err) {
+    setMemoryStatus(t("memory.saveError", { msg: err.message }), true);
+    return;
+  }
+  if (memoryKey) memoryKey.value = "";
+  if (memoryValue) memoryValue.value = "";
+  toggleMemoryForm(false);
+  loadMemory();
+}
+
+async function resetMemory() {
+  if (!confirm(t("memory.resetConfirm"))) return;
+  try {
+    const res = await fetch("/api/memory", { method: "DELETE" });
+    if (!res.ok) throw new Error(res.statusText || String(res.status));
+  } catch (err) {
+    setMemoryStatus(t("memory.error", { msg: err.message }), true);
+    return;
+  }
+  loadMemory();
+}
+
+if (btnRefreshMemory) btnRefreshMemory.addEventListener("click", loadMemory);
+if (btnAddMemory) btnAddMemory.addEventListener("click", () => toggleMemoryForm(true));
+if (btnResetMemory) btnResetMemory.addEventListener("click", resetMemory);
+if (memoryForm) memoryForm.addEventListener("submit", submitMemoryFact);
+if (memoryCancel) memoryCancel.addEventListener("click", () => toggleMemoryForm(false));
 
 async function fillNoteArticleSelect() {
   const prev = noteArticle.value;

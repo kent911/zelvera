@@ -151,6 +151,10 @@ USER_LLM_MODEL=gpt-4o
 | GET | `/api/notes` | Список заметок (выводы ИИ) |
 | POST | `/api/notes` | Сохранить заметку (можно привязать к статье) |
 | DELETE | `/api/notes/{id}` | Удалить заметку |
+| GET | `/api/memory` | Снимок долгой памяти (факты, саммари, портрет) |
+| POST | `/api/memory/facts` | Добавить/обновить факт (L1) |
+| DELETE | `/api/memory/facts/{id}` | Удалить факт |
+| DELETE | `/api/memory` | Очистить память профиля (L0–L3) |
 | GET | `/api/notes/export.pdf` | Экспорт заметок в PDF |
 | GET | `/api/profiles` | Список профилей + текущий (один профиль) |
 | PATCH | `/api/profiles/{id}` | Обновить профиль (name, birth_year, height_cm, weight_kg, blood_type) |
@@ -331,7 +335,10 @@ ollama pull nomic-embed-text
 - `save_analysis_to_card(markers, date)` — сохранение обсуждённых показателей
   в мед. карту одной записью;
 - `search_wikipedia(query, limit)` и `list_kiwix_books()` — поиск в
-  офлайн-Википедии (Kiwix).
+  офлайн-Википедии (Kiwix);
+- `search_memory(query)` / `list_memory()` — факты долгой памяти профиля;
+- `save_memory_fact(category, key, value)` — запомнить факт по явной просьбе
+  пользователя (не цифры анализов).
 
 Инструменты чтения карты (`get_medical_card`, `get_marker_trends`,
 `check_marker_norm`) автоматически добавляют справку из Википедии по
@@ -343,6 +350,21 @@ ollama pull nomic-embed-text
 Поддерживается обоими бэкендами: Ollama (`tools`) и OpenAI-совместимым API
 (`tools`). Если модель не поддерживает инструменты или они недоступны —
 чат автоматически переходит к обычному ответу без инструментов.
+
+## Долгая память ассистента (L0–L3)
+
+Локальный аналог иерархической памяти агента. Всё в `data/medical.db`,
+без облака:
+
+- **L0** — сырые реплики диалога (`memory_messages`);
+- **L1** — устойчивые факты: аллергии, привычки, жалобы, лекарства
+  (`memory_facts`); разовые цифры анализов сюда не пишутся — они в мед. карте;
+- **L2** — сжатые итоги недавних диалогов (`memory_summaries`);
+- **L3** — короткий портрет профиля (`memory_profile`).
+
+После ответа чата (веб и Telegram) факты извлекаются в фоне. Релевантные
+L1–L3 подмешиваются в системный контекст следующего вопроса. Вкладка
+«Память» показывает факты и портрет, их можно править вручную.
 
 ## Аудит действий
 
@@ -450,7 +472,8 @@ SOCKS-прокси требует пакет `socksio` (уже в `requirements.
 - графики динамики показателей с коридором нормы и сравнение двух анализов;
 - долгосрочный отчёт: годовая сводка показателей и ИИ-оценка здоровья за период;
 - Telegram-бот: текст-чат, фото анализов в карту, голосовые сообщения, напоминания;
-- аудит действий, логи, десктопное окно (pywebview), сборка Windows (PyInstaller + CI).
+- аудит действий, логи, десктопное окно (pywebview), сборка Windows (PyInstaller + CI);
+- долгая память ассистента L0–L3 (факты, саммари, портрет) локально в SQLite.
 
 Возможные следующие шаги (не приоритетные):
 
@@ -487,7 +510,9 @@ backend/app/
   services/kiwix.py      # клиент офлайн-Википедии (Kiwix)
   services/wiki_lookup.py# справка по показателю из Википедии + кеш в SQLite
   services/i18n.py       # локализация RU/EN
-  services/database.py   # SQLite: записи, маркеры, статьи, профили, напоминания
+  services/memory.py     # долгая память L0–L3 (факты, саммари, портрет)
+  routes/memory.py       # GET/POST/DELETE /api/memory
+  services/database.py   # SQLite: записи, маркеры, статьи, профили, напоминания, память
   services/embeddings.py # эмбеддинги через Ollama / OpenAI
   services/articles_db.py# ChromaDB: чанки статей и смысловой поиск
   services/settings_store.py # runtime-настройки моделей (data/settings.json)

@@ -26,6 +26,7 @@ from app.services import (
     i18n,
     kiwix,
     llm,
+    memory,
     settings_store,
     tools,
     validation,
@@ -436,6 +437,9 @@ class TelegramBot:
         profile_text = tools.profile_context()
         if profile_text:
             messages.append({"role": "system", "content": profile_text})
+        memory_text = memory.recall_context(text)
+        if memory_text:
+            messages.append({"role": "system", "content": memory_text})
         messages.extend(history[-HISTORY_LIMIT:])
         messages.append({"role": "user", "content": text})
 
@@ -454,7 +458,7 @@ class TelegramBot:
             result = ""
             try:
                 async for chunk in llm.chat_with_tools(
-                    messages, tools.TOOLS, tool_executor
+                    messages, tools.get_tools(), tool_executor
                 ):
                     if isinstance(chunk, str):
                         result += chunk
@@ -478,6 +482,10 @@ class TelegramBot:
         history.append({"role": "assistant", "content": acc})
         if len(history) > HISTORY_LIMIT:
             del history[:-HISTORY_LIMIT]
+        if acc.strip() and text.strip():
+            memory.schedule_ingest(
+                text, acc, channel="telegram", session_id=str(chat_id)
+            )
 
         for img in pending_images[:MAX_PENDING_IMAGES]:
             try:

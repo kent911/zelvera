@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.services import articles_db, audit, embeddings, i18n, kiwix, llm, settings_store, tools
+from app.services import articles_db, audit, embeddings, i18n, kiwix, llm, memory, settings_store, tools
 from app.services.llm import chat_with_tools, stream_chat
 
 router = APIRouter()
@@ -122,9 +122,14 @@ async def chat(req: ChatRequest) -> StreamingResponse:
     if profile_text:
         messages.insert(1, {"role": "system", "content": profile_text})
 
+    memory_text = memory.recall_context(str(last_user))
+    if memory_text:
+        messages.insert(1, {"role": "system", "content": memory_text})
+
     async def event_stream():
         start = time.monotonic()
         rounds = 0
+        acc = ""
         try:
             if rag_text and _looks_like_article_query(last_user):
                 yield _sse("Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n")
@@ -142,15 +147,20 @@ async def chat(req: ChatRequest) -> StreamingResponse:
 
             try:
                 async for item in chat_with_tools(
-                    messages, tools.TOOLS, tool_executor
+                    messages, tools.get_tools(), tool_executor
                 ):
+                    if isinstance(item, str):
+                        acc += item
                     yield _sse(item)
             except llm.LLMError:
                 async for chunk in stream_chat(messages):
+                    acc += chunk
                     yield _sse(chunk)
             if pending:
                 yield _sse({"images": pending})
             yield "data: [DONE]\n\n"
+            if acc.strip() and str(last_user).strip():
+                memory.schedule_ingest(str(last_user), acc)
         finally:
             logger.info(
                 "[metrics] chat total time=%.1fs tool_rounds=%d images=%d",

@@ -139,6 +139,36 @@ RU = {
     "tool.save_analysis_to_card.ok": "Сохранено в медицинскую карту: {names}. Добавлена новая запись анализов.",
     "tool.save_analysis_to_card.empty": "Показатели не переданы. Уточни у пользователя значения и повтори вызов.",
     "tool.save_analysis_to_card.error": "Не удалось сохранить в карту: {err}",
+    "tool.search_memory.desc": "Ищет в долгой памяти ассистента факты о пользователе (аллергии, жалобы, привычки, предпочтения, семейный анамнез). Используй, когда вопрос опирается на то, что пользователь говорил раньше, а не только на анализы.",
+    "tool.search_memory.query": "Что искать в памяти (например: аллергия, давление, сон).",
+    "tool.search_memory.empty": "В памяти пока нет фактов по этому запросу.",
+    "tool.search_memory.item": "- [{category}] {name}: {value}",
+    "tool.list_memory.desc": "Возвращает все сохранённые факты долгой памяти текущего профиля. Используй, когда пользователь спрашивает, что ассистент о нём помнит.",
+    "tool.list_memory.empty": "Долгая память пуста — пока нет сохранённых фактов о пользователе.",
+    "tool.save_memory_fact.desc": "Сохраняет устойчивый факт о пользователе в долгую память. Вызывай ТОЛЬКО когда пользователь явно просит запомнить (например: «запомни, что у меня аллергия на пенициллин»). Не сохраняй разовые значения анализов — для них есть медицинская карта.",
+    "tool.save_memory_fact.category": "Категория: allergy, condition, medication, lifestyle, preference, family, symptom, other.",
+    "tool.save_memory_fact.key": "Короткое имя факта (например: аллергия, сон, спорт).",
+    "tool.save_memory_fact.value": "Содержание факта.",
+    "tool.save_memory_fact.ok": "Запомнил: [{category}] {name}: {value}",
+    "tool.save_memory_fact.empty": "Нечего запоминать: укажи ключ и значение.",
+    "memory.not_found": "Факт памяти не найден",
+    "memory.context_header": "Долгая память пользователя (используй, если относится к вопросу; не выдумывай факты, которых нет ниже; анализы бери из get_medical_card):",
+    "memory.l1_block": "Факты:\n{items}",
+    "memory.l2_block": "Недавние итоги диалогов:\n{text}",
+    "memory.l3_block": "Портрет: {text}",
+    "memory.fact_line": "- [{category}] {name}: {value}",
+    "memory.extract_system": "Ты извлекаешь устойчивые факты о пользователе из диалога с медицинским ассистентом. Верни ТОЛЬКО JSON. Не ставь диагнозы. Не копируй разовые цифры анализов — они уже в медкарте. Запоминай аллергии, хронические состояния, лекарства, привычки, предпочтения, семейный анамнез, повторяющиеся жалобы.",
+    "memory.extract_prompt": """Диалог:
+Пользователь: {user}
+Ассистент: {assistant}
+
+Верни JSON вида:
+{{"facts": [{{"category": "allergy|condition|medication|lifestyle|preference|family|symptom|other", "key": "короткое имя", "value": "факт", "evidence": "цитата"}}]}}
+Если устойчивых фактов нет — {{"facts": []}}.""",
+    "memory.summary_system": "Сжми диалог с медицинским ассистентом до 2-4 предложений: о чём спрашивали и что важно помнить. Без диагнозов и без выдуманных данных.",
+    "memory.summary_prompt": "Диалог:\n{dialog}\n\nКраткое итоговое резюме на языке диалога.",
+    "memory.portrait_system": "Собери короткий портрет пользователя (3-6 предложений) по сохранённым фактам. Не ставь диагнозы, не выдумывай отсутствующие данные.",
+    "memory.portrait_prompt": "Факты:\n{facts}\n\nНедавние итоги:\n{summaries}\n\nПортрет:",
     "record.source_chat": "из чата",
     "record.source_telegram": "из Telegram",
     "tool.exec_error": "Ошибка инструмента {name}: {err}",
@@ -200,6 +230,9 @@ RU = {
     "audit.model_pull": "Скачивание модели",
     "audit.logs_clear": "Очистка журнала",
     "audit.tool_call": "Вызов инструмента ИИ",
+    "audit.memory_fact_save": "Сохранение факта памяти",
+    "audit.memory_fact_delete": "Удаление факта памяти",
+    "audit.memory_reset": "Очистка памяти ассистента",
     "audit.error": "Ошибка",
     "settings.model_required": "Укажите название модели.",
     "settings.kiwix_url_required": "Укажите адрес Kiwix (например, http://192.168.1.50:8080).",
@@ -266,7 +299,10 @@ RU = {
   заболеваний/лекарств или сравнение данных из Википедии. Википедия
   англоязычная — формулируй поисковый запрос на английском языке.
 - list_kiwix_books — когда спрашивают, какие книги или Википедии подключены
-  к Kiwix.
+   к Kiwix.
+- search_memory / list_memory — когда вопрос опирается на то, что пользователь
+   говорил раньше (аллергии, привычки, жалобы, «что ты обо мне помнишь»).
+- save_memory_fact — только если пользователь явно просит запомнить факт.
 Не вызывай search_articles для вопросов о карте — данные карты берутся
 только через get_medical_card.
 
@@ -601,6 +637,36 @@ EN = {
     "tool.save_analysis_to_card.ok": "Saved to the medical card: {names}. A new lab record was added.",
     "tool.save_analysis_to_card.empty": "No markers were passed. Ask the user for the values and call again.",
     "tool.save_analysis_to_card.error": "Failed to save to the card: {err}",
+    "tool.search_memory.desc": "Searches the assistant's long-term memory for facts about the user (allergies, complaints, habits, preferences, family history). Use when the question depends on what the user said earlier, not only on lab results.",
+    "tool.search_memory.query": "What to look up in memory (e.g. allergy, blood pressure, sleep).",
+    "tool.search_memory.empty": "No memory facts match this query yet.",
+    "tool.search_memory.item": "- [{category}] {name}: {value}",
+    "tool.list_memory.desc": "Returns all long-term memory facts for the current profile. Use when the user asks what the assistant remembers about them.",
+    "tool.list_memory.empty": "Long-term memory is empty — no facts about the user are stored yet.",
+    "tool.save_memory_fact.desc": "Stores a lasting fact about the user in long-term memory. Call ONLY when the user explicitly asks to remember something (e.g. \"remember that I am allergic to penicillin\"). Do not store one-off lab values — those belong in the medical card.",
+    "tool.save_memory_fact.category": "Category: allergy, condition, medication, lifestyle, preference, family, symptom, other.",
+    "tool.save_memory_fact.key": "Short fact name (e.g. allergy, sleep, sport).",
+    "tool.save_memory_fact.value": "Fact content.",
+    "tool.save_memory_fact.ok": "Remembered: [{category}] {name}: {value}",
+    "tool.save_memory_fact.empty": "Nothing to remember: provide a key and a value.",
+    "memory.not_found": "Memory fact not found",
+    "memory.context_header": "User long-term memory (use if relevant; do not invent facts that are not listed; take lab values from get_medical_card):",
+    "memory.l1_block": "Facts:\n{items}",
+    "memory.l2_block": "Recent conversation recaps:\n{text}",
+    "memory.l3_block": "Portrait: {text}",
+    "memory.fact_line": "- [{category}] {name}: {value}",
+    "memory.extract_system": "You extract lasting facts about the user from a dialogue with a medical assistant. Return JSON ONLY. Do not diagnose. Do not copy one-off lab numbers — they already live in the medical card. Remember allergies, chronic conditions, medications, habits, preferences, family history, recurring complaints.",
+    "memory.extract_prompt": """Dialogue:
+User: {user}
+Assistant: {assistant}
+
+Return JSON of the form:
+{{"facts": [{{"category": "allergy|condition|medication|lifestyle|preference|family|symptom|other", "key": "short name", "value": "fact", "evidence": "quote"}}]}}
+If there are no lasting facts — {{"facts": []}}.""",
+    "memory.summary_system": "Compress a dialogue with a medical assistant into 2-4 sentences: what was asked and what is worth remembering. No diagnoses and no invented data.",
+    "memory.summary_prompt": "Dialogue:\n{dialog}\n\nShort recap in the language of the dialogue.",
+    "memory.portrait_system": "Build a short user portrait (3-6 sentences) from stored facts. Do not diagnose and do not invent missing data.",
+    "memory.portrait_prompt": "Facts:\n{facts}\n\nRecent recaps:\n{summaries}\n\nPortrait:",
     "record.source_chat": "from chat",
     "record.source_telegram": "from Telegram",
     "tool.exec_error": "Tool error {name}: {err}",
@@ -662,6 +728,9 @@ EN = {
     "audit.model_pull": "Model download",
     "audit.logs_clear": "Log cleared",
     "audit.tool_call": "AI tool call",
+    "audit.memory_fact_save": "Memory fact saved",
+    "audit.memory_fact_delete": "Memory fact deleted",
+    "audit.memory_reset": "Assistant memory cleared",
     "audit.error": "Error",
     "settings.model_required": "Please specify the model name.",
     "settings.kiwix_url_required": "Please specify the Kiwix address (e.g. http://192.168.1.50:8080).",
@@ -727,6 +796,9 @@ Tools:
   or comparison of Wikipedia data are needed. The Wikipedia is English —
   formulate the search query in English.
 - list_kiwix_books — when asked which books or Wikipedias are connected to Kiwix.
+- search_memory / list_memory — when the question depends on what the user said
+  earlier (allergies, habits, complaints, "what do you remember about me").
+- save_memory_fact — only if the user explicitly asks to remember a fact.
 Do not call search_articles for questions about the card — card data comes only
 through get_medical_card.
 

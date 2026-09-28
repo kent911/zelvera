@@ -104,11 +104,40 @@ pct push 100 ./deploy/proxmox/zelvera.service /root/zelvera.service
 
 ```bash
 pct enter 100 -- bash /root/install-zelvera.sh \
-  REPO_URL=https://github.com/<ваш-репозиторий>.git \
+  REPO_URL=https://github.com/kent911/zelvera.git \
   OLLAMA_URL=http://<ip-ollama>:11434
 ```
 
-Если код уже скопирован в контейнер вручную, передайте только `OLLAMA_URL`.
+Если код уже скопирован в контейнер вручную, передайте `REPO_URL` и `OLLAMA_URL`.
+Без `REPO_URL` установка не сохранит `.git`, и потом `update-zelvera.sh` не сможет
+тянуть обновления с GitHub.
+
+## Обновление из GitHub
+
+Внутри контейнера Zelvera:
+
+```bash
+pct enter 100
+bash /opt/zelvera/deploy/proxmox/update-zelvera.sh
+```
+
+Скрипт делает `git fetch` + `reset --hard` на ветку `master` (или `main`),
+обновляет pip-зависимости и перезапускает `zelvera.service`. Папка
+`/opt/zelvera/data` не трогается.
+
+Если установка была старым скриптом (без `.git`):
+
+```bash
+REPO_URL=https://github.com/kent911/zelvera.git bash /opt/zelvera/deploy/proxmox/update-zelvera.sh
+```
+
+Проверка:
+
+```bash
+pct exec 100 -- git -C /opt/zelvera remote -v
+pct exec 100 -- git -C /opt/zelvera log --oneline -1
+pct exec 100 -- systemctl status zelvera
+```
 
 ## Шаг 5. Запуск и доступ
 

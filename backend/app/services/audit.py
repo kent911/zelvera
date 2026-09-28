@@ -33,6 +33,9 @@ ACTION_LABELS: dict[str, str] = {
     "model_pull": "Скачивание модели",
     "logs_clear": "Очистка журнала",
     "tool_call": "Вызов инструмента ИИ",
+    "memory_fact_save": "Сохранение факта памяти",
+    "memory_fact_delete": "Удаление факта памяти",
+    "memory_reset": "Очистка памяти ассистента",
     "error": "Ошибка",
 }
 

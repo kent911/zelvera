@@ -72,6 +72,49 @@ CREATE TABLE IF NOT EXISTS wiki_cache (
     payload TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS memory_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER DEFAULT NULL,
+    channel TEXT NOT NULL DEFAULT 'web',
+    session_id TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_messages_profile
+    ON memory_messages(profile_id, id);
+CREATE INDEX IF NOT EXISTS idx_memory_messages_session
+    ON memory_messages(session_id, id);
+CREATE TABLE IF NOT EXISTS memory_facts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER DEFAULT NULL,
+    category TEXT NOT NULL DEFAULT 'other',
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    evidence TEXT DEFAULT '',
+    source TEXT DEFAULT 'chat',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_facts_profile
+    ON memory_facts(profile_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique
+    ON memory_facts(profile_id, category, key);
+CREATE TABLE IF NOT EXISTS memory_summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER DEFAULT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    turn_count INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_summaries_profile
+    ON memory_summaries(profile_id, id);
+CREATE TABLE IF NOT EXISTS memory_profile (
+    profile_id INTEGER PRIMARY KEY,
+    content TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -154,6 +197,15 @@ def _attach_orphan_records(conn: sqlite3.Connection) -> None:
         "UPDATE reminders SET profile_id = ? WHERE profile_id IS NULL",
         (default_id,),
     )
+    for table in (
+        "memory_messages",
+        "memory_facts",
+        "memory_summaries",
+    ):
+        conn.execute(
+            f"UPDATE {table} SET profile_id = ? WHERE profile_id IS NULL",
+            (default_id,),
+        )
 
 
 def _to_float(value: Any) -> tuple[float | None, str]:
@@ -698,3 +750,284 @@ def delete_reminder(reminder_id: int) -> bool:
     with get_conn() as conn:
         cur = conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
         return cur.rowcount > 0
+
+
+def add_memory_message(
+    role: str,
+    content: str,
+    profile_id: int | None = None,
+    channel: str = "web",
+    session_id: str = "",
+) -> int:
+    text = (content or "").strip()
+    if not text:
+        return 0
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO memory_messages "
+            "(profile_id, channel, session_id, role, content, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                profile_id,
+                channel or "web",
+                session_id or "",
+                role,
+                text,
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+            ),
+        )
+        return int(cur.lastrowid or 0)
+
+
+def trim_memory_messages(profile_id: int | None = None, keep: int = 80) -> None:
+    keep_n = max(1, int(keep))
+    with get_conn() as conn:
+        if profile_id is None:
+            conn.execute(
+                "DELETE FROM memory_messages WHERE id NOT IN "
+                "(SELECT id FROM (SELECT id FROM memory_messages "
+                "ORDER BY id DESC LIMIT ?))",
+                (keep_n,),
+            )
+            return
+        conn.execute(
+            "DELETE FROM memory_messages WHERE profile_id = ? AND id NOT IN "
+            "(SELECT id FROM (SELECT id FROM memory_messages WHERE profile_id = ? "
+            "ORDER BY id DESC LIMIT ?))",
+            (profile_id, profile_id, keep_n),
+        )
+
+
+def list_memory_messages(
+    profile_id: int | None = None,
+    limit: int = 40,
+    session_id: str | None = None,
+) -> list[dict[str, Any]]:
+    if profile_id is None:
+        return []
+    sql = (
+        "SELECT id, profile_id, channel, session_id, role, content, created_at "
+        "FROM memory_messages WHERE profile_id = ?"
+    )
+    args: list[Any] = [profile_id]
+    if session_id is not None:
+        sql += " AND session_id = ?"
+        args.append(session_id)
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(max(1, int(limit)))
+    with get_conn() as conn:
+        rows = conn.execute(sql, args).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def count_memory_messages(profile_id: int | None = None) -> int:
+    if profile_id is None:
+        return 0
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM memory_messages WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()
+    return int(row[0] if row else 0)
+
+
+def upsert_memory_fact(
+    category: str,
+    key: str,
+    value: str,
+    profile_id: int | None = None,
+    evidence: str = "",
+    source: str = "chat",
+) -> dict[str, Any]:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    cat = (category or "other").strip().lower() or "other"
+    k = " ".join((key or "").split())
+    v = " ".join((value or "").split())
+    if not k or not v:
+        raise ValueError("empty fact")
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM memory_facts "
+            "WHERE profile_id IS ? AND category = ? AND key = ?",
+            (profile_id, cat, k),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE memory_facts SET value = ?, evidence = ?, source = ?, "
+                "updated_at = ? WHERE id = ?",
+                (v, evidence or "", source, now, existing["id"]),
+            )
+            fact_id = existing["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO memory_facts "
+                "(profile_id, category, key, value, evidence, source, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (profile_id, cat, k, v, evidence or "", source, now, now),
+            )
+            fact_id = cur.lastrowid
+    return get_memory_fact(fact_id)
+
+
+def get_memory_fact(fact_id: int) -> dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, profile_id, category, key, value, evidence, source, "
+            "created_at, updated_at FROM memory_facts WHERE id = ?",
+            (fact_id,),
+        ).fetchone()
+    if row is None:
+        raise KeyError(fact_id)
+    return dict(row)
+
+
+def list_memory_facts(profile_id: int | None = None) -> list[dict[str, Any]]:
+    if profile_id is None:
+        return []
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, profile_id, category, key, value, evidence, source, "
+            "created_at, updated_at FROM memory_facts WHERE profile_id = ? "
+            "ORDER BY updated_at DESC, id DESC",
+            (profile_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def search_memory_facts(
+    query: str,
+    profile_id: int | None = None,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    tokens = [t.lower() for t in re.findall(r"[0-9a-zA-Zа-яА-ЯёЁ]+", query or "") if t]
+    facts = list_memory_facts(profile_id)
+    if not tokens:
+        return facts[: max(1, int(limit))]
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for fact in facts:
+        blob = " ".join(
+            [
+                str(fact.get("category") or ""),
+                str(fact.get("key") or ""),
+                str(fact.get("value") or ""),
+                str(fact.get("evidence") or ""),
+            ]
+        ).lower()
+        score = sum(1 for tok in tokens if tok in blob)
+        if score:
+            scored.append((score, fact))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [f for _, f in scored[: max(1, int(limit))]]
+
+
+def delete_memory_fact(fact_id: int, profile_id: int | None = None) -> bool:
+    with get_conn() as conn:
+        if profile_id is None:
+            cur = conn.execute("DELETE FROM memory_facts WHERE id = ?", (fact_id,))
+        else:
+            cur = conn.execute(
+                "DELETE FROM memory_facts WHERE id = ? AND profile_id = ?",
+                (fact_id, profile_id),
+            )
+        return cur.rowcount > 0
+
+
+def add_memory_summary(
+    content: str,
+    profile_id: int | None = None,
+    session_id: str = "",
+    turn_count: int = 0,
+) -> dict[str, Any]:
+    text = (content or "").strip()
+    if not text:
+        raise ValueError("empty summary")
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO memory_summaries "
+            "(profile_id, session_id, content, turn_count, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                profile_id,
+                session_id or "",
+                text,
+                max(0, int(turn_count)),
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+            ),
+        )
+        summary_id = cur.lastrowid
+    return get_memory_summary(summary_id)
+
+
+def get_memory_summary(summary_id: int) -> dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, profile_id, session_id, content, turn_count, created_at "
+            "FROM memory_summaries WHERE id = ?",
+            (summary_id,),
+        ).fetchone()
+    if row is None:
+        raise KeyError(summary_id)
+    return dict(row)
+
+
+def list_memory_summaries(
+    profile_id: int | None = None,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    if profile_id is None:
+        return []
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, profile_id, session_id, content, turn_count, created_at "
+            "FROM memory_summaries WHERE profile_id = ? "
+            "ORDER BY id DESC LIMIT ?",
+            (profile_id, max(1, int(limit))),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_memory_portrait(profile_id: int | None) -> dict[str, Any] | None:
+    if profile_id is None:
+        return None
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT profile_id, content, updated_at FROM memory_profile "
+            "WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def set_memory_portrait(profile_id: int, content: str) -> dict[str, Any]:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    text = (content or "").strip()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO memory_profile (profile_id, content, updated_at) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(profile_id) DO UPDATE SET content = excluded.content, "
+            "updated_at = excluded.updated_at",
+            (profile_id, text, now),
+        )
+    portrait = get_memory_portrait(profile_id)
+    if portrait is None:
+        raise KeyError(profile_id)
+    return portrait
+
+
+def clear_memory(
+    profile_id: int | None = None,
+    include_messages: bool = True,
+) -> None:
+    if profile_id is None:
+        return
+    with get_conn() as conn:
+        if include_messages:
+            conn.execute(
+                "DELETE FROM memory_messages WHERE profile_id = ?", (profile_id,)
+            )
+        conn.execute("DELETE FROM memory_facts WHERE profile_id = ?", (profile_id,))
+        conn.execute(
+            "DELETE FROM memory_summaries WHERE profile_id = ?", (profile_id,)
+        )
+        conn.execute("DELETE FROM memory_profile WHERE profile_id = ?", (profile_id,))

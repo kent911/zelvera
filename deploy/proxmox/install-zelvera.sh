@@ -38,14 +38,23 @@ chown -R "${ZELVERA_USER}":"${ZELVERA_USER}" "${ZELVERA_HOME}"
 log "Получение исходного кода"
 if [ -z "${REPO_URL}" ]; then
     echo "Укажите REPO_URL (адрес вашего git-репозитория с исходниками Zelvera)."
-    echo "Пример: REPO_URL=https://github.com/user/zelvera ./install-zelvera.sh"
+    echo "Пример: REPO_URL=https://github.com/kent911/zelvera.git ./install-zelvera.sh"
     echo "Либо вручную скопируйте файлы в ${ZELVERA_HOME} и повторите."
     exit 1
 fi
-if [ ! -f "${ZELVERA_HOME}/backend/app/main.py" ]; then
-    git clone --depth 1 "${REPO_URL}" "${ZELVERA_HOME}/src"
-    rsync -a --exclude='data' --exclude='.git' "${ZELVERA_HOME}/src/" "${ZELVERA_HOME}/"
-    rm -rf "${ZELVERA_HOME}/src"
+if [ ! -d "${ZELVERA_HOME}/.git" ]; then
+    if [ -f "${ZELVERA_HOME}/backend/app/main.py" ]; then
+        log "Исходники есть, но без Git — клонирую поверх, data не трогаю"
+        tmp="$(mktemp -d)"
+        git clone --depth 1 "${REPO_URL}" "${tmp}"
+        rsync -a --exclude='data' --exclude='venv' --exclude='backend/.env' "${tmp}/" "${ZELVERA_HOME}/"
+        rm -rf "${tmp}"
+    else
+        git clone --depth 1 "${REPO_URL}" "${ZELVERA_HOME}/src"
+        rsync -a --exclude='data' "${ZELVERA_HOME}/src/" "${ZELVERA_HOME}/"
+        rm -rf "${ZELVERA_HOME}/src"
+    fi
+    git -C "${ZELVERA_HOME}" config --global --add safe.directory "${ZELVERA_HOME}" >/dev/null 2>&1 || true
 else
     log "Исходники уже присутствуют, обновление пропущено"
 fi

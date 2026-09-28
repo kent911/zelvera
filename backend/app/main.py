@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routes import analysis, articles, backup, chat, documents, kiwix, logs, notes, profiles, records, reminders
+from app.routes import analysis, articles, backup, chat, documents, kiwix, logs, memory, notes, profiles, records, reminders
 from app.routes import settings as settings_route
 from app.services import audit, database
 from app.services.logger import logger
@@ -42,6 +42,7 @@ app.include_router(profiles.router, prefix="/api")
 app.include_router(reminders.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
 app.include_router(kiwix.router, prefix="/api")
+app.include_router(memory.router, prefix="/api")
 
 
 @app.exception_handler(Exception)

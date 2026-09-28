@@ -151,6 +151,10 @@ The key is stored only locally and is never sent anywhere except the API you cho
 | GET | `/api/notes` | List of notes (AI takeaways) |
 | POST | `/api/notes` | Save a note (can be linked to an article) |
 | DELETE | `/api/notes/{id}` | Delete a note |
+| GET | `/api/memory` | Long-term memory snapshot (facts, recaps, portrait) |
+| POST | `/api/memory/facts` | Add/update a fact (L1) |
+| DELETE | `/api/memory/facts/{id}` | Delete a fact |
+| DELETE | `/api/memory` | Clear profile memory (L0–L3) |
 | GET | `/api/notes/export.pdf` | Export notes to PDF |
 | GET | `/api/profiles` | List of profiles + current (single profile) |
 | PATCH | `/api/profiles/{id}` | Update a profile (name, birth_year, height_cm, weight_kg, blood_type) |
@@ -332,7 +336,10 @@ The chat supports tool calls (read-only, no writes to the database):
 - `save_analysis_to_card(markers, date)` — saves discussed markers to the
   medical card as a single record;
 - `search_wikipedia(query, limit)` and `list_kiwix_books()` — search in the
-  offline Wikipedia (Kiwix).
+  offline Wikipedia (Kiwix);
+- `search_memory(query)` / `list_memory()` — long-term memory facts for the profile;
+- `save_memory_fact(category, key, value)` — remember a fact when the user
+  explicitly asks (not one-off lab numbers).
 
 The record-reading tools (`get_medical_card`, `get_marker_trends`,
 `check_marker_norm`) automatically add Wikipedia help for markers missing from
@@ -344,6 +351,22 @@ Tools work with the single health profile: edit the profile in the header
 Supported by both backends: Ollama (`tools`) and the OpenAI-compatible API
 (`tools`). If the model does not support tools or they are unavailable,
 the chat automatically falls back to a plain answer without tools.
+
+## Long-term assistant memory (L0–L3)
+
+A local analogue of hierarchical agent memory. Everything lives in
+`data/medical.db`, no cloud:
+
+- **L0** — raw dialogue turns (`memory_messages`);
+- **L1** — lasting facts: allergies, habits, complaints, medications
+  (`memory_facts`); one-off lab numbers are not stored here — they belong
+  in the medical card;
+- **L2** — compressed recaps of recent dialogues (`memory_summaries`);
+- **L3** — a short profile portrait (`memory_profile`).
+
+After a chat reply (web and Telegram) facts are extracted in the background.
+Relevant L1–L3 facts are injected into the system context of the next question.
+The "Memory" tab shows facts and the portrait; they can be edited by hand.
 
 ## Action audit
 
@@ -450,7 +473,8 @@ Implemented:
 - marker trend charts with a norm corridor and two-record comparison;
 - long-term report: per-year marker summary and an AI health assessment for a period;
 - Telegram bot: text chat, lab-report photos into the card, voice messages, reminders;
-- action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI).
+- action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI);
+- long-term assistant memory L0–L3 (facts, recaps, portrait) locally in SQLite.
 
 Possible next steps (not prioritized):
 
@@ -487,7 +511,9 @@ backend/app/
   services/kiwix.py      # offline Wikipedia (Kiwix) client
   services/wiki_lookup.py# Wikipedia help for a marker + SQLite cache
   services/i18n.py       # RU/EN localization
-  services/database.py   # SQLite: records, markers, articles, profiles, reminders
+  services/memory.py     # long-term memory L0–L3 (facts, recaps, portrait)
+  routes/memory.py       # GET/POST/DELETE /api/memory
+  services/database.py   # SQLite: records, markers, articles, profiles, reminders, memory
   services/embeddings.py # embeddings via Ollama / OpenAI
   services/articles_db.py# ChromaDB: article chunks and semantic search
   services/settings_store.py # runtime model settings (data/settings.json)
