@@ -3,8 +3,9 @@
 **Languages:** [Русский](README.md) · English
 
 A fully functional local application: AI chat, lab-result recognition
-(photo/PDF/DOCX), a personal medical record, a scientific article database
-with RAG search, notes, health profiles and reminders. All data stays local.
+(photo/PDF/DOCX), a personal medical record, long-term assistant memory (L0–L3),
+a scientific article database with RAG search, notes, health profiles,
+reminders and an optional Telegram bot. All data stays local.
 The assistant does not make diagnoses and does not replace a doctor.
 
 ## Tech stack
@@ -12,7 +13,7 @@ The assistant does not make diagnoses and does not replace a doctor.
 - Backend: Python 3.11+ / FastAPI + Uvicorn
 - AI: Ollama (local, default) or any OpenAI-compatible API
 - Frontend: HTML/CSS/JS without a bundler (wrapped into a desktop app via pywebview)
-- Storage: SQLite (medical record, notes, audit, profiles) + ChromaDB (articles)
+- Storage: SQLite (medical record, notes, audit, profiles, L0–L3 memory) + ChromaDB (articles)
 
 ## Getting started
 
@@ -94,7 +95,7 @@ on `windows-latest`, verifies that `Zelvera.exe` exists and uploads the
 
 A separate workflow `.github/workflows/tests.yml` on `ubuntu-latest` runs
 `pytest` (folder `backend/tests`): marker catalog, reference norms, Wikipedia
-help cache and grounding, marker extraction. Locally:
+help cache and grounding, marker extraction, long-term memory L0–L3. Locally:
 
 ```bash
 cd backend
@@ -173,8 +174,8 @@ The key is stored only locally and is never sent anywhere except the API you cho
 In the settings ("Ollama Settings") there is a "Backup" section:
 
 - **Save a copy** — downloads a ZIP archive with all data: `medical.db`
-  (medical record, articles, notes, profile, reminders, audit), `settings.json`
-  and the vector article database `chroma/`;
+  (medical record, articles, notes, profile, reminders, audit, L0–L3 memory),
+  `settings.json` and the vector article database `chroma/`;
 - **Restore from a copy** — uploads the ZIP archive; the data is fully
   replaced (with confirmation). The archive is validated for integrity and the
   presence of `medical.db`;
@@ -321,7 +322,8 @@ Saving is done by the UI:
 
 ## AI tools (function calling)
 
-The chat supports tool calls (read-only, no writes to the database):
+The chat supports tool calls. Most tools only read data; writes to the
+database are limited to `save_analysis_to_card` and `save_memory_fact`:
 
 - `search_articles(query, limit)` — semantic search over the scientific article database;
 - `list_articles()` — list of uploaded articles;
@@ -392,7 +394,7 @@ The app works with a single profile — for one person. The header on the left
 shows the profile name; the pencil button opens editing:
 
 - profile fields: name, birth year, height, weight, blood type;
-- all data (medical record, reminders, AI tools) is tied to this profile;
+- all data (medical record, reminders, L0–L3 memory, AI tools) is tied to this profile;
 - the blood type is stored normalized, e.g. `A(II) Rh+`;
 
 ## Lab-retest reminders
@@ -419,7 +421,7 @@ Setup:
    (get your ID via `@userinfobot`) and press "Check token".
 3. Choose whether you need voice messages and re-test reminders, then save.
 
-Features: text chat with the AI (using your medical card and articles),
+Features: text chat with the AI (using your medical card, articles and long-term memory),
 a photo of a lab report with recognition and confirmation before saving to
 the card (send it as a photo or as an image file — files are not compressed
 and are recognized more accurately), voice messages (recognition via
@@ -467,7 +469,9 @@ Implemented:
 - scientific article database with RAG search (ChromaDB) and the analytical report;
 - notes (AI takeaways) with PDF export;
 - health profiles and lab-retest reminders;
-- AI tools (function calling, read-only) over the active profile's data;
+- AI tools (function calling: reading the card/articles/memory, writing lab records and memory facts)
+  over the active profile's data;
+- backup: ZIP export and restore (`medical.db`, `settings.json`, `chroma/`);
 - marker catalog with name normalization, parse refinement and chat help via
   the offline Wikipedia (with caching), pytest tests in CI;
 - marker trend charts with a norm corridor and two-record comparison;
@@ -480,7 +484,6 @@ Possible next steps (not prioritized):
 
 - "Monthly summary" auto-digest — an LLM summary of marker dynamics over 30 days;
 - notifications for reminders on app startup;
-- data import/export;
 - mobile UI adaptation.
 
 ## Structure
@@ -498,10 +501,13 @@ backend/app/
   routes/notes.py    # notes (AI takeaways on articles) + PDF export
   routes/profiles.py # health profiles (CRUD + current profile)
   routes/reminders.py# lab-retest reminders
-  services/telegram_bot.py # Telegram bot: chat, lab-report photos, reminders
+  routes/backup.py    # ZIP backup export/import
+  routes/kiwix.py     # offline Wikipedia status and search
+  routes/logs.py      # application log
+  services/telegram_bot.py # Telegram bot: chat, lab-report photos, reminders, memory
   services/voice.py  # optional STT/TTS for Telegram (faster-whisper, edge-tts)
   services/llm.py    # Ollama / OpenAI client + function calling
-  services/tools.py  # AI tools (article search, medical record reads)
+  services/tools.py  # AI tools (articles, card, memory; writes labs and facts)
   services/audit.py  # user action audit
   services/document.py   # text extraction from PDF/DOCX + chunking
   services/extractor.py  # LLM extraction of health markers into JSON
@@ -518,11 +524,11 @@ backend/app/
   services/articles_db.py# ChromaDB: article chunks and semantic search
   services/settings_store.py # runtime model settings (data/settings.json)
   services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
-backend/tests/         # pytest: catalog, norms, cache/grounding, extraction
+backend/tests/         # pytest: catalog, norms, cache/grounding, extraction, memory
 frontend/
-  index.html         # chat UI, recognition panel, profiles, reminders
+  index.html         # chat UI, recognition panel, profiles, reminders, memory
   css/style.css
-  js/app.js          # response streaming, document uploads, voice input
+  js/app.js          # response streaming, document uploads, voice input, Memory tab
 data/                # databases (SQLite, ChromaDB) — not in git
 ```
 
