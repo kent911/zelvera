@@ -3,5 +3,5 @@
 # и замените zelvera.lan на желаемое имя (например, zelvera.home).
 
 zelvera.lan {
-    reverse_proxy 127.0.0.1:8001
+    reverse_proxy 127.0.0.1:8000
 }

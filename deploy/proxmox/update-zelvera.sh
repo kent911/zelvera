@@ -11,9 +11,28 @@ ZELVERA_HOME="${ZELVERA_HOME:-/opt/zelvera}"
 ZELVERA_USER="${ZELVERA_USER:-zelvera}"
 REPO_URL="${REPO_URL:-}"
 BRANCH="${BRANCH:-}"
+UNIT_FILE="/etc/systemd/system/zelvera.service"
 
 log() { echo "==> $*"; }
 die() { echo "$*" >&2; exit 1; }
+
+read_unit_field() {
+    local file="$1" key="$2"
+    [ -f "${file}" ] || return 0
+    sed -n "s/^${key}=//p" "${file}" | head -1
+}
+
+read_unit_port() {
+    local file="$1"
+    [ -f "${file}" ] || return 0
+    sed -n 's/.*--port \([0-9][0-9]*\).*/\1/p' "${file}" | head -1
+}
+
+read_unit_env() {
+    local file="$1" key="$2"
+    [ -f "${file}" ] || return 0
+    sed -n "s/^Environment=${key}=//p" "${file}" | head -1
+}
 
 if [ "$(id -u)" -ne 0 ]; then
     die "Запускайте скрипт от root."
@@ -62,20 +81,47 @@ if [ "${ZELVERA_VOICE:-0}" = "1" ]; then
     ./venv/bin/pip install -r backend/requirements-voice.txt
 fi
 
-if id -u "${ZELVERA_USER}" >/dev/null 2>&1; then
-    chown -R "${ZELVERA_USER}":"${ZELVERA_USER}" \
-        "${ZELVERA_HOME}/backend" \
-        "${ZELVERA_HOME}/frontend" \
-        "${ZELVERA_HOME}/deploy" \
-        "${ZELVERA_HOME}/venv" \
-        2>/dev/null || true
+KEEP_USER="$(read_unit_field "${UNIT_FILE}" User)"
+KEEP_GROUP="$(read_unit_field "${UNIT_FILE}" Group)"
+KEEP_PORT="${ZELVERA_PORT:-$(read_unit_port "${UNIT_FILE}")}"
+KEEP_OLLAMA="$(read_unit_env "${UNIT_FILE}" OLLAMA_BASE_URL)"
+
+if [ -n "${KEEP_USER}" ]; then
+    ZELVERA_USER="${KEEP_USER}"
+fi
+if [ -z "${KEEP_GROUP}" ]; then
+    KEEP_GROUP="${ZELVERA_USER}"
 fi
 
+if ! id -u "${ZELVERA_USER}" >/dev/null 2>&1; then
+    log "Создание пользователя ${ZELVERA_USER}"
+    useradd --system --home-dir "${ZELVERA_HOME}" --no-create-home "${ZELVERA_USER}"
+fi
+
+log "Права ${ZELVERA_USER} на код и данные"
+chown -R "${ZELVERA_USER}":"${ZELVERA_USER}" \
+    "${ZELVERA_HOME}/backend" \
+    "${ZELVERA_HOME}/frontend" \
+    "${ZELVERA_HOME}/deploy" \
+    "${ZELVERA_HOME}/venv" \
+    "${ZELVERA_HOME}/data" \
+    2>/dev/null || true
+
 log "Перезапуск сервиса"
+cp "${ZELVERA_HOME}/deploy/proxmox/zelvera.service" "${UNIT_FILE}"
+chmod 644 "${UNIT_FILE}"
+sed -i "s/^User=.*/User=${ZELVERA_USER}/" "${UNIT_FILE}"
+sed -i "s/^Group=.*/Group=${KEEP_GROUP}/" "${UNIT_FILE}"
+if [ -n "${KEEP_PORT}" ]; then
+    log "Порт из текущей установки: ${KEEP_PORT}"
+    sed -i "s/--port [0-9][0-9]*/--port ${KEEP_PORT}/" "${UNIT_FILE}"
+fi
+if [ -n "${KEEP_OLLAMA}" ]; then
+    log "OLLAMA_BASE_URL из текущей установки: ${KEEP_OLLAMA}"
+    sed -i "s|^Environment=OLLAMA_BASE_URL=.*|Environment=OLLAMA_BASE_URL=${KEEP_OLLAMA}|" "${UNIT_FILE}"
+fi
 systemctl daemon-reload
-cp "${ZELVERA_HOME}/deploy/proxmox/zelvera.service" /etc/systemd/system/zelvera.service
-chmod 644 /etc/systemd/system/zelvera.service
-systemctl daemon-reload
+systemctl reset-failed zelvera || true
 systemctl restart zelvera
 
 log "Готово. Текущая версия:"

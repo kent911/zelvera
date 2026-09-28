@@ -11,7 +11,7 @@ Proxmox (мини-ПК)
 ├── LXC "ollama"   — Ollama + NVIDIA GPU (passthrough)
 │   └── http://<ip-ollama>:11434
 ├── LXC "zelvera"  — приложение (FastAPI + uvicorn, systemd, автозапуск)
-│   ├── http://<ip-zelvera>:8001  (веб-интерфейс)
+│   ├── http://<ip-zelvera>:8000  (веб-интерфейс)
 │   └── данные в /opt/zelvera/data (на постоянном storage)
 ├── LXC "kiwix"    — офлайн-Википедия (kiwix-serve, ZIM ~110 ГБ)
 │   └── http://<ip-kiwix>:8080    (база знаний ИИ)
@@ -123,7 +123,10 @@ bash /opt/zelvera/deploy/proxmox/update-zelvera.sh
 
 Скрипт делает `git fetch` + `reset --hard` на ветку `master` (или `main`),
 обновляет pip-зависимости и перезапускает `zelvera.service`. Папка
-`/opt/zelvera/data` не трогается.
+`/opt/zelvera/data` не трогается. Пользователь systemd и порт берутся
+из текущего unit (`/etc/systemd/system/zelvera.service`), чтобы обновление
+не сбивало `http://<ip>:8000`. Если пользователя нет — скрипт создаёт
+`zelvera`. Порт можно задать явно: `ZELVERA_PORT=8000`.
 
 Если установка была старым скриптом (без `.git`):
 
@@ -146,7 +149,7 @@ pct enter 100 -- systemctl start zelvera
 pct enter 100 -- systemctl status zelvera
 ```
 
-Веб-интерфейс: `http://<ip-zelvera>:8001`.
+Веб-интерфейс: `http://<ip-zelvera>:8000`.
 
 ## Шаг 6. (Опционально) Офлайн-Википедия для ИИ (Kiwix)
 

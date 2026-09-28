@@ -89,4 +89,4 @@ log "  1) Убедитесь, что Ollama доступна по адресу: 
 log "  2) Загрузите модели: ollama pull ${OLLAMA_MODEL}"
 log "     ollama pull ${OLLAMA_EMBED_MODEL}"
 log "  3) Запуск: systemctl start zelvera"
-log "  4) Веб-интерфейс: http://<ip-контейнера>:8001"
+log "  4) Веб-интерфейс: http://<ip-контейнера>:8000"
