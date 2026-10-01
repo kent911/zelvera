@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=25" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=25" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=25" />
-  <link rel="stylesheet" href="css/style.css?v=35" />
+  <link rel="stylesheet" href="css/style.css?v=36" />
 </head>
 <body>
   <div id="app">
@@ -259,10 +259,12 @@
         <label class="field">
           <span data-i18n="settings.visionModel">Vision-модель (распознавание фото анализов)</span>
           <input type="text" id="set-vision-model" placeholder="gemma4:26b" />
+          <span class="field-hint" data-i18n="settings.visionModelHint">Всегда через Ollama. llama-server без mmproj картинки не читает.</span>
         </label>
         <label class="field">
           <span data-i18n="settings.embedModel">Эмбеддинг-модель (база статей)</span>
           <input type="text" id="set-embed-model" placeholder="nomic-embed-text" />
+          <span class="field-hint" data-i18n="settings.embedModelHint">Всегда через Ollama.</span>
         </label>
         <label class="field">
           <span data-i18n="settings.numCtx">Размер контекста модели, токенов (num_ctx)</span>
@@ -426,7 +428,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=35"></script>
-  <script src="js/app.js?v=35"></script>
+  <script src="js/i18n.js?v=36"></script>
+  <script src="js/app.js?v=36"></script>
 </body>
 </html>

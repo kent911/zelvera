@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 from app.services import settings_store
-from app.services.llm import coalesce_system_messages
+from app.services.llm import _openai_image_unsupported, coalesce_system_messages
 
 
 def test_normalize_openai_base_url_adds_v1():
@@ -62,3 +62,10 @@ def test_coalesce_system_messages_single_leading():
     assert "фрагменты статей" in out[0]["content"]
     assert [m["role"] for m in out] == ["system", "user", "assistant"]
     assert all(m["role"] != "system" for m in out[1:])
+
+
+def test_openai_image_unsupported_detects_mmproj():
+    assert _openai_image_unsupported(
+        Exception("image input is not supported - hint: if this is unexpected, you may need to provide the mmproj")
+    )
+    assert not _openai_image_unsupported(Exception("timeout connecting to llama-server"))

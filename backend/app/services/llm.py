@@ -268,17 +268,35 @@ async def complete(messages: list[ChatMessage]) -> str:
     return await _complete_ollama(messages)
 
 
+def _openai_image_unsupported(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "image input is not supported" in text or "mmproj" in text
+
+
 async def ocr_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
-    """Распознавание текста с изображения через vision-модель."""
+    """Распознавание текста с изображения.
+
+    llama-server без mmproj картинки не читает — тогда OCR идёт в Ollama.
+    """
     if _use_openai():
-        return await _ocr_openai(image_b64, mime_type)
+        try:
+            return await _ocr_openai(image_b64, mime_type)
+        except LLMError as exc:
+            if not _openai_image_unsupported(exc):
+                raise
+            log.warning("llama-server без vision, OCR через Ollama: %s", exc)
     return await _ocr_ollama(image_b64)
 
 
 async def describe_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
-    """Описание изображения через vision-модель (для картинок Википедии)."""
+    """Описание изображения (картинки Википедии). Без mmproj — через Ollama."""
     if _use_openai():
-        return await _describe_openai(image_b64, mime_type)
+        try:
+            return await _describe_openai(image_b64, mime_type)
+        except LLMError as exc:
+            if not _openai_image_unsupported(exc):
+                raise
+            log.warning("llama-server без vision, описание через Ollama: %s", exc)
     return await _describe_ollama(image_b64)
 
 
