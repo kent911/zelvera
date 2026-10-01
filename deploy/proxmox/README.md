@@ -121,8 +121,9 @@ pct enter 100
 bash /opt/zelvera/deploy/proxmox/update-zelvera.sh
 ```
 
-Скрипт делает `git fetch` + `reset --hard` на ветку `master` (или `main`),
-обновляет pip-зависимости и перезапускает `zelvera.service`. Папка
+Скрипт делает `git fetch` + `reset --hard FETCH_HEAD` на ветку `master` (или `main`),
+обновляет pip-зависимости и перезапускает `zelvera.service`.
+Zelvera не обновляется через вкладку Updates в веб-интерфейсе Proxmox. Папка
 `/opt/zelvera/data` не трогается. Пользователь systemd и порт берутся
 из текущего unit (`/etc/systemd/system/zelvera.service`), чтобы обновление
 не сбивало `http://<ip>:8000`. Если пользователя нет — скрипт создаёт

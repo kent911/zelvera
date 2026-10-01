@@ -64,14 +64,29 @@ git remote get-url origin >/dev/null 2>&1 || {
     [ -n "${REPO_URL}" ] || die "Нет remote origin. Укажите REPO_URL=..."
     git remote add origin "${REPO_URL}"
 }
-git fetch --depth 1 origin "${BRANCH}"
+log "Remote: $(git remote get-url origin)"
+BEFORE="$(git rev-parse --short HEAD 2>/dev/null || echo none)"
+log "Сейчас: $(git log --oneline -1 2>/dev/null || echo нет коммита)"
+
+if ! git fetch --depth 1 origin "${BRANCH}"; then
+    die "Не удалось скачать обновления (приватный репозиторий?). Проверьте:
+  git -C ${ZELVERA_HOME} remote -v
+  git -C ${ZELVERA_HOME} fetch origin ${BRANCH}"
+fi
 
 if ! git diff --quiet -- run.py 2>/dev/null; then
     log "Сброс локальной правки run.py"
     git checkout -- run.py
 fi
 
-git reset --hard "origin/${BRANCH}"
+# FETCH_HEAD надёжнее origin/${BRANCH}: shallow fetch часто не двигает remote-tracking ref.
+git reset --hard FETCH_HEAD
+AFTER="$(git rev-parse --short HEAD)"
+if [ "${BEFORE}" = "${AFTER}" ]; then
+    log "Уже последняя версия: $(git log --oneline -1)"
+else
+    log "Обновлено ${BEFORE} -> $(git log --oneline -1)"
+fi
 
 log "Обновление зависимостей"
 ./venv/bin/pip install -r backend/requirements.txt
