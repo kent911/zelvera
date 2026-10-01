@@ -120,6 +120,10 @@ USER_LLM_MODEL=bonsai2-27B
 
 The key is stored only locally. Article embeddings still go through Ollama.
 
+Photo recognition has its own backend ("Backend for photos"): you can keep chat
+on llama-server and vision on Ollama. llama-server without mmproj cannot read
+images.
+
 ## API
 
 | Method | Path | Description |
@@ -280,6 +284,7 @@ The "AI settings" button in the side menu:
 - backend: Ollama or an OpenAI-compatible API (llama-server);
 - Ollama and/or llama-server address (`http://192.168.1.100:8080`, `/v1` is appended);
 - "Refresh model list" — fetches models from the selected backend;
+- a separate "Backend for photos" (same as chat / Ollama / llama-server);
 - choose the chat model, vision model and embedding model (can be typed manually);
 - the choice survives restarts (`data/settings.json`); takes priority over `.env`.
 

@@ -62,6 +62,10 @@ def _use_openai() -> bool:
     return settings_store.llm_backend() == "openai"
 
 
+def _use_openai_vision() -> bool:
+    return settings_store.vision_backend() == "openai"
+
+
 def _openai_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=settings_store.openai_base_url(),
@@ -276,9 +280,10 @@ def _openai_image_unsupported(exc: Exception) -> bool:
 async def ocr_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
     """Распознавание текста с изображения.
 
-    llama-server без mmproj картинки не читает — тогда OCR идёт в Ollama.
+    Движок выбран отдельно (vision_backend); llama-server без mmproj
+    картинки не читает — тогда OCR идёт в Ollama.
     """
-    if _use_openai():
+    if _use_openai_vision():
         try:
             return await _ocr_openai(image_b64, mime_type)
         except LLMError as exc:
@@ -289,8 +294,8 @@ async def ocr_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
 
 
 async def describe_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
-    """Описание изображения (картинки Википедии). Без mmproj — через Ollama."""
-    if _use_openai():
+    """Описание изображения (картинки Википедии). Движок — vision_backend."""
+    if _use_openai_vision():
         try:
             return await _describe_openai(image_b64, mime_type)
         except LLMError as exc:

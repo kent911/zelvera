@@ -18,6 +18,7 @@ class SettingsUpdate(BaseModel):
     openai_api_key: str | None = None
     ollama_base_url: str | None = None
     chat_model: str | None = None
+    vision_backend: str | None = None
     vision_model: str | None = None
     embed_model: str | None = None
     num_ctx: str | None = None

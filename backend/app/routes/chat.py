@@ -75,6 +75,7 @@ async def health() -> dict:
 async def config() -> dict:
     return {
         "backend": settings_store.llm_backend(),
+        "vision_backend": settings_store.vision_backend(),
         "model": settings_store.get("chat_model"),
         "ollama_url": settings_store.get("ollama_base_url"),
         "openai_url": settings_store.openai_base_url(),

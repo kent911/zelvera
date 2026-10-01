@@ -64,6 +64,26 @@ def test_coalesce_system_messages_single_leading():
     assert all(m["role"] != "system" for m in out[1:])
 
 
+def test_vision_backend_inherits_chat_then_overrides(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(llm_backend="openai")
+    assert settings_store.vision_backend() == "openai"
+    settings_store.update(vision_backend="ollama")
+    assert settings_store.vision_backend() == "ollama"
+    settings_store.update(vision_backend="")
+    assert settings_store.vision_backend() == "openai"
+
+
+def test_vision_backend_rejects_unknown(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(llm_backend="openai", vision_backend="nonsense")
+    assert settings_store.vision_backend() == "openai"
+
+
 def test_openai_image_unsupported_detects_mmproj():
     assert _openai_image_unsupported(
         Exception("image input is not supported - hint: if this is unexpected, you may need to provide the mmproj")

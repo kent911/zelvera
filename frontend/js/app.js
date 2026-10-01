@@ -109,6 +109,7 @@ const setKiwixZim = document.getElementById("set-kiwix-zim");
 const btnKiwixBooks = document.getElementById("btn-kiwix-books");
 const kiwixStatus = document.getElementById("kiwix-status");
 const setChatModel = document.getElementById("set-chat-model");
+const setVisionBackend = document.getElementById("set-vision-backend");
 const setVisionModel = document.getElementById("set-vision-model");
 const setEmbedModel = document.getElementById("set-embed-model");
 const setNumCtx = document.getElementById("set-num-ctx");
@@ -2215,6 +2216,7 @@ async function openSettings() {
     setKiwixUrl.value = data.kiwix_base_url || "";
     setKiwixZim.value = data.kiwix_zim_name || "";
     setChatModel.value = data.chat_model || "";
+    if (setVisionBackend) setVisionBackend.value = data.vision_backend || "";
     setVisionModel.value = data.vision_model || "";
     setEmbedModel.value = data.embed_model || "";
     setNumCtx.value = data.num_ctx || "";
@@ -2419,6 +2421,7 @@ async function saveSettings() {
     kiwix_base_url: setKiwixUrl.value.trim(),
     kiwix_zim_name: setKiwixZim.value.trim(),
     chat_model: setChatModel.value.trim(),
+    vision_backend: setVisionBackend?.value || "",
     vision_model: setVisionModel.value.trim(),
     embed_model: setEmbedModel.value.trim(),
     num_ctx: setNumCtx.value.trim(),

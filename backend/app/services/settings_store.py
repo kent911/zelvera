@@ -19,6 +19,7 @@ DEFAULTS = {
     "openai_api_key": env_settings.user_llm_api_key or "local",
     "ollama_base_url": env_settings.ollama_base_url,
     "chat_model": env_settings.ollama_model,
+    "vision_backend": "",
     "vision_model": env_settings.ollama_vision_model,
     "embed_model": env_settings.ollama_embed_model,
     "num_ctx": str(env_settings.ollama_num_ctx),
@@ -43,6 +44,8 @@ DEFAULTS = {
 
 _cache: dict[str, str] | None = None
 
+ALLOW_EMPTY_KEYS = {"vision_backend"}
+
 
 def _load() -> dict[str, str]:
     global _cache
@@ -54,7 +57,9 @@ def _load() -> dict[str, str]:
             saved = {}
         merged = dict(DEFAULTS)
         for key, value in saved.items():
-            if key in DEFAULTS and isinstance(value, str) and value.strip():
+            if not (key in DEFAULTS and isinstance(value, str)):
+                continue
+            if value.strip() or key in ALLOW_EMPTY_KEYS:
                 merged[key] = value.strip()
         _cache = merged
     return _cache
@@ -71,6 +76,14 @@ def all_settings() -> dict[str, str]:
 def llm_backend() -> str:
     value = (_load().get("llm_backend") or env_settings.llm_backend or "ollama").strip().lower()
     return "openai" if value == "openai" else "ollama"
+
+
+def vision_backend() -> str:
+    """Движок для фото. Пусто — как у чата; иначе ollama или openai."""
+    value = (_load().get("vision_backend") or "").strip().lower()
+    if value in ("ollama", "openai"):
+        return value
+    return llm_backend()
 
 
 def openai_base_url() -> str:
@@ -109,7 +122,11 @@ def update(**kwargs: str) -> dict[str, str]:
             stripped = normalize_openai_base_url(stripped)
         if key == "llm_backend":
             stripped = "openai" if stripped.lower() == "openai" else "ollama"
-        if stripped and stripped != current.get(key):
+        if key == "vision_backend":
+            stripped = stripped.lower()
+            if stripped not in ("ollama", "openai"):
+                stripped = ""
+        if (stripped or key in ALLOW_EMPTY_KEYS) and stripped != current.get(key):
             current[key] = stripped
             changed = True
     if changed:
