@@ -1,8 +1,6 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import httpx
-from openai import AsyncOpenAI
 
-from app.config import settings
 from app.services import i18n, settings_store
 
 from .llm import LLMError, _keep_alive
@@ -11,8 +9,6 @@ from .llm import LLMError, _keep_alive
 async def embed_texts(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
-    if settings.llm_backend == "openai":
-        return await _embed_openai(texts)
     return await _embed_ollama(texts)
 
 
@@ -38,20 +34,3 @@ async def _embed_ollama(texts: list[str]) -> list[list[float]]:
     if not embeddings:
         raise LLMError(i18n.t("embeddings.empty"))
     return embeddings
-
-
-async def _embed_openai(texts: list[str]) -> list[list[float]]:
-    if not settings.user_llm_api_key:
-        raise LLMError(i18n.t("llm.no_api_key"))
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
-    try:
-        resp = await client.embeddings.create(
-            model=settings.user_llm_embed_model,
-            input=texts,
-        )
-    except Exception as exc:
-        raise LLMError(i18n.t("embeddings.api_error", err=exc)) from exc
-    return [item.embedding for item in resp.data]

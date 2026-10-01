@@ -9,10 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
 from app.routes import analysis, articles, backup, chat, documents, kiwix, logs, memory, notes, profiles, records, reminders
 from app.routes import settings as settings_route
-from app.services import audit, database
+from app.services import audit, database, settings_store
 from app.services.logger import logger
 from app.services.telegram_bot import bot as telegram_bot
 
@@ -60,12 +59,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 @app.on_event("startup")
 async def on_startup() -> None:
     database.init_db()
-    audit.log_action("app_start", f"backend={settings.llm_backend}, model={settings.active_model}")
+    backend = settings_store.llm_backend()
+    model = settings_store.get("chat_model")
+    audit.log_action("app_start", f"backend={backend}, model={model}")
     logger.info(
         "Приложение запущено (pid=%d, backend=%s, model=%s)",
         os.getpid(),
-        settings.llm_backend,
-        settings.active_model,
+        backend,
+        model,
     )
     await telegram_bot.start()
 

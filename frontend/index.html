@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=25" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=25" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=25" />
-  <link rel="stylesheet" href="css/style.css?v=32" />
+  <link rel="stylesheet" href="css/style.css?v=34" />
 </head>
 <body>
   <div id="app">
@@ -39,7 +39,7 @@
         <span id="kiwix-label" data-i18n="chat.connecting">подключение...</span>
       </div>
       <button id="lang-toggle" class="settings-btn lang-toggle" data-i18n-title="lang.toggleTitle">EN</button>
-      <button id="btn-settings" class="settings-btn" data-i18n="settingsBtn">Настройки Ollama</button>
+      <button id="btn-settings" class="settings-btn" data-i18n="settingsBtn">Настройки ИИ</button>
       <button id="btn-logs" class="settings-btn" data-i18n="logsBtn">Логи и ошибки</button>
     </aside>
 
@@ -187,7 +187,7 @@
   <div id="settings-modal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-head">
-        <span class="modal-title" data-i18n="settings.title">Настройки Ollama</span>
+        <span class="modal-title" data-i18n="settings.title">Настройки ИИ</span>
         <button id="settings-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
       </div>
       <div class="modal-body">
@@ -209,6 +209,25 @@
         </div>
         <div class="modal-divider"></div>
         <label class="field">
+          <span data-i18n="settings.backend">Движок ИИ</span>
+          <select id="set-llm-backend">
+            <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
+            <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
+          </select>
+          <span class="field-hint" data-i18n="settings.backendHint">Ollama — локальные модели. OpenAI — любой совместимый API, например llama-server.</span>
+        </label>
+        <div id="openai-settings" class="hidden">
+          <label class="field">
+            <span data-i18n="settings.openaiUrl">Адрес OpenAI API / llama-server</span>
+            <input type="text" id="set-openai-url" placeholder="http://192.168.1.100:8080" />
+            <span class="field-hint" data-i18n="settings.openaiUrlHint">Например http://192.168.1.100:8080 — суффикс /v1 добавится сам.</span>
+          </label>
+          <label class="field">
+            <span data-i18n="settings.openaiKey">API-ключ (для llama-server можно оставить пустым)</span>
+            <input type="password" id="set-openai-key" placeholder="local" autocomplete="off" />
+          </label>
+        </div>
+        <label class="field" id="ollama-url-field">
           <span data-i18n="settings.ollamaUrl">Адрес Ollama</span>
           <input type="text" id="set-ollama-url" placeholder="http://localhost:11434" />
         </label>
@@ -406,7 +425,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=32"></script>
-  <script src="js/app.js?v=32"></script>
+  <script src="js/i18n.js?v=34"></script>
+  <script src="js/app.js?v=34"></script>
 </body>
 </html>

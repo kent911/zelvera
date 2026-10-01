@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
-"""Runtime-настройки моделей Ollama (persist в data/settings.json).
+"""Runtime-настройки моделей (persist в data/settings.json).
 
 Приоритет: настройки, сохранённые пользователем > значения из .env.
 """
@@ -14,6 +14,9 @@ from app.config import DATA_DIR, settings as env_settings
 SETTINGS_FILE = DATA_DIR / "settings.json"
 
 DEFAULTS = {
+    "llm_backend": env_settings.llm_backend,
+    "openai_base_url": env_settings.user_llm_base_url,
+    "openai_api_key": env_settings.user_llm_api_key or "local",
     "ollama_base_url": env_settings.ollama_base_url,
     "chat_model": env_settings.ollama_model,
     "vision_model": env_settings.ollama_vision_model,
@@ -65,12 +68,49 @@ def all_settings() -> dict[str, str]:
     return dict(_load())
 
 
+def llm_backend() -> str:
+    value = (_load().get("llm_backend") or env_settings.llm_backend or "ollama").strip().lower()
+    return "openai" if value == "openai" else "ollama"
+
+
+def openai_base_url() -> str:
+    url = (_load().get("openai_base_url") or env_settings.user_llm_base_url or "").strip().rstrip("/")
+    if not url:
+        url = "http://127.0.0.1:8080"
+    if url.endswith("/v1"):
+        return url
+    return url + "/v1"
+
+
+def openai_api_key() -> str:
+    key = (_load().get("openai_api_key") or env_settings.user_llm_api_key or "").strip()
+    return key or "local"
+
+
+def normalize_openai_base_url(url: str) -> str:
+    value = (url or "").strip().rstrip("/")
+    if not value:
+        return ""
+    if value.endswith("/v1"):
+        return value
+    return value + "/v1"
+
+
 def update(**kwargs: str) -> dict[str, str]:
     current = _load()
     changed = False
     for key, value in kwargs.items():
-        if key in DEFAULTS and value and value.strip() != current.get(key):
-            current[key] = value.strip()
+        if key not in DEFAULTS or value is None:
+            continue
+        stripped = value.strip()
+        if key == "openai_api_key" and not stripped:
+            stripped = "local"
+        if key == "openai_base_url" and stripped:
+            stripped = normalize_openai_base_url(stripped)
+        if key == "llm_backend":
+            stripped = "openai" if stripped.lower() == "openai" else "ollama"
+        if stripped and stripped != current.get(key):
+            current[key] = stripped
             changed = True
     if changed:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -78,6 +118,34 @@ def update(**kwargs: str) -> dict[str, str]:
             json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     return dict(current)
+
+
+async def list_openai_models(base_url: str, api_key: str = "") -> list[str]:
+    from app.services.i18n import t
+
+    url = normalize_openai_base_url(base_url)
+    if not url:
+        raise ConnectionError(t("settings.openai_url_required"))
+    headers = {"Authorization": f"Bearer {(api_key or 'local').strip() or 'local'}"}
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(f"{url}/models", headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as exc:
+            raise ConnectionError(
+                t("settings.openai_unreachable", url=url, err=exc)
+            ) from exc
+    raw = data.get("data") or data.get("models") or []
+    names: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and item.strip():
+            names.append(item.strip())
+        elif isinstance(item, dict):
+            name = item.get("id") or item.get("name")
+            if name:
+                names.append(str(name))
+    return names
 
 
 async def list_ollama_models(base_url: str) -> list[str]:

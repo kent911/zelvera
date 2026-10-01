@@ -6,13 +6,16 @@ from pydantic import BaseModel
 
 import httpx
 
-from app.config import DATA_DIR, settings as env_settings
+from app.config import DATA_DIR
 from app.services import audit, i18n, kiwix, settings_store
 
 router = APIRouter()
 
 
 class SettingsUpdate(BaseModel):
+    llm_backend: str | None = None
+    openai_base_url: str | None = None
+    openai_api_key: str | None = None
     ollama_base_url: str | None = None
     chat_model: str | None = None
     vision_model: str | None = None
@@ -35,10 +38,15 @@ class BaseUrlIn(BaseModel):
     ollama_base_url: str
 
 
+class OpenAIUrlIn(BaseModel):
+    openai_base_url: str
+    openai_api_key: str | None = None
+
+
 @router.get("/settings")
 async def get_settings() -> dict[str, str]:
     data = settings_store.all_settings()
-    data["backend"] = env_settings.llm_backend
+    data["backend"] = settings_store.llm_backend()
     data["data_dir"] = str(DATA_DIR)
     return data
 
@@ -48,8 +56,11 @@ async def update_settings(body: SettingsUpdate) -> dict[str, str]:
     values = {k: v for k, v in body.model_dump().items() if v is not None}
     saved = settings_store.update(**values)
     i18n.set_lang(saved.get("lang", i18n.get_lang()))
-    saved["backend"] = env_settings.llm_backend
-    audit.log_action("settings_update", f"модель={saved.get('chat_model')}")
+    saved["backend"] = settings_store.llm_backend()
+    audit.log_action(
+        "settings_update",
+        f"backend={saved.get('llm_backend')} модель={saved.get('chat_model')}",
+    )
     if any(key.startswith("telegram_") for key in values):
         from app.services.telegram_bot import bot as telegram_bot
 
@@ -61,6 +72,17 @@ async def update_settings(body: SettingsUpdate) -> dict[str, str]:
 async def ollama_models(body: BaseUrlIn) -> dict[str, Any]:
     try:
         models = await settings_store.list_ollama_models(body.ollama_base_url)
+    except ConnectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"models": models}
+
+
+@router.post("/settings/openai-models")
+async def openai_models(body: OpenAIUrlIn) -> dict[str, Any]:
+    try:
+        models = await settings_store.list_openai_models(
+            body.openai_base_url, body.openai_api_key or ""
+        )
     except ConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"models": models}

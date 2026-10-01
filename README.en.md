@@ -105,16 +105,20 @@ python -m pytest -q
 
 ## Using an OpenAI-compatible API (optional)
 
-In `backend/.env` set:
+In **AI settings** choose backend **OpenAI / llama-server**, set the address
+(e.g. `http://192.168.1.100:8080` — `/v1` is appended automatically) and the
+model name (`bonsai2-27B`). A key is not required for a local llama-server.
+
+The same can be set in `backend/.env`:
 
 ```env
 LLM_BACKEND=openai
-USER_LLM_BASE_URL=https://api.openai.com/v1
-USER_LLM_API_KEY=your-key
-USER_LLM_MODEL=gpt-4o
+USER_LLM_BASE_URL=http://192.168.1.100:8080/v1
+USER_LLM_API_KEY=local
+USER_LLM_MODEL=bonsai2-27B
 ```
 
-The key is stored only locally and is never sent anywhere except the API you choose.
+The key is stored only locally. Article embeddings still go through Ollama.
 
 ## API
 
@@ -142,6 +146,7 @@ The key is stored only locally and is never sent anywhere except the API you cho
 | GET | `/api/settings` | Current models (Ollama) |
 | POST | `/api/settings` | Save selected models |
 | POST | `/api/settings/ollama-models` | List of models from a running Ollama |
+| POST | `/api/settings/openai-models` | List of models from an OpenAI-compatible API (llama-server) |
 | POST | `/api/settings/ollama-pull` | Download a model into Ollama (`ollama pull`, background task) |
 | GET | `/api/settings/ollama-pull/{model}` | Model download status |
 | POST | `/api/settings/telegram-test` | Validate the Telegram bot token (`getMe`) |
@@ -268,12 +273,13 @@ search. The help is used:
 Any Kiwix, network or timeout failure does not affect the main answer: the help
 is simply omitted.
 
-## Ollama settings menu
+## AI settings menu
 
-The "Ollama Settings" button in the side menu:
+The "AI settings" button in the side menu:
 
-- Ollama address field;
-- "Refresh model list" — fetches models from a running Ollama (`/api/tags`);
+- backend: Ollama or an OpenAI-compatible API (llama-server);
+- Ollama and/or llama-server address (`http://192.168.1.100:8080`, `/v1` is appended);
+- "Refresh model list" — fetches models from the selected backend;
 - choose the chat model, vision model and embedding model (can be typed manually);
 - the choice survives restarts (`data/settings.json`); takes priority over `.env`.
 

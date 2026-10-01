@@ -99,6 +99,10 @@ const settingsModal = document.getElementById("settings-modal");
 const settingsClose = document.getElementById("settings-close");
 const settingsCancel = document.getElementById("settings-cancel");
 const settingsSave = document.getElementById("settings-save");
+const setLlmBackend = document.getElementById("set-llm-backend");
+const setOpenaiUrl = document.getElementById("set-openai-url");
+const setOpenaiKey = document.getElementById("set-openai-key");
+const openaiSettings = document.getElementById("openai-settings");
 const setOllamaUrl = document.getElementById("set-ollama-url");
 const setKiwixUrl = document.getElementById("set-kiwix-url");
 const setKiwixZim = document.getElementById("set-kiwix-zim");
@@ -2195,10 +2199,18 @@ function setModelsDatalist(models) {
   availableModels = models || [];
 }
 
+function syncBackendFields() {
+  const openai = (setLlmBackend?.value || "ollama") === "openai";
+  if (openaiSettings) openaiSettings.classList.toggle("hidden", !openai);
+}
+
 async function openSettings() {
   try {
     const res = await fetch("/api/settings");
     const data = await res.json();
+    if (setLlmBackend) setLlmBackend.value = data.llm_backend || data.backend || "ollama";
+    if (setOpenaiUrl) setOpenaiUrl.value = (data.openai_base_url || "").replace(/\/v1\/?$/, "");
+    if (setOpenaiKey) setOpenaiKey.value = data.openai_api_key === "local" ? "" : (data.openai_api_key || "");
     setOllamaUrl.value = data.ollama_base_url || "";
     setKiwixUrl.value = data.kiwix_base_url || "";
     setKiwixZim.value = data.kiwix_zim_name || "";
@@ -2217,7 +2229,8 @@ async function openSettings() {
     if (dirEl) dirEl.textContent = data.data_dir || "—";
     settingsModal.classList.remove("hidden");
     setModelsStatus("");
-    refreshOllamaModels();
+    syncBackendFields();
+    refreshModels();
   } catch (err) {
     setModelsStatus(t("settings.error", { msg: err.message }), true);
   }
@@ -2367,14 +2380,24 @@ backupFileInput?.addEventListener("change", async () => {
   }
 });
 
-async function refreshOllamaModels() {
+async function refreshModels() {
+  const openai = (setLlmBackend?.value || "ollama") === "openai";
   setModelsStatus(t("settings.fetchingModels"));
   try {
-    const res = await fetch("/api/settings/ollama-models", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ollama_base_url: setOllamaUrl.value.trim() }),
-    });
+    const res = openai
+      ? await fetch("/api/settings/openai-models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            openai_base_url: setOpenaiUrl?.value.trim() || "",
+            openai_api_key: setOpenaiKey?.value.trim() || "",
+          }),
+        })
+      : await fetch("/api/settings/ollama-models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ollama_base_url: setOllamaUrl.value.trim() }),
+        });
     const data = await res.json();
     if (!res.ok) {
       setModelsStatus(t("settings.error", { msg: data.detail || t("error.unknown") }), true);
@@ -2389,6 +2412,9 @@ async function refreshOllamaModels() {
 
 async function saveSettings() {
   const body = {
+    llm_backend: setLlmBackend?.value || "ollama",
+    openai_base_url: setOpenaiUrl?.value.trim() || "",
+    openai_api_key: setOpenaiKey?.value.trim() || "",
     ollama_base_url: setOllamaUrl.value.trim(),
     kiwix_base_url: setKiwixUrl.value.trim(),
     kiwix_zim_name: setKiwixZim.value.trim(),
@@ -2425,7 +2451,11 @@ btnSettings.addEventListener("click", openSettings);
 settingsClose.addEventListener("click", closeSettings);
 settingsCancel.addEventListener("click", closeSettings);
 settingsSave.addEventListener("click", saveSettings);
-btnRefreshModels.addEventListener("click", refreshOllamaModels);
+btnRefreshModels.addEventListener("click", refreshModels);
+setLlmBackend?.addEventListener("change", () => {
+  syncBackendFields();
+  refreshModels();
+});
 btnKiwixBooks.addEventListener("click", refreshKiwixBooks);
 btnTelegramTest?.addEventListener("click", testTelegramToken);
 settingsModal.addEventListener("click", (e) => {

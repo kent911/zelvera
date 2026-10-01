@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.config import settings
 from app.services import articles_db, audit, embeddings, i18n, kiwix, llm, memory, settings_store, tools
 from app.services.llm import chat_with_tools, stream_chat
 
@@ -67,7 +66,7 @@ def _looks_like_article_query(text: str) -> bool:
 async def health() -> dict:
     return {
         "status": "ok",
-        "backend": settings.llm_backend,
+        "backend": settings_store.llm_backend(),
         "model": settings_store.get("chat_model"),
     }
 
@@ -75,9 +74,10 @@ async def health() -> dict:
 @router.get("/config")
 async def config() -> dict:
     return {
-        "backend": settings.llm_backend,
+        "backend": settings_store.llm_backend(),
         "model": settings_store.get("chat_model"),
         "ollama_url": settings_store.get("ollama_base_url"),
+        "openai_url": settings_store.openai_base_url(),
         "kiwix": await kiwix.check_connection(),
     }
 

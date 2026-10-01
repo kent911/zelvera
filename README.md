@@ -105,16 +105,20 @@ python -m pytest -q
 
 ## Использование OpenAI-совместимого API (опционально)
 
-В `backend/.env` укажите:
+В «Настройки ИИ» выберите движок **OpenAI / llama-server**, укажите адрес
+(например `http://192.168.1.100:8080` — суффикс `/v1` добавится сам) и имя
+модели (`bonsai2-27B`). Ключ для локального llama-server не обязателен.
+
+То же можно задать в `backend/.env`:
 
 ```env
 LLM_BACKEND=openai
-USER_LLM_BASE_URL=https://api.openai.com/v1
-USER_LLM_API_KEY=ваш-ключ
-USER_LLM_MODEL=gpt-4o
+USER_LLM_BASE_URL=http://192.168.1.100:8080/v1
+USER_LLM_API_KEY=local
+USER_LLM_MODEL=bonsai2-27B
 ```
 
-Ключ хранится только локально и никуда не отправляется, кроме выбранного вами API.
+Ключ хранится только локально. Эмбеддинги статей по-прежнему идут через Ollama.
 
 ## API
 
@@ -142,6 +146,7 @@ USER_LLM_MODEL=gpt-4o
 | GET | `/api/settings` | Текущие модели (Ollama) |
 | POST | `/api/settings` | Сохранить выбранные модели |
 | POST | `/api/settings/ollama-models` | Список моделей из запущенной Ollama |
+| POST | `/api/settings/openai-models` | Список моделей OpenAI-совместимого API (llama-server) |
 | POST | `/api/settings/ollama-pull` | Скачать модель в Ollama (`ollama pull`, фоновая задача) |
 | GET | `/api/settings/ollama-pull/{model}` | Статус скачивания модели |
 | POST | `/api/settings/telegram-test` | Проверить токен Telegram-бота (`getMe`) |
@@ -268,12 +273,13 @@ ollama pull gemma4:26b   # поддерживает изображения
 Любые сбои Kiwix, сети или таймаут не влияют на основной ответ: справка просто
 не добавляется.
 
-## Меню настроек Ollama
+## Меню настроек ИИ
 
-Кнопка «Настройки Ollama» в боковом меню:
+Кнопка «Настройки ИИ» в боковом меню:
 
-- поле адреса Ollama;
-- «Обновить список моделей» — запрашивает модели у запущенной Ollama (`/api/tags`);
+- движок: Ollama или OpenAI-совместимый API (llama-server);
+- адрес Ollama и/или llama-server (`http://192.168.1.100:8080`, `/v1` добавится сам);
+- «Обновить список моделей» — запрашивает модели у выбранного движка;
 - выбор чат-модели, vision-модели и эмбеддинг-модели (можно вводить вручную);
 - сохранение переживает перезапуск (`data/settings.json`); приоритет над `.env`.
 

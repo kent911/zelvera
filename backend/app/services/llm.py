@@ -58,8 +58,27 @@ def _log_openai_metrics(model: str, phase: str, usage, seconds: float) -> None:
     )
 
 
+def _use_openai() -> bool:
+    return settings_store.llm_backend() == "openai"
+
+
+def _openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI(
+        base_url=settings_store.openai_base_url(),
+        api_key=settings_store.openai_api_key(),
+    )
+
+
+def _openai_chat_model() -> str:
+    return settings_store.get("chat_model") or settings.user_llm_model
+
+
+def _openai_vision_model() -> str:
+    return settings_store.get("vision_model") or settings.user_llm_vision_model
+
+
 async def stream_chat(messages: list[ChatMessage]) -> AsyncIterator[str]:
-    if settings.llm_backend == "openai":
+    if _use_openai():
         async for chunk in _stream_openai(messages):
             yield chunk
     else:
@@ -83,7 +102,7 @@ async def chat_with_tools(
     """
     history: list[ChatMessage] = [dict(m) for m in messages]
     for _ in range(MAX_TOOL_ROUNDS):
-        if settings.llm_backend == "openai":
+        if _use_openai():
             content, tool_calls = await _complete_with_tools_openai(history, tools)
         else:
             content, tool_calls = await _complete_with_tools_ollama(history, tools)
@@ -107,7 +126,7 @@ async def chat_with_tools(
 
 
 def _assistant_tool_message(content: str, tool_calls: list[dict]) -> ChatMessage:
-    if settings.llm_backend == "openai":
+    if _use_openai():
         return {
             "role": "assistant",
             "content": content or None,
@@ -139,7 +158,7 @@ def _assistant_tool_message(content: str, tool_calls: list[dict]) -> ChatMessage
 
 
 def _tool_result_message(tool_call: dict, result: str) -> ChatMessage:
-    if settings.llm_backend == "openai":
+    if _use_openai():
         return {
             "role": "tool",
             "tool_call_id": tool_call.get("id") or "",
@@ -151,16 +170,12 @@ def _tool_result_message(tool_call: dict, result: str) -> ChatMessage:
 async def _complete_with_tools_openai(
     messages: list[ChatMessage], tools: list[dict]
 ) -> tuple[str, list[dict]]:
-    if not settings.user_llm_api_key:
-        raise LLMError(i18n.t("llm.no_api_key"))
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
+    model = _openai_chat_model()
+    client = _openai_client()
     t0 = time.monotonic()
     try:
         resp = await client.chat.completions.create(
-            model=settings.user_llm_model,
+            model=model,
             messages=messages,
             tools=tools,
             tool_choice="auto",
@@ -168,7 +183,7 @@ async def _complete_with_tools_openai(
     except Exception as exc:
         raise LLMError(i18n.t("llm.tools_api_error", err=exc)) from exc
     _log_openai_metrics(
-        settings.user_llm_model, "openai_tools_round", resp.usage, time.monotonic() - t0
+        model, "openai_tools_round", resp.usage, time.monotonic() - t0
     )
     msg = resp.choices[0].message
     content = (msg.content or "").strip()
@@ -232,21 +247,21 @@ async def _complete_with_tools_ollama(
 
 async def complete(messages: list[ChatMessage]) -> str:
     """Не-стриминговый вызов: возвращает полный ответ строкой."""
-    if settings.llm_backend == "openai":
+    if _use_openai():
         return await _complete_openai(messages)
     return await _complete_ollama(messages)
 
 
 async def ocr_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
     """Распознавание текста с изображения через vision-модель."""
-    if settings.llm_backend == "openai":
+    if _use_openai():
         return await _ocr_openai(image_b64, mime_type)
     return await _ocr_ollama(image_b64)
 
 
 async def describe_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
     """Описание изображения через vision-модель (для картинок Википедии)."""
-    if settings.llm_backend == "openai":
+    if _use_openai():
         return await _describe_openai(image_b64, mime_type)
     return await _describe_ollama(image_b64)
 
@@ -351,15 +366,10 @@ async def _ocr_ollama(image_b64: str) -> str:
 
 
 async def _describe_openai(image_b64: str, mime_type: str) -> str:
-    if not settings.user_llm_api_key:
-        raise LLMError(i18n.t("llm.no_api_key"))
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
+    client = _openai_client()
     try:
         resp = await client.chat.completions.create(
-            model=settings.vision_model,
+            model=_openai_vision_model(),
             messages=[
                 {
                     "role": "user",
@@ -381,15 +391,10 @@ async def _describe_openai(image_b64: str, mime_type: str) -> str:
 
 
 async def _ocr_openai(image_b64: str, mime_type: str) -> str:
-    if not settings.user_llm_api_key:
-        raise LLMError(i18n.t("llm.no_api_key"))
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
+    client = _openai_client()
     try:
         resp = await client.chat.completions.create(
-            model=settings.vision_model,
+            model=_openai_vision_model(),
             messages=[
                 {
                     "role": "user",
@@ -436,15 +441,10 @@ async def _complete_ollama(messages: list[ChatMessage]) -> str:
 
 
 async def _complete_openai(messages: list[ChatMessage]) -> str:
-    if not settings.user_llm_api_key:
-        raise LLMError(i18n.t("llm.no_api_key"))
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
+    client = _openai_client()
     try:
         resp = await client.chat.completions.create(
-            model=settings.user_llm_model,
+            model=_openai_chat_model(),
             messages=messages,
         )
         return resp.choices[0].message.content or ""
@@ -488,16 +488,10 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
 
 
 async def _stream_openai(messages: list[ChatMessage]) -> AsyncIterator[str]:
-    if not settings.user_llm_api_key:
-        yield _error_message(i18n.t("llm.no_api_key"))
-        return
-    client = AsyncOpenAI(
-        base_url=settings.user_llm_base_url,
-        api_key=settings.user_llm_api_key,
-    )
+    client = _openai_client()
     try:
         stream = await client.chat.completions.create(
-            model=settings.user_llm_model,
+            model=_openai_chat_model(),
             messages=messages,
             stream=True,
         )
