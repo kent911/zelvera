@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 from app.services import settings_store
+from app.services.llm import coalesce_system_messages
 
 
 def test_normalize_openai_base_url_adds_v1():
@@ -41,3 +42,23 @@ def test_llm_backend_rejects_unknown(tmp_path, monkeypatch):
     saved = settings_store.update(llm_backend="something-else")
     assert saved["llm_backend"] == "ollama"
     assert settings_store.llm_backend() == "ollama"
+
+
+def test_coalesce_system_messages_single_leading():
+    out = coalesce_system_messages(
+        [
+            {"role": "system", "content": "правила"},
+            {"role": "system", "content": "память: аллергия на пенициллин"},
+            {"role": "system", "content": "профиль: Иван"},
+            {"role": "user", "content": "что нельзя принимать?"},
+            {"role": "assistant", "content": "пенициллин"},
+            {"role": "system", "content": "фрагменты статей"},
+        ]
+    )
+    assert out[0]["role"] == "system"
+    assert "правила" in out[0]["content"]
+    assert "аллергия на пенициллин" in out[0]["content"]
+    assert "профиль: Иван" in out[0]["content"]
+    assert "фрагменты статей" in out[0]["content"]
+    assert [m["role"] for m in out] == ["system", "user", "assistant"]
+    assert all(m["role"] != "system" for m in out[1:])

@@ -77,6 +77,22 @@ def _openai_vision_model() -> str:
     return settings_store.get("vision_model") or settings.user_llm_vision_model
 
 
+def coalesce_system_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """llama-server / bonsai2: system может быть только первым сообщением."""
+    systems: list[str] = []
+    rest: list[ChatMessage] = []
+    for msg in messages:
+        if (msg.get("role") or "").strip() == "system":
+            content = (msg.get("content") or "").strip()
+            if content:
+                systems.append(content)
+            continue
+        rest.append(msg)
+    if not systems:
+        return rest
+    return [{"role": "system", "content": "\n\n".join(systems)}, *rest]
+
+
 async def stream_chat(messages: list[ChatMessage]) -> AsyncIterator[str]:
     if _use_openai():
         async for chunk in _stream_openai(messages):
@@ -176,7 +192,7 @@ async def _complete_with_tools_openai(
     try:
         resp = await client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=coalesce_system_messages(messages),
             tools=tools,
             tool_choice="auto",
         )
@@ -445,7 +461,7 @@ async def _complete_openai(messages: list[ChatMessage]) -> str:
     try:
         resp = await client.chat.completions.create(
             model=_openai_chat_model(),
-            messages=messages,
+            messages=coalesce_system_messages(messages),
         )
         return resp.choices[0].message.content or ""
     except Exception as exc:
@@ -492,7 +508,7 @@ async def _stream_openai(messages: list[ChatMessage]) -> AsyncIterator[str]:
     try:
         stream = await client.chat.completions.create(
             model=_openai_chat_model(),
-            messages=messages,
+            messages=coalesce_system_messages(messages),
             stream=True,
         )
         async for chunk in stream:
