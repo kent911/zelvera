@@ -15,6 +15,29 @@
 - Frontend: HTML/CSS/JS без сборщика (оборачивается в десктоп через pywebview)
 - Хранилище: SQLite (мед. карта, заметки, аудит, профили, память L0–L3) + ChromaDB (статьи)
 
+## Архитектура
+
+```mermaid
+graph TD
+    UI["Frontend HTML/JS"] --> API["FastAPI :8000"]
+    TG["Telegram-бот"] --> API
+    API --> LLM["llm.py чат и tools"]
+    API --> VIS["OCR / vision"]
+    API --> MEM["память L0-L3"]
+    API --> DB["SQLite medical.db"]
+    API --> RAG["ChromaDB статьи"]
+    API --> KX["Kiwix офлайн-Википедия"]
+    LLM --> LS["llama-server / OpenAI API"]
+    LLM --> OL["Ollama"]
+    VIS --> OL
+    RAG --> OL
+```
+
+- Чат и function calling идут в выбранный движок: Ollama или OpenAI-совместимый API (llama-server).
+- Распознавание фото имеет отдельный движок; без mmproj llama-server картинки не читает — OCR уходит в Ollama.
+- Эмбеддинги базы статей всегда через Ollama.
+- Данные остаются локально в `data/` (SQLite + ChromaDB).
+
 ## Запуск
 
 ### 1. Локальная модель (Ollama)
@@ -532,7 +555,7 @@ backend/app/
   services/memory.py     # долгая память L0–L3 (факты, саммари, портрет)
   routes/memory.py       # GET/POST/DELETE /api/memory
   services/database.py   # SQLite: записи, маркеры, статьи, профили, напоминания, память
-  services/embeddings.py # эмбеддинги через Ollama / OpenAI
+  services/embeddings.py # эмбеддинги через Ollama
   services/articles_db.py# ChromaDB: чанки статей и смысловой поиск
   services/settings_store.py # runtime-настройки моделей (data/settings.json)
   services/pdf_export.py # экспорт мед. карты и заметок в PDF (DejaVu Sans)

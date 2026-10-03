@@ -15,6 +15,29 @@ The assistant does not make diagnoses and does not replace a doctor.
 - Frontend: HTML/CSS/JS without a bundler (wrapped into a desktop app via pywebview)
 - Storage: SQLite (medical record, notes, audit, profiles, L0–L3 memory) + ChromaDB (articles)
 
+## Architecture
+
+```mermaid
+graph TD
+    UI["Frontend HTML/JS"] --> API["FastAPI :8000"]
+    TG["Telegram bot"] --> API
+    API --> LLM["llm.py chat and tools"]
+    API --> VIS["OCR / vision"]
+    API --> MEM["memory L0-L3"]
+    API --> DB["SQLite medical.db"]
+    API --> RAG["ChromaDB articles"]
+    API --> KX["Kiwix offline Wikipedia"]
+    LLM --> LS["llama-server / OpenAI API"]
+    LLM --> OL["Ollama"]
+    VIS --> OL
+    RAG --> OL
+```
+
+- Chat and function calling go to the selected backend: Ollama or an OpenAI-compatible API (llama-server).
+- Photo recognition has its own backend; llama-server without mmproj cannot read images, so OCR falls back to Ollama.
+- Article embeddings always go through Ollama.
+- Data stays local in `data/` (SQLite + ChromaDB).
+
 ## Getting started
 
 ### 1. Local model (Ollama)
@@ -533,7 +556,7 @@ backend/app/
   services/memory.py     # long-term memory L0–L3 (facts, recaps, portrait)
   routes/memory.py       # GET/POST/DELETE /api/memory
   services/database.py   # SQLite: records, markers, articles, profiles, reminders, memory
-  services/embeddings.py # embeddings via Ollama / OpenAI
+  services/embeddings.py # embeddings via Ollama
   services/articles_db.py# ChromaDB: article chunks and semantic search
   services/settings_store.py # runtime model settings (data/settings.json)
   services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
