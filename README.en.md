@@ -203,7 +203,7 @@ images.
 
 ## Backup
 
-In the settings ("Ollama Settings") there is a "Backup" section:
+In the settings ("AI settings") there is a "Backup" section:
 
 - **Save a copy** — downloads a ZIP archive with all data: `medical.db`
   (medical record, articles, notes, profile, reminders, audit, L0–L3 memory),
