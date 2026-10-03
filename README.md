@@ -151,6 +151,11 @@ USER_LLM_MODEL=bonsai2-27B
 
 | Метод | Путь | Описание |
 |---|---|---|
+| GET | `/api/auth/status` | Есть ли пользователь и активна ли сессия |
+| POST | `/api/auth/setup` | Создать единственный логин и пароль |
+| POST | `/api/auth/login` | Войти |
+| POST | `/api/auth/logout` | Выйти |
+| POST | `/api/auth/password` | Сменить пароль |
 | GET | `/api/health` | Статус и активная модель |
 | GET | `/api/config` | Текущий бэкенд/модель для UI |
 | POST | `/api/chat` | Диалог, ответ стримится по SSE (`data: {content}`) |
@@ -557,6 +562,8 @@ backend/app/
   services/database.py   # SQLite: записи, маркеры, статьи, профили, напоминания, память
   services/embeddings.py # эмбеддинги через Ollama
   services/articles_db.py# ChromaDB: чанки статей и смысловой поиск
+  services/auth.py           # один локальный пользователь (логин/пароль)
+  routes/auth.py             # /api/auth/status, setup, login, logout, password
   services/settings_store.py # runtime-настройки моделей (data/settings.json)
   services/pdf_export.py # экспорт мед. карты и заметок в PDF (DejaVu Sans)
 backend/tests/         # pytest: каталог, нормы, кеш/grounding, извлечение, память
@@ -571,6 +578,9 @@ data/                # базы данных (SQLite, ChromaDB) — не в git
 
 - Приложение работает только локально.
 - Медицинские данные в `data/` исключены из git.
+- Один пользователь: при первом открытии создайте логин и пароль. Дальше все
+  `/api/*` закрыты cookie-сессией. Пароль хранится как PBKDF2-хеш в `data/auth.json`.
+- Если пароль забыт: удалите `data/auth.json` в контейнере и создайте вход заново.
 - Не используйте публичные Wi-Fi-сети при работе с анализами без шифрования.
 
 ## Лицензия

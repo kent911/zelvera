@@ -1698,3 +1698,44 @@ tr.marker-suspect-row td {
   display: flex;
   gap: 8px;
 }
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+
+.login-overlay.hidden {
+  display: none;
+}
+
+.login-card {
+  background: var(--bg-side);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 380px;
+  max-width: 92vw;
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-card .logo {
+  text-align: center;
+}
+
+.login-card .subtitle {
+  text-align: center;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.login-card .primary-btn {
+  margin-top: 6px;
+}

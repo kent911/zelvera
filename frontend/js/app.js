@@ -38,8 +38,13 @@ window.addEventListener("unhandledrejection", (e) => {
 const nativeFetch = window.fetch;
 window.fetch = async (...args) => {
   const res = await nativeFetch(...args);
-  if (!res.ok && !String(args[0]).includes("/api/logs/client")) {
-    reportClientError("warn", `HTTP ${res.status} ${String(args[0])}`);
+  const url = String(args[0] || "");
+  if (res.status === 401 && url.includes("/api/") && !url.includes("/api/auth/")) {
+    showLoginOverlay(true);
+    return res;
+  }
+  if (!res.ok && !url.includes("/api/logs/client")) {
+    reportClientError("warn", `HTTP ${res.status} ${url}`);
   }
   return res;
 };
@@ -396,6 +401,139 @@ function setComposerBusy(busy) {
   inputEl.disabled = busy;
   if (!busy) inputEl.focus();
 }
+
+const loginOverlay = document.getElementById("login-overlay");
+const loginSubtitle = document.getElementById("login-subtitle");
+const loginHint = document.getElementById("login-hint");
+const loginUsername = document.getElementById("login-username");
+const loginPassword = document.getElementById("login-password");
+const loginPassword2 = document.getElementById("login-password2");
+const loginPassword2Field = document.getElementById("login-password2-field");
+const loginStatus = document.getElementById("login-status");
+const loginSubmit = document.getElementById("login-submit");
+const btnLogout = document.getElementById("btn-logout");
+const setOldPassword = document.getElementById("set-old-password");
+const setNewPassword = document.getElementById("set-new-password");
+const btnChangePassword = document.getElementById("btn-change-password");
+const passwordStatus = document.getElementById("password-status");
+let authMode = "setup";
+
+function setLoginStatus(text, isError) {
+  if (!loginStatus) return;
+  loginStatus.textContent = text || "";
+  loginStatus.style.color = isError ? "var(--danger, #e5484d)" : "var(--accent, #3b82f6)";
+}
+
+function showLoginOverlay(configured) {
+  if (!loginOverlay) return;
+  authMode = configured ? "login" : "setup";
+  if (loginSubtitle) loginSubtitle.textContent = t(configured ? "auth.loginTitle" : "auth.setupTitle");
+  if (loginHint) loginHint.textContent = t(configured ? "auth.loginHint" : "auth.setupHint");
+  if (loginSubmit) loginSubmit.textContent = t(configured ? "auth.enter" : "auth.create");
+  if (loginPassword2Field) loginPassword2Field.classList.toggle("hidden", !!configured);
+  if (loginPassword) loginPassword.autocomplete = configured ? "current-password" : "new-password";
+  loginOverlay.classList.remove("hidden");
+  if (btnLogout) btnLogout.classList.add("hidden");
+  loginUsername?.focus();
+}
+
+function hideLoginOverlay() {
+  loginOverlay?.classList.add("hidden");
+  if (btnLogout) btnLogout.classList.remove("hidden");
+  setLoginStatus("");
+}
+
+async function ensureAuth() {
+  try {
+    const res = await nativeFetch("/api/auth/status");
+    const data = await res.json();
+    if (data.logged_in) {
+      hideLoginOverlay();
+      return true;
+    }
+    showLoginOverlay(!!data.configured);
+    return false;
+  } catch {
+    showLoginOverlay(false);
+    return false;
+  }
+}
+
+async function submitAuth() {
+  const name = (loginUsername?.value || "").trim();
+  const password = loginPassword?.value || "";
+  const password2 = loginPassword2?.value || "";
+  if (authMode === "setup" && password !== password2) {
+    setLoginStatus(t("auth.mismatch"), true);
+    return;
+  }
+  setLoginStatus("");
+  loginSubmit.disabled = true;
+  try {
+    const res = await nativeFetch(authMode === "setup" ? "/api/auth/setup" : "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: name, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setLoginStatus(data.detail || t("settings.error", { msg: res.status }), true);
+      return;
+    }
+    hideLoginOverlay();
+    if (loginPassword) loginPassword.value = "";
+    if (loginPassword2) loginPassword2.value = "";
+    await init();
+    await loadProfiles();
+  } catch (err) {
+    setLoginStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    loginSubmit.disabled = false;
+  }
+}
+
+loginSubmit?.addEventListener("click", submitAuth);
+loginPassword?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuth();
+});
+loginPassword2?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuth();
+});
+btnLogout?.addEventListener("click", async () => {
+  await nativeFetch("/api/auth/logout", { method: "POST" });
+  showLoginOverlay(true);
+});
+btnChangePassword?.addEventListener("click", async () => {
+  const oldPassword = setOldPassword?.value || "";
+  const newPassword = setNewPassword?.value || "";
+  if (passwordStatus) passwordStatus.textContent = "";
+  try {
+    const res = await fetch("/api/auth/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (passwordStatus) {
+        passwordStatus.textContent = data.detail || t("settings.error", { msg: res.status });
+        passwordStatus.style.color = "var(--danger, #e5484d)";
+      }
+      return;
+    }
+    if (setOldPassword) setOldPassword.value = "";
+    if (setNewPassword) setNewPassword.value = "";
+    if (passwordStatus) {
+      passwordStatus.textContent = t("auth.passwordChanged");
+      passwordStatus.style.color = "var(--accent, #3b82f6)";
+    }
+  } catch (err) {
+    if (passwordStatus) {
+      passwordStatus.textContent = t("settings.error", { msg: err.message });
+      passwordStatus.style.color = "var(--danger, #e5484d)";
+    }
+  }
+});
 
 async function init() {
   for (const m of history) {
@@ -3082,14 +3220,22 @@ btnExportNotes.addEventListener("click", async () => {
   }
 });
 
-init();
-loadProfiles();
-setupVoiceInput();
+(async () => {
+  const ok = await ensureAuth();
+  if (ok) {
+    await init();
+    await loadProfiles();
+  }
+  setupVoiceInput();
+})();
 
 const langToggle = document.getElementById("lang-toggle");
 if (langToggle) {
   langToggle.addEventListener("click", () => {
     setLang(LANG === "ru" ? "en" : "ru");
+    if (loginOverlay && !loginOverlay.classList.contains("hidden")) {
+      showLoginOverlay(authMode === "login");
+    }
   });
 }
 applyI18n();

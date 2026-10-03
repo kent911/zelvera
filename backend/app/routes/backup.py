@@ -21,7 +21,7 @@ from app.services.logger import logger
 router = APIRouter()
 
 MAX_BACKUP_BYTES = 500 * 1024 * 1024
-BACKUP_FILES = ("medical.db", "settings.json")
+BACKUP_FILES = ("medical.db", "settings.json", "auth.json")
 BACKUP_DIRS = ("chroma",)
 
 
@@ -98,6 +98,14 @@ def _restore_from(zip_path: Path, work_dir: Path) -> list[str]:
     if settings_src.is_file():
         shutil.copy2(settings_src, DATA_DIR / "settings.json")
         restored.append("settings.json")
+
+    auth_src = extract_dir / "auth.json"
+    if auth_src.is_file():
+        shutil.copy2(auth_src, DATA_DIR / "auth.json")
+        from app.services import auth as auth_store
+
+        auth_store.reset_cache()
+        restored.append("auth.json")
 
     chroma_src = extract_dir / "chroma"
     if chroma_src.is_dir():

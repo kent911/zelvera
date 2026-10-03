@@ -9,9 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routes import analysis, articles, backup, chat, documents, kiwix, logs, memory, notes, profiles, records, reminders
+from app.routes import analysis, articles, auth as auth_route, backup, chat, documents, kiwix, logs, memory, notes, profiles, records, reminders
 from app.routes import settings as settings_route
-from app.services import audit, database, settings_store
+from app.services import audit, auth, database, i18n, settings_store
 from app.services.logger import logger
 from app.services.telegram_bot import bot as telegram_bot
 
@@ -29,6 +29,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PUBLIC_API = {
+    "/api/auth/status",
+    "/api/auth/setup",
+    "/api/auth/login",
+    "/api/auth/logout",
+}
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if request.method == "OPTIONS" or not path.startswith("/api/") or path in PUBLIC_API:
+        return await call_next(request)
+    if auth.is_configured() and auth.read_session(request):
+        return await call_next(request)
+    return JSONResponse(status_code=401, content={"detail": i18n.t("auth.required")})
+
+
+app.include_router(auth_route.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(records.router, prefix="/api")

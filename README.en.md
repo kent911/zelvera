@@ -151,6 +151,11 @@ images.
 
 | Method | Path | Description |
 |---|---|---|
+| GET | `/api/auth/status` | Whether a user exists and the session is active |
+| POST | `/api/auth/setup` | Create the single username and password |
+| POST | `/api/auth/login` | Sign in |
+| POST | `/api/auth/logout` | Sign out |
+| POST | `/api/auth/password` | Change password |
 | GET | `/api/health` | Status and active model |
 | GET | `/api/config` | Current backend/model for the UI |
 | POST | `/api/chat` | Chat; the reply streams via SSE (`data: {content}`) |
@@ -558,6 +563,8 @@ backend/app/
   services/database.py   # SQLite: records, markers, articles, profiles, reminders, memory
   services/embeddings.py # embeddings via Ollama
   services/articles_db.py# ChromaDB: article chunks and semantic search
+  services/auth.py           # single local user (username/password)
+  routes/auth.py             # /api/auth/status, setup, login, logout, password
   services/settings_store.py # runtime model settings (data/settings.json)
   services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
 backend/tests/         # pytest: catalog, norms, cache/grounding, extraction, memory
@@ -572,6 +579,11 @@ data/                # databases (SQLite, ChromaDB) — not in git
 
 - The app runs only locally.
 - Medical data in `data/` is excluded from git.
+- One user: on first open, create a username and password. After that all
+  `/api/*` routes require a cookie session. The password is stored as a PBKDF2
+  hash in `data/auth.json`.
+- If the password is forgotten, delete `data/auth.json` in the container and
+  create the account again.
 - Do not use public Wi-Fi networks when working with lab results without encryption.
 
 ## License
