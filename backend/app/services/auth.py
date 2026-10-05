@@ -20,6 +20,11 @@ SESSION_DAYS = 30
 PBKDF2_ITERATIONS = 210_000
 MIN_PASSWORD_LEN = 8
 MIN_USERNAME_LEN = 2
+RESET_TTL_SEC = 15 * 60
+RESET_COOLDOWN_SEC = 60
+RESET_MAX_TRIES = 5
+LOGIN_MAX_FAILS = 5
+LOGIN_LOCK_SEC = 15 * 60
 
 _cache: dict[str, str] | None = None
 
@@ -35,6 +40,12 @@ def _load() -> dict[str, str]:
             "username": str(raw.get("username") or "").strip(),
             "password_hash": str(raw.get("password_hash") or "").strip(),
             "secret": str(raw.get("secret") or "").strip(),
+            "reset_hash": str(raw.get("reset_hash") or "").strip(),
+            "reset_exp": str(raw.get("reset_exp") or "").strip(),
+            "reset_last": str(raw.get("reset_last") or "").strip(),
+            "reset_tries": str(raw.get("reset_tries") or "").strip(),
+            "login_fails": str(raw.get("login_fails") or "").strip(),
+            "login_lock": str(raw.get("login_lock") or "").strip(),
         }
     return _cache
 
@@ -102,9 +113,31 @@ def setup(username_value: str, password: str) -> dict[str, str]:
             "username": name,
             "password_hash": _hash_password(password),
             "secret": secrets.token_hex(32),
+            "reset_hash": "",
+            "reset_exp": "",
+            "reset_last": "",
+            "reset_tries": "",
+            "login_fails": "",
+            "login_lock": "",
         }
     )
     return {"username": name}
+
+
+def _lock_remaining_sec() -> int:
+    try:
+        until = int(_load().get("login_lock") or "0")
+    except ValueError:
+        return 0
+    left = until - int(time.time())
+    return left if left > 0 else 0
+
+
+def lock_remaining_min() -> int:
+    left = _lock_remaining_sec()
+    if left <= 0:
+        return 0
+    return max(1, (left + 59) // 60)
 
 
 def verify_login(username_value: str, password: str) -> bool:
@@ -118,6 +151,38 @@ def verify_login(username_value: str, password: str) -> bool:
     return bool(name_ok and pass_ok)
 
 
+def attempt_login(username_value: str, password: str) -> bool:
+    if not is_configured():
+        return False
+    if _lock_remaining_sec() > 0:
+        raise ValueError("locked")
+    data = dict(_load())
+    if data.get("login_lock"):
+        data["login_lock"] = ""
+        data["login_fails"] = ""
+        _save(data)
+    if verify_login(username_value, password):
+        data = dict(_load())
+        data["login_fails"] = ""
+        data["login_lock"] = ""
+        _save(data)
+        return True
+    try:
+        fails = int(_load().get("login_fails") or "0")
+    except ValueError:
+        fails = 0
+    fails += 1
+    data = dict(_load())
+    data["login_fails"] = str(fails)
+    if fails >= LOGIN_MAX_FAILS:
+        data["login_lock"] = str(int(time.time()) + LOGIN_LOCK_SEC)
+        data["login_fails"] = "0"
+        _save(data)
+        raise ValueError("locked")
+    _save(data)
+    return False
+
+
 def change_password(old_password: str, new_password: str) -> None:
     if not is_configured():
         raise ValueError("missing")
@@ -127,6 +192,90 @@ def change_password(old_password: str, new_password: str) -> None:
         raise ValueError("password")
     data = dict(_load())
     data["password_hash"] = _hash_password(new_password)
+    data["secret"] = secrets.token_hex(32)
+    data["reset_hash"] = ""
+    data["reset_exp"] = ""
+    data["reset_tries"] = ""
+    data["login_fails"] = ""
+    data["login_lock"] = ""
+    _save(data)
+
+
+def recovery_available() -> bool:
+    from app.services import mailer
+
+    return is_configured() and mailer.is_configured()
+
+
+def request_reset() -> None:
+    from app.services import mailer
+
+    if not is_configured():
+        raise ValueError("missing")
+    if not mailer.is_configured():
+        raise ValueError("smtp")
+    now = int(time.time())
+    data = dict(_load())
+    try:
+        last = int(data.get("reset_last") or "0")
+    except ValueError:
+        last = 0
+    if last and now - last < RESET_COOLDOWN_SEC:
+        raise ValueError("rate")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    data["reset_hash"] = _hash_password(code)
+    data["reset_exp"] = str(now + RESET_TTL_SEC)
+    data["reset_last"] = str(now)
+    data["reset_tries"] = "0"
+    _save(data)
+    try:
+        mailer.send_reset_code(code)
+    except ConnectionError:
+        data = dict(_load())
+        data["reset_hash"] = ""
+        data["reset_exp"] = ""
+        data["reset_tries"] = ""
+        _save(data)
+        raise
+
+
+def confirm_reset(code: str, new_password: str) -> None:
+    if not is_configured():
+        raise ValueError("missing")
+    if len(new_password or "") < MIN_PASSWORD_LEN:
+        raise ValueError("password")
+    data = dict(_load())
+    stored = data.get("reset_hash") or ""
+    try:
+        exp = int(data.get("reset_exp") or "0")
+    except ValueError:
+        exp = 0
+    if not stored or exp < int(time.time()):
+        raise ValueError("code")
+    try:
+        tries = int(data.get("reset_tries") or "0")
+    except ValueError:
+        tries = 0
+    if tries >= RESET_MAX_TRIES:
+        data["reset_hash"] = ""
+        data["reset_exp"] = ""
+        data["reset_tries"] = ""
+        _save(data)
+        raise ValueError("code")
+    if not _verify_password((code or "").strip(), stored):
+        data["reset_tries"] = str(tries + 1)
+        if tries + 1 >= RESET_MAX_TRIES:
+            data["reset_hash"] = ""
+            data["reset_exp"] = ""
+        _save(data)
+        raise ValueError("code")
+    data["password_hash"] = _hash_password(new_password)
+    data["secret"] = secrets.token_hex(32)
+    data["reset_hash"] = ""
+    data["reset_exp"] = ""
+    data["reset_tries"] = ""
+    data["login_fails"] = ""
+    data["login_lock"] = ""
     _save(data)
 
 
@@ -187,4 +336,5 @@ def status(request: Request) -> dict[str, Any]:
         "configured": configured,
         "logged_in": bool(name),
         "username": name or "",
+        "recovery": recovery_available(),
     }

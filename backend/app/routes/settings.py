@@ -33,6 +33,13 @@ class SettingsUpdate(BaseModel):
     telegram_reminders_enabled: str | None = None
     telegram_proxy: str | None = None
     telegram_force_ipv4: str | None = None
+    recovery_email: str | None = None
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_tls: str | None = None
 
 
 class BaseUrlIn(BaseModel):
@@ -46,7 +53,7 @@ class OpenAIUrlIn(BaseModel):
 
 @router.get("/settings")
 async def get_settings() -> dict[str, str]:
-    data = settings_store.all_settings()
+    data = settings_store.public_settings()
     data["backend"] = settings_store.llm_backend()
     data["data_dir"] = str(DATA_DIR)
     return data
@@ -55,8 +62,9 @@ async def get_settings() -> dict[str, str]:
 @router.post("/settings")
 async def update_settings(body: SettingsUpdate) -> dict[str, str]:
     values = {k: v for k, v in body.model_dump().items() if v is not None}
-    saved = settings_store.update(**values)
-    i18n.set_lang(saved.get("lang", i18n.get_lang()))
+    settings_store.update(**values)
+    i18n.set_lang(settings_store.get("lang") or i18n.get_lang())
+    saved = settings_store.public_settings()
     saved["backend"] = settings_store.llm_backend()
     audit.log_action(
         "settings_update",
@@ -82,7 +90,8 @@ async def ollama_models(body: BaseUrlIn) -> dict[str, Any]:
 async def openai_models(body: OpenAIUrlIn) -> dict[str, Any]:
     try:
         models = await settings_store.list_openai_models(
-            body.openai_base_url, body.openai_api_key or ""
+            body.openai_base_url,
+            body.openai_api_key or settings_store.openai_api_key(),
         )
     except ConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -112,13 +121,13 @@ async def kiwix_books(body: KiwixBaseUrlIn) -> dict[str, Any]:
 
 
 class TelegramTokenIn(BaseModel):
-    telegram_bot_token: str
+    telegram_bot_token: str = ""
 
 
 @router.post("/settings/telegram-test")
 async def telegram_test(body: TelegramTokenIn) -> dict[str, Any]:
     """Проверяет токен бота через getMe и возвращает имя/ID бота."""
-    token = body.telegram_bot_token.strip()
+    token = body.telegram_bot_token.strip() or (settings_store.get("telegram_bot_token") or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail=i18n.t("settings.telegram_token_required"))
     try:
@@ -159,4 +168,38 @@ async def telegram_status() -> dict[str, Any]:
         "stt_available": voice.stt_available(),
         "tts_available": voice.tts_available(),
     }
+
+
+class SmtpSettingsIn(BaseModel):
+    recovery_email: str | None = None
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_tls: str | None = None
+
+
+@router.post("/settings/smtp-test")
+async def smtp_test(body: SmtpSettingsIn) -> dict[str, Any]:
+    from app.services import mailer
+
+    values = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not (values.get("smtp_password") or "").strip():
+        values.pop("smtp_password", None)
+    if values:
+        settings_store.update(**values)
+    try:
+        mailer.send_test()
+    except ValueError as exc:
+        code = str(exc)
+        if code == "email":
+            raise HTTPException(status_code=400, detail=i18n.t("auth.reset_no_email")) from exc
+        raise HTTPException(status_code=400, detail=i18n.t("auth.reset_no_smtp")) from exc
+    except ConnectionError as exc:
+        raise HTTPException(
+            status_code=502, detail=i18n.t("auth.smtp_send_failed", err=exc)
+        ) from exc
+    audit.log_action("settings_update", "smtp: проверка отправки")
+    return {"ok": True}
 

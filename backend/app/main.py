@@ -34,6 +34,8 @@ PUBLIC_API = {
     "/api/auth/setup",
     "/api/auth/login",
     "/api/auth/logout",
+    "/api/auth/reset/request",
+    "/api/auth/reset/confirm",
 }
 
 

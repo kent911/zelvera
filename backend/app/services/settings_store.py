@@ -38,13 +38,30 @@ DEFAULTS = {
     "telegram_offset": "0",
     "telegram_proxy": env_settings.telegram_proxy,
     "telegram_force_ipv4": "1" if env_settings.telegram_force_ipv4 else "0",
+    "recovery_email": env_settings.recovery_email,
+    "smtp_host": env_settings.smtp_host,
+    "smtp_port": env_settings.smtp_port,
+    "smtp_user": env_settings.smtp_user,
+    "smtp_password": env_settings.smtp_password,
+    "smtp_from": env_settings.smtp_from,
+    "smtp_tls": "1" if env_settings.smtp_tls else "0",
     "current_profile_id": "",
     "lang": "ru",
 }
 
 _cache: dict[str, str] | None = None
 
-ALLOW_EMPTY_KEYS = {"vision_backend"}
+ALLOW_EMPTY_KEYS = {
+    "vision_backend",
+    "recovery_email",
+    "smtp_host",
+    "smtp_user",
+    "smtp_password",
+    "smtp_from",
+}
+
+SECRET_KEYS = ("openai_api_key", "telegram_bot_token", "smtp_password")
+KEEP_IF_BLANK_KEYS = SECRET_KEYS
 
 
 def _load() -> dict[str, str]:
@@ -71,6 +88,17 @@ def get(key: str) -> str:
 
 def all_settings() -> dict[str, str]:
     return dict(_load())
+
+
+def public_settings() -> dict[str, str]:
+    data = dict(_load())
+    for key in SECRET_KEYS:
+        stored = (data.get(key) or "").strip()
+        data[f"{key}_set"] = (
+            "1" if stored and stored != "local" else "0"
+        )
+        data[key] = ""
+    return data
 
 
 def llm_backend() -> str:
@@ -116,8 +144,8 @@ def update(**kwargs: str) -> dict[str, str]:
         if key not in DEFAULTS or value is None:
             continue
         stripped = value.strip()
-        if key == "openai_api_key" and not stripped:
-            stripped = "local"
+        if key in KEEP_IF_BLANK_KEYS and not stripped:
+            continue
         if key == "openai_base_url" and stripped:
             stripped = normalize_openai_base_url(stripped)
         if key == "llm_backend":

@@ -32,6 +32,8 @@ ACTION_LABELS: dict[str, str] = {
     "auth_setup": "Создание входа",
     "auth_login": "Вход",
     "auth_password": "Смена пароля",
+    "auth_reset_request": "Запрос сброса пароля",
+    "auth_reset": "Сброс пароля",
     "settings_update": "Изменение настроек",
     "model_pull": "Скачивание модели",
     "logs_clear": "Очистка журнала",

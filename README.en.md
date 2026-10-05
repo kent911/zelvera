@@ -564,7 +564,7 @@ backend/app/
   services/embeddings.py # embeddings via Ollama
   services/articles_db.py# ChromaDB: article chunks and semantic search
   services/auth.py           # single local user (username/password)
-  routes/auth.py             # /api/auth/status, setup, login, logout, password
+  routes/auth.py             # /api/auth/status, setup, login, logout, password, reset
   services/settings_store.py # runtime model settings (data/settings.json)
   services/pdf_export.py # medical card and notes export to PDF (DejaVu Sans)
 backend/tests/         # pytest: catalog, norms, cache/grounding, extraction, memory
@@ -581,9 +581,13 @@ data/                # databases (SQLite, ChromaDB) — not in git
 - Medical data in `data/` is excluded from git.
 - One user: on first open, create a username and password. After that all
   `/api/*` routes require a cookie session. The password is stored as a PBKDF2
-  hash in `data/auth.json`.
-- If the password is forgotten, delete `data/auth.json` in the container and
-  create the account again.
+  hash in `data/auth.json`. After 5 failed logins the account is locked for
+  15 minutes. Changing the password signs out other sessions. `GET /api/settings`
+  does not return SMTP/Telegram/API secrets.
+- If the password is forgotten: on the login screen use “Forgot password?” —
+  a code is emailed to the address from AI settings (SMTP + recovery email).
+  The code is valid for 15 minutes. Without SMTP you can still delete
+  `data/auth.json` in the container and create the account again.
 - Do not use public Wi-Fi networks when working with lab results without encryption.
 
 ## License

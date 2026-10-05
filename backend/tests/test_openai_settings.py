@@ -35,6 +35,33 @@ def test_update_openai_backend_and_url(tmp_path, monkeypatch):
     assert settings_store.openai_api_key() == "local"
 
 
+def test_public_settings_masks_secrets_and_blank_keeps(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(
+        openai_api_key="sk-secret",
+        telegram_bot_token="bot-token",
+        smtp_password="mail-pass",
+        smtp_host="smtp.example.com",
+    )
+    public = settings_store.public_settings()
+    assert public["openai_api_key"] == ""
+    assert public["telegram_bot_token"] == ""
+    assert public["smtp_password"] == ""
+    assert public["openai_api_key_set"] == "1"
+    assert public["telegram_bot_token_set"] == "1"
+    assert public["smtp_password_set"] == "1"
+    assert "sk-secret" not in public.values()
+    assert "bot-token" not in public.values()
+    assert "mail-pass" not in public.values()
+    settings_store.update(openai_api_key="", telegram_bot_token="", smtp_password="")
+    stored = settings_store.all_settings()
+    assert stored["openai_api_key"] == "sk-secret"
+    assert stored["telegram_bot_token"] == "bot-token"
+    assert stored["smtp_password"] == "mail-pass"
+
+
 def test_llm_backend_rejects_unknown(tmp_path, monkeypatch):
     monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
     monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")

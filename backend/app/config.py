@@ -101,6 +101,18 @@ class Settings:
         self.telegram_force_ipv4: bool = os.getenv(
             "TELEGRAM_FORCE_IPV4", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
+        self.recovery_email: str = os.getenv("RECOVERY_EMAIL", "").strip()
+        self.smtp_host: str = os.getenv("SMTP_HOST", "").strip()
+        self.smtp_port: str = os.getenv("SMTP_PORT", "587").strip() or "587"
+        self.smtp_user: str = os.getenv("SMTP_USER", "").strip()
+        self.smtp_password: str = os.getenv("SMTP_PASSWORD", "").strip()
+        self.smtp_from: str = os.getenv("SMTP_FROM", "").strip()
+        self.smtp_tls: bool = os.getenv("SMTP_TLS", "1").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
         self.system_prompt: str = os.getenv(
             "SYSTEM_PROMPT",

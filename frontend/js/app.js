@@ -409,6 +409,12 @@ const loginUsername = document.getElementById("login-username");
 const loginPassword = document.getElementById("login-password");
 const loginPassword2 = document.getElementById("login-password2");
 const loginPassword2Field = document.getElementById("login-password2-field");
+const loginResetFields = document.getElementById("login-reset-fields");
+const loginResetCode = document.getElementById("login-reset-code");
+const loginResetPassword = document.getElementById("login-reset-password");
+const loginResetPassword2 = document.getElementById("login-reset-password2");
+const loginForgot = document.getElementById("login-forgot");
+const loginBack = document.getElementById("login-back");
 const loginStatus = document.getElementById("login-status");
 const loginSubmit = document.getElementById("login-submit");
 const btnLogout = document.getElementById("btn-logout");
@@ -416,7 +422,17 @@ const setOldPassword = document.getElementById("set-old-password");
 const setNewPassword = document.getElementById("set-new-password");
 const btnChangePassword = document.getElementById("btn-change-password");
 const passwordStatus = document.getElementById("password-status");
+const setRecoveryEmail = document.getElementById("set-recovery-email");
+const setSmtpHost = document.getElementById("set-smtp-host");
+const setSmtpPort = document.getElementById("set-smtp-port");
+const setSmtpUser = document.getElementById("set-smtp-user");
+const setSmtpPassword = document.getElementById("set-smtp-password");
+const setSmtpFrom = document.getElementById("set-smtp-from");
+const setSmtpTls = document.getElementById("set-smtp-tls");
+const btnSmtpTest = document.getElementById("btn-smtp-test");
+const smtpStatus = document.getElementById("smtp-status");
 let authMode = "setup";
+let authRecovery = false;
 
 function setLoginStatus(text, isError) {
   if (!loginStatus) return;
@@ -424,23 +440,49 @@ function setLoginStatus(text, isError) {
   loginStatus.style.color = isError ? "var(--danger, #e5484d)" : "var(--accent, #3b82f6)";
 }
 
+function applyLoginMode() {
+  const isSetup = authMode === "setup";
+  const isReset = authMode === "reset";
+  const isLogin = authMode === "login";
+  if (loginSubtitle) {
+    loginSubtitle.textContent = t(
+      isReset ? "auth.resetTitle" : isSetup ? "auth.setupTitle" : "auth.loginTitle"
+    );
+  }
+  if (loginHint) {
+    loginHint.textContent = t(
+      isReset ? "auth.resetHint" : isSetup ? "auth.setupHint" : "auth.loginHint"
+    );
+  }
+  if (loginSubmit) {
+    loginSubmit.textContent = t(
+      isReset ? "auth.resetConfirm" : isSetup ? "auth.create" : "auth.enter"
+    );
+  }
+  loginUsername?.closest("label")?.classList.toggle("hidden", isReset);
+  loginPassword?.closest("label")?.classList.toggle("hidden", isReset);
+  if (loginPassword2Field) loginPassword2Field.classList.toggle("hidden", !isSetup);
+  loginResetFields?.classList.toggle("hidden", !isReset);
+  loginForgot?.classList.toggle("hidden", !isLogin || !authRecovery);
+  loginBack?.classList.toggle("hidden", !isReset);
+  if (loginPassword) loginPassword.autocomplete = isSetup ? "new-password" : "current-password";
+}
+
 function showLoginOverlay(configured) {
   if (!loginOverlay) return;
-  authMode = configured ? "login" : "setup";
-  if (loginSubtitle) loginSubtitle.textContent = t(configured ? "auth.loginTitle" : "auth.setupTitle");
-  if (loginHint) loginHint.textContent = t(configured ? "auth.loginHint" : "auth.setupHint");
-  if (loginSubmit) loginSubmit.textContent = t(configured ? "auth.enter" : "auth.create");
-  if (loginPassword2Field) loginPassword2Field.classList.toggle("hidden", !!configured);
-  if (loginPassword) loginPassword.autocomplete = configured ? "current-password" : "new-password";
+  if (authMode !== "reset") authMode = configured ? "login" : "setup";
+  applyLoginMode();
   loginOverlay.classList.remove("hidden");
   if (btnLogout) btnLogout.classList.add("hidden");
-  loginUsername?.focus();
+  if (authMode === "reset") loginResetCode?.focus();
+  else loginUsername?.focus();
 }
 
 function hideLoginOverlay() {
   loginOverlay?.classList.add("hidden");
   if (btnLogout) btnLogout.classList.remove("hidden");
   setLoginStatus("");
+  authMode = "login";
 }
 
 async function ensureAuth() {
@@ -451,6 +493,7 @@ async function ensureAuth() {
       hideLoginOverlay();
       return true;
     }
+    authRecovery = !!data.recovery;
     showLoginOverlay(!!data.configured);
     return false;
   } catch {
@@ -460,6 +503,10 @@ async function ensureAuth() {
 }
 
 async function submitAuth() {
+  if (authMode === "reset") {
+    await confirmReset();
+    return;
+  }
   const name = (loginUsername?.value || "").trim();
   const password = loginPassword?.value || "";
   const password2 = loginPassword2?.value || "";
@@ -492,6 +539,61 @@ async function submitAuth() {
   }
 }
 
+async function requestResetCode() {
+  setLoginStatus("");
+  loginForgot.disabled = true;
+  try {
+    const res = await nativeFetch("/api/auth/reset/request", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setLoginStatus(data.detail || t("settings.error", { msg: res.status }), true);
+      return;
+    }
+    authMode = "reset";
+    applyLoginMode();
+    setLoginStatus(t("auth.resetSent"));
+    loginResetCode?.focus();
+  } catch (err) {
+    setLoginStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    loginForgot.disabled = false;
+  }
+}
+
+async function confirmReset() {
+  const code = (loginResetCode?.value || "").trim();
+  const password = loginResetPassword?.value || "";
+  const password2 = loginResetPassword2?.value || "";
+  if (password !== password2) {
+    setLoginStatus(t("auth.mismatch"), true);
+    return;
+  }
+  setLoginStatus("");
+  loginSubmit.disabled = true;
+  try {
+    const res = await nativeFetch("/api/auth/reset/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, new_password: password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setLoginStatus(data.detail || t("settings.error", { msg: res.status }), true);
+      return;
+    }
+    if (loginResetCode) loginResetCode.value = "";
+    if (loginResetPassword) loginResetPassword.value = "";
+    if (loginResetPassword2) loginResetPassword2.value = "";
+    hideLoginOverlay();
+    await init();
+    await loadProfiles();
+  } catch (err) {
+    setLoginStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    loginSubmit.disabled = false;
+  }
+}
+
 loginSubmit?.addEventListener("click", submitAuth);
 loginPassword?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") submitAuth();
@@ -499,8 +601,29 @@ loginPassword?.addEventListener("keydown", (e) => {
 loginPassword2?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") submitAuth();
 });
+loginResetCode?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuth();
+});
+loginResetPassword?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuth();
+});
+loginResetPassword2?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuth();
+});
+loginForgot?.addEventListener("click", requestResetCode);
+loginBack?.addEventListener("click", () => {
+  authMode = "login";
+  applyLoginMode();
+  setLoginStatus("");
+});
 btnLogout?.addEventListener("click", async () => {
   await nativeFetch("/api/auth/logout", { method: "POST" });
+  authMode = "login";
+  try {
+    const res = await nativeFetch("/api/auth/status");
+    const data = await res.json();
+    authRecovery = !!data.recovery;
+  } catch { /* ignore */ }
   showLoginOverlay(true);
 });
 btnChangePassword?.addEventListener("click", async () => {
@@ -2349,7 +2472,10 @@ async function openSettings() {
     const data = await res.json();
     if (setLlmBackend) setLlmBackend.value = data.llm_backend || data.backend || "ollama";
     if (setOpenaiUrl) setOpenaiUrl.value = (data.openai_base_url || "").replace(/\/v1\/?$/, "");
-    if (setOpenaiKey) setOpenaiKey.value = data.openai_api_key === "local" ? "" : (data.openai_api_key || "");
+    if (setOpenaiKey) {
+      setOpenaiKey.value = "";
+      setOpenaiKey.placeholder = data.openai_api_key_set === "1" ? t("settings.secretKeep") : "local";
+    }
     setOllamaUrl.value = data.ollama_base_url || "";
     setKiwixUrl.value = data.kiwix_base_url || "";
     setKiwixZim.value = data.kiwix_zim_name || "";
@@ -2358,12 +2484,26 @@ async function openSettings() {
     setVisionModel.value = data.vision_model || "";
     setEmbedModel.value = data.embed_model || "";
     setNumCtx.value = data.num_ctx || "";
-    setTelegramToken.value = data.telegram_bot_token || "";
+    if (setTelegramToken) {
+      setTelegramToken.value = "";
+      setTelegramToken.placeholder = data.telegram_bot_token_set === "1" ? t("settings.secretKeep") : "123456:ABC-DEF...";
+    }
     setTelegramAllowedIds.value = data.telegram_allowed_ids || "";
     setTelegramProxy.value = data.telegram_proxy || "";
     setTelegramIpv4.checked = (data.telegram_force_ipv4 || "1") !== "0";
     setTelegramVoice.checked = (data.telegram_voice_enabled || "1") !== "0";
     setTelegramReminders.checked = (data.telegram_reminders_enabled || "1") !== "0";
+    if (setRecoveryEmail) setRecoveryEmail.value = data.recovery_email || "";
+    if (setSmtpHost) setSmtpHost.value = data.smtp_host || "";
+    if (setSmtpPort) setSmtpPort.value = data.smtp_port || "587";
+    if (setSmtpUser) setSmtpUser.value = data.smtp_user || "";
+    if (setSmtpPassword) {
+      setSmtpPassword.value = "";
+      setSmtpPassword.placeholder = data.smtp_password_set === "1" ? t("settings.secretKeep") : "";
+    }
+    if (setSmtpFrom) setSmtpFrom.value = data.smtp_from || "";
+    if (setSmtpTls) setSmtpTls.checked = (data.smtp_tls || "1") !== "0";
+    setSmtpStatus("");
     setTelegramStatus("");
     const dirEl = document.getElementById("data-dir-path");
     if (dirEl) dirEl.textContent = data.data_dir || "—";
@@ -2414,10 +2554,6 @@ function closeSettings() {
 
 async function testTelegramToken() {
   const token = setTelegramToken.value.trim();
-  if (!token) {
-    setTelegramStatus(t("settings.telegramTokenRequired"), true);
-    return;
-  }
   setTelegramStatus(t("settings.telegramChecking"));
   btnTelegramTest.disabled = true;
   try {
@@ -2455,6 +2591,44 @@ const btnBackupExport = document.getElementById("btn-backup-export");
 const btnBackupImport = document.getElementById("btn-backup-import");
 const backupFileInput = document.getElementById("backup-file-input");
 const backupStatus = document.getElementById("backup-status");
+
+function setSmtpStatus(text, isError) {
+  if (!smtpStatus) return;
+  smtpStatus.textContent = text || "";
+  smtpStatus.style.color = isError ? "var(--danger, #e5484d)" : "var(--accent, #3b82f6)";
+}
+
+async function testSmtp() {
+  setSmtpStatus("");
+  btnSmtpTest.disabled = true;
+  try {
+    const res = await fetch("/api/settings/smtp-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recovery_email: setRecoveryEmail?.value.trim() || "",
+        smtp_host: setSmtpHost?.value.trim() || "",
+        smtp_port: setSmtpPort?.value.trim() || "587",
+        smtp_user: setSmtpUser?.value.trim() || "",
+        smtp_password: setSmtpPassword?.value || "",
+        smtp_from: setSmtpFrom?.value.trim() || "",
+        smtp_tls: setSmtpTls?.checked ? "1" : "0",
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setSmtpStatus(data.detail || t("settings.error", { msg: res.status }), true);
+      return;
+    }
+    setSmtpStatus(t("settings.smtpOk"));
+  } catch (err) {
+    setSmtpStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    btnSmtpTest.disabled = false;
+  }
+}
+
+btnSmtpTest?.addEventListener("click", testSmtp);
 
 function setBackupStatus(text, isError) {
   if (!backupStatus) return;
@@ -2569,6 +2743,13 @@ async function saveSettings() {
     telegram_force_ipv4: setTelegramIpv4.checked ? "1" : "0",
     telegram_voice_enabled: setTelegramVoice.checked ? "1" : "0",
     telegram_reminders_enabled: setTelegramReminders.checked ? "1" : "0",
+    recovery_email: setRecoveryEmail?.value.trim() || "",
+    smtp_host: setSmtpHost?.value.trim() || "",
+    smtp_port: setSmtpPort?.value.trim() || "587",
+    smtp_user: setSmtpUser?.value.trim() || "",
+    smtp_password: setSmtpPassword?.value || "",
+    smtp_from: setSmtpFrom?.value.trim() || "",
+    smtp_tls: setSmtpTls?.checked ? "1" : "0",
   };
   try {
     const res = await fetch("/api/settings", {
@@ -3234,7 +3415,7 @@ if (langToggle) {
   langToggle.addEventListener("click", () => {
     setLang(LANG === "ru" ? "en" : "ru");
     if (loginOverlay && !loginOverlay.classList.contains("hidden")) {
-      showLoginOverlay(authMode === "login");
+      applyLoginMode();
     }
   });
 }

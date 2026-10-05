@@ -1739,3 +1739,17 @@ tr.marker-suspect-row td {
 .login-card .primary-btn {
   margin-top: 6px;
 }
+
+.login-card .link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  align-self: center;
+}
+
+.login-card .link-btn:hover {
+  text-decoration: underline;
+}

@@ -563,7 +563,7 @@ backend/app/
   services/embeddings.py # эмбеддинги через Ollama
   services/articles_db.py# ChromaDB: чанки статей и смысловой поиск
   services/auth.py           # один локальный пользователь (логин/пароль)
-  routes/auth.py             # /api/auth/status, setup, login, logout, password
+  routes/auth.py             # /api/auth/status, setup, login, logout, password, reset
   services/settings_store.py # runtime-настройки моделей (data/settings.json)
   services/pdf_export.py # экспорт мед. карты и заметок в PDF (DejaVu Sans)
 backend/tests/         # pytest: каталог, нормы, кеш/grounding, извлечение, память
@@ -580,7 +580,11 @@ data/                # базы данных (SQLite, ChromaDB) — не в git
 - Медицинские данные в `data/` исключены из git.
 - Один пользователь: при первом открытии создайте логин и пароль. Дальше все
   `/api/*` закрыты cookie-сессией. Пароль хранится как PBKDF2-хеш в `data/auth.json`.
-- Если пароль забыт: удалите `data/auth.json` в контейнере и создайте вход заново.
+  После 5 неверных попыток вход блокируется на 15 минут. Смена пароля закрывает
+  остальные сессии. `GET /api/settings` не отдаёт SMTP/Telegram/API-ключи.
+- Если пароль забыт: на экране входа «Забыли пароль?» — код придёт на почту
+  из «Настройки ИИ» (SMTP + адрес). Код действует 15 минут. Без SMTP по-прежнему
+  можно удалить `data/auth.json` в контейнере и создать вход заново.
 - Не используйте публичные Wi-Fi-сети при работе с анализами без шифрования.
 
 ## Лицензия

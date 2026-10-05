@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=25" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=25" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=25" />
-  <link rel="stylesheet" href="css/style.css?v=38" />
+  <link rel="stylesheet" href="css/style.css?v=40" />
 </head>
 <body>
   <div id="login-overlay" class="login-overlay hidden">
@@ -29,8 +29,24 @@
         <span data-i18n="auth.passwordRepeat">Повторите пароль</span>
         <input type="password" id="login-password2" autocomplete="new-password" />
       </label>
+      <div id="login-reset-fields" class="hidden">
+        <label class="field">
+          <span data-i18n="auth.resetCode">Код из письма</span>
+          <input type="text" id="login-reset-code" inputmode="numeric" autocomplete="one-time-code" />
+        </label>
+        <label class="field">
+          <span data-i18n="auth.newPassword">Новый пароль</span>
+          <input type="password" id="login-reset-password" autocomplete="new-password" />
+        </label>
+        <label class="field">
+          <span data-i18n="auth.passwordRepeat">Повторите пароль</span>
+          <input type="password" id="login-reset-password2" autocomplete="new-password" />
+        </label>
+      </div>
       <span id="login-status" class="models-status"></span>
       <button id="login-submit" class="primary-btn" data-i18n="auth.create">Создать вход</button>
+      <button type="button" id="login-forgot" class="link-btn hidden" data-i18n="auth.forgot">Забыли пароль?</button>
+      <button type="button" id="login-back" class="link-btn hidden" data-i18n="auth.backToLogin">К входу</button>
     </div>
   </div>
   <div id="app">
@@ -316,6 +332,41 @@
           <span id="password-status" class="models-status"></span>
         </div>
         <div class="modal-divider"></div>
+        <span class="modal-title modal-title-sm" data-i18n="settings.smtpTitle">Почта для восстановления пароля</span>
+        <label class="field">
+          <span data-i18n="settings.recoveryEmail">Почта для кода восстановления</span>
+          <input type="email" id="set-recovery-email" placeholder="you@example.com" autocomplete="email" />
+          <span class="field-hint" data-i18n="settings.recoveryEmailHint">Код сброса пароля придёт на этот адрес. Без SMTP сброс с экрана входа недоступен.</span>
+        </label>
+        <label class="field">
+          <span data-i18n="settings.smtpHost">SMTP-сервер</span>
+          <input type="text" id="set-smtp-host" placeholder="smtp.example.com" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.smtpPort">Порт SMTP</span>
+          <input type="number" id="set-smtp-port" min="1" max="65535" placeholder="587" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.smtpUser">Логин SMTP</span>
+          <input type="text" id="set-smtp-user" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.smtpPassword">Пароль SMTP</span>
+          <input type="password" id="set-smtp-password" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span data-i18n="settings.smtpFrom">От кого (необязательно)</span>
+          <input type="text" id="set-smtp-from" placeholder="zelvera@example.com" />
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="set-smtp-tls" checked />
+          <span data-i18n="settings.smtpTls">STARTTLS (порт 587). Для 465 используется SSL.</span>
+        </label>
+        <div class="modal-row">
+          <button id="btn-smtp-test" class="action-btn" data-i18n="settings.smtpTest">Отправить пробное письмо</button>
+          <span id="smtp-status" class="models-status"></span>
+        </div>
+        <div class="modal-divider"></div>
         <span class="modal-title modal-title-sm" data-i18n="settings.telegramTitle">Telegram-бот</span>
         <label class="field">
           <span data-i18n="settings.telegramToken">Токен бота (от @BotFather)</span>
@@ -472,7 +523,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=38"></script>
-  <script src="js/app.js?v=38"></script>
+  <script src="js/i18n.js?v=40"></script>
+  <script src="js/app.js?v=40"></script>
 </body>
 </html>
