@@ -69,7 +69,8 @@ A different Ollama model:
 OLLAMA_MODEL=qwen2.5:14b docker compose up -d
 ```
 
-Chat via llama-server on the host (embeddings still use the Ollama container):
+Chat via llama-server on the host (embeddings still use the Ollama container).
+`bonsai2-27B` is an example local model name (not from Ollama Hub):
 
 ```bash
 LLM_BACKEND=openai \
@@ -172,7 +173,9 @@ python -m pytest -q
 
 In **AI settings** choose backend **OpenAI / llama-server**, set the address
 (e.g. `http://192.168.1.100:8080` — `/v1` is appended automatically) and the
-model name (`bonsai2-27B`). A key is not required for a local llama-server.
+model name. `bonsai2-27B` below is an example local model (not from Ollama Hub);
+use the name your llama-server reports. A key is not required for a local
+llama-server.
 
 The same can be set in `backend/.env`:
 

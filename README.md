@@ -69,7 +69,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 OLLAMA_MODEL=qwen2.5:14b docker compose up -d
 ```
 
-Чат через llama-server на хосте (эмбеддинги по-прежнему в контейнере Ollama):
+Чат через llama-server на хосте (эмбеддинги по-прежнему в контейнере Ollama).
+`bonsai2-27B` — пример имени локальной модели (не из Ollama Hub):
 
 ```bash
 LLM_BACKEND=openai \
@@ -172,7 +173,9 @@ python -m pytest -q
 
 В «Настройки ИИ» выберите движок **OpenAI / llama-server**, укажите адрес
 (например `http://192.168.1.100:8080` — суффикс `/v1` добавится сам) и имя
-модели (`bonsai2-27B`). Ключ для локального llama-server не обязателен.
+модели. `bonsai2-27B` ниже — пример локальной модели (не из Ollama Hub);
+подставьте имя, которое отдаёт ваш llama-server. Ключ для локального
+llama-server не обязателен.
 
 То же можно задать в `backend/.env`:
 
