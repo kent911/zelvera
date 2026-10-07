@@ -79,6 +79,10 @@ USER_LLM_MODEL=bonsai2-27B \
 docker compose up -d
 ```
 
+On Linux without Docker Desktop, `host.docker.internal` is already mapped in
+`docker-compose.yml` (`extra_hosts: host.docker.internal:host-gateway`).
+llama-server on the host must listen on `0.0.0.0`, not only `127.0.0.1`.
+
 Stop without deleting data: `docker compose down`.
 
 ### Without Docker

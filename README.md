@@ -79,6 +79,10 @@ USER_LLM_MODEL=bonsai2-27B \
 docker compose up -d
 ```
 
+На Linux без Docker Desktop `host.docker.internal` уже проброшен в
+`docker-compose.yml` (`extra_hosts: host.docker.internal:host-gateway`).
+llama-server на хосте должен слушать `0.0.0.0`, не только `127.0.0.1`.
+
 Остановка без удаления данных: `docker compose down`.
 
 ### Без Docker
