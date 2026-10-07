@@ -40,6 +40,48 @@ graph TD
 
 ## Getting started
 
+### Docker Compose (one command)
+
+Requires Docker Engine and Docker Compose v2.
+
+```bash
+git clone https://github.com/kent911/zelvera.git
+cd zelvera
+docker compose up -d
+```
+
+Open http://127.0.0.1:8000 and create a login and password.
+
+Data is written to `./data/` on the host (SQLite, photos, `settings.json`).
+Ollama models live in the Docker volume `ollama`.
+The first run downloads `nomic-embed-text` and `gemma4:26b` (tens of GB) —
+the UI is available immediately; chat works after `ollama-init` finishes.
+
+NVIDIA GPU:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+A different Ollama model:
+
+```bash
+OLLAMA_MODEL=qwen2.5:14b docker compose up -d
+```
+
+Chat via llama-server on the host (embeddings still use the Ollama container):
+
+```bash
+LLM_BACKEND=openai \
+USER_LLM_BASE_URL=http://host.docker.internal:8080/v1 \
+USER_LLM_MODEL=bonsai2-27B \
+docker compose up -d
+```
+
+Stop without deleting data: `docker compose down`.
+
+### Without Docker
+
 ### 1. Local model (Ollama)
 
 ```bash

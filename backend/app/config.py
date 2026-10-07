@@ -23,9 +23,20 @@ if FROZEN:
             if legacy_dir.exists():
                 default_dir = legacy_dir
                 break
-    DATA_DIR = Path(data_env) if data_env else default_dir
+    DATA_DIR = (
+        Path(data_env).expanduser().resolve() if data_env else default_dir
+    )
 else:
-    DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+    data_env = (
+        os.getenv("ZELVERA_DATA_DIR")
+        or os.getenv("MEDRIX_DATA_DIR")
+        or os.getenv("MEDAI_DATA_DIR")
+    )
+    DATA_DIR = (
+        Path(data_env).expanduser().resolve()
+        if data_env
+        else Path(__file__).resolve().parents[2] / "data"
+    )
 DB_PATH = DATA_DIR / "medical.db"
 CHROMA_DIR = DATA_DIR / "chroma"
 KIWIX_CACHE_DIR = DATA_DIR / "kiwix_cache"
