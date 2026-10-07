@@ -53,6 +53,7 @@ docker compose up -d
 Open http://127.0.0.1:8000 and create a login and password.
 
 Data is written to `./data/` on the host (SQLite, photos, `settings.json`).
+`.dockerignore` excludes `data/`, `.env`, and `.venv` from the image build.
 Ollama models live in the Docker volume `ollama`.
 The first run downloads `nomic-embed-text` and `gemma4:26b` (tens of GB) —
 the UI is available immediately; chat works after `ollama-init` finishes.
