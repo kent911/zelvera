@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=25" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=25" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=25" />
-  <link rel="stylesheet" href="css/style.css?v=40" />
+  <link rel="stylesheet" href="css/style.css?v=42" />
 </head>
 <body>
   <div id="login-overlay" class="login-overlay hidden">
@@ -236,7 +236,7 @@
         </div>
         <div class="modal-divider"></div>
         <div class="backup-block">
-          <span class="data-dir-label" data-i18n="settings.backup">Резервная копия (мед. карта, статьи, настройки)</span>
+          <span class="data-dir-label" data-i18n="settings.backup">Резервная копия (мед. карта, фото, статьи, настройки)</span>
           <div class="modal-row">
             <button id="btn-backup-export" class="action-btn" data-i18n="settings.backupExport">Сохранить копию</button>
             <button id="btn-backup-import" class="action-btn" data-i18n="settings.backupImport">Восстановить из копии</button>
@@ -454,6 +454,16 @@
             <input type="number" id="profile-birth-year" min="1900" max="2100" placeholder="1985" />
           </label>
           <label class="field">
+            <span data-i18n="profile.sex">Пол</span>
+            <select id="profile-sex">
+              <option value="" data-i18n="profile.sexUnset">не указан</option>
+              <option value="m" data-i18n="profile.sexMale">мужской</option>
+              <option value="f" data-i18n="profile.sexFemale">женский</option>
+            </select>
+          </label>
+        </div>
+        <div class="modal-row">
+          <label class="field">
             <span data-i18n="profile.height">Рост, см</span>
             <input type="number" id="profile-height" min="50" max="250" placeholder="170" />
           </label>
@@ -523,7 +533,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=40"></script>
-  <script src="js/app.js?v=40"></script>
+  <script src="js/i18n.js?v=42"></script>
+  <script src="js/app.js?v=42"></script>
 </body>
 </html>

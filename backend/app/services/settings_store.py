@@ -82,6 +82,11 @@ def _load() -> dict[str, str]:
     return _cache
 
 
+def reset_cache() -> None:
+    global _cache
+    _cache = None
+
+
 def get(key: str) -> str:
     return _load()[key]
 

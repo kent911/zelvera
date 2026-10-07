@@ -30,3 +30,19 @@ def test_profile_tool_empty(db, monkeypatch):
     monkeypatch.setattr(db, "list_profiles", lambda: [])
     assert tools.get_profile() == i18n.t("tool.get_profile.empty")
     assert tools.profile_context() == ""
+
+
+def test_profile_stores_sex(db):
+    profile = db.create_profile("Anna", 1990, 165, 60.0, "O(I)", "f")
+    saved = db.get_profile(profile["id"])
+    assert saved["sex"] == "f"
+    assert db.update_profile(profile["id"], "Anna", 1990, 165, 60.0, "O(I)", "m")
+    assert db.get_profile(profile["id"])["sex"] == "m"
+
+
+def test_profile_summary_includes_sex(db, monkeypatch):
+    profile = db.create_profile("Anna", 1990, sex="f")
+    monkeypatch.setattr(tools, "_current_profile_id", lambda: profile["id"])
+    text = tools.get_profile()
+    assert "Anna" in text
+    assert i18n.t("tool.profile.sex_f") in text

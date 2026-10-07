@@ -169,6 +169,7 @@ def _sse(text: str) -> str:
 
 @router.post("/records/longterm/report")
 async def longterm_report(
+    request: Request,
     profile_id: int | None = None,
     from_year: int | None = Query(None, alias="from"),
     to_year: int | None = Query(None, alias="to"),
@@ -193,7 +194,11 @@ async def longterm_report(
         yield _sse(i18n.t("longterm.disclaimer") + "\n\n")
         try:
             async for chunk in llm.stream_chat(messages):
+                if await request.is_disconnected():
+                    return
                 yield _sse(chunk)
+        except asyncio.CancelledError:
+            return
         except llm.LLMError as exc:
             yield _sse(f"{i18n.t('error.prefix')} {exc}")
         yield "data: [DONE]\n\n"

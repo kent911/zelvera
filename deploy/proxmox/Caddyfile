@@ -1,7 +1,26 @@
-# Caddy reverse-proxy для Zelvera на мини-ПК.
-# Если нужен доступ по имени в локальной сети, скопируйте в /etc/caddy/Caddyfile
-# и замените zelvera.lan на желаемое имя (например, zelvera.home).
+# HTTPS на LAN для Zelvera (внутренний CA Caddy, без Let's Encrypt).
+# Ставить ВНУТРИ контейнера Zelvera (CTID 108, IP 192.168.88.62):
+#   cp /opt/zelvera/deploy/proxmox/Caddyfile /etc/caddy/Caddyfile
+#   systemctl restart caddy
+# tls internal обязателен — иначе Caddy лезет за публичным сертификатом.
+#
+# Корневой сертификат (на хост: pct exec 108 -- cat ... > /root/caddy-root.crt):
+#   /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
 
-zelvera.lan {
-    reverse_proxy 127.0.0.1:8000
+http://zelvera.lan, http:// {
+	redir https://{host}{uri} permanent
+}
+
+zelvera.lan, :443 {
+	tls internal
+	encode gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		X-Frame-Options DENY
+	}
+	reverse_proxy 127.0.0.1:8000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
 }

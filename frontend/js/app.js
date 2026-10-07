@@ -160,6 +160,7 @@ const profileMeta = document.getElementById("profile-meta");
 const profileModal = document.getElementById("profile-modal");
 const profileName = document.getElementById("profile-name");
 const profileBirthYear = document.getElementById("profile-birth-year");
+const profileSex = document.getElementById("profile-sex");
 const profileHeight = document.getElementById("profile-height");
 const profileWeight = document.getElementById("profile-weight");
 const profileBloodType = document.getElementById("profile-blood-type");
@@ -237,6 +238,8 @@ function renderProfileMeta(p) {
   }
   const parts = [];
   if (p.birth_year) parts.push(t("profile.meta.birth", { y: p.birth_year }));
+  if (p.sex === "m") parts.push(t("profile.meta.sex_m"));
+  else if (p.sex === "f") parts.push(t("profile.meta.sex_f"));
   if (p.height_cm) parts.push(t("profile.meta.height", { h: p.height_cm }));
   if (p.weight_kg) parts.push(t("profile.meta.weight", { w: p.weight_kg }));
   if (p.blood_type) parts.push(t("profile.meta.blood", { b: p.blood_type }));
@@ -251,6 +254,7 @@ async function openProfileEditModal() {
     if (!p || !p.id) throw new Error(t("profile.notFound"));
     profileName.value = p.name || "";
     profileBirthYear.value = p.birth_year || "";
+    if (profileSex) profileSex.value = p.sex === "m" || p.sex === "f" ? p.sex : "";
     profileHeight.value = p.height_cm || "";
     profileWeight.value = p.weight_kg || "";
     profileBloodType.value = p.blood_type || "";
@@ -271,7 +275,8 @@ function profilePayload() {
   const height = profileHeight.value ? Number(profileHeight.value) : null;
   const weight = profileWeight.value ? Number(profileWeight.value.replace(",", ".")) : null;
   const bloodType = profileBloodType.value.trim() || null;
-  const body = { name };
+  const sex = profileSex && profileSex.value ? profileSex.value : "";
+  const body = { name, sex: sex || null };
   if (birthYear) body.birth_year = birthYear;
   if (height) body.height_cm = height;
   if (weight) body.weight_kg = weight;
@@ -396,8 +401,19 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeLightbox();
 });
 
+let generationAbort = null;
+
+function abortGeneration() {
+  if (!generationAbort) return;
+  generationAbort.abort();
+  generationAbort = null;
+}
+
 function setComposerBusy(busy) {
-  sendBtn.disabled = busy;
+  sendBtn.classList.toggle("stop-btn", busy);
+  sendBtn.setAttribute("data-i18n", busy ? "chat.stop" : "chat.send");
+  sendBtn.textContent = t(busy ? "chat.stop" : "chat.send");
+  sendBtn.disabled = false;
   inputEl.disabled = busy;
   if (!busy) inputEl.focus();
 }
@@ -698,6 +714,10 @@ function renderKiwixStatus(k) {
 }
 
 async function send() {
+  if (generationAbort) {
+    abortGeneration();
+    return;
+  }
   const text = inputEl.value.trim();
   if (!text || sendBtn.disabled) return;
 
@@ -722,6 +742,8 @@ function showSuggestChips() {
 
 async function sendWithText(text) {
   const botBubble = addMessage("bot", "");
+  const controller = new AbortController();
+  generationAbort = controller;
   setComposerBusy(true);
 
   const { acc, error, images } = await streamIntoBubble(
@@ -730,8 +752,10 @@ async function sendWithText(text) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: history }),
+      signal: controller.signal,
     },
-    botBubble
+    botBubble,
+    controller
   );
 
   if (!error) {
@@ -740,7 +764,7 @@ async function sendWithText(text) {
   setComposerBusy(false);
 }
 
-async function streamIntoBubble(url, options, bubble) {
+async function streamIntoBubble(url, options, bubble, controller) {
   let acc = "";
   let error = false;
   const images = [];
@@ -748,9 +772,12 @@ async function streamIntoBubble(url, options, bubble) {
   const textEl = document.createElement("div");
   textEl.className = "msg-text";
   bubble.appendChild(textEl);
+  controller = controller || new AbortController();
+  generationAbort = controller;
+  const fetchOptions = { ...options, signal: controller.signal };
 
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, fetchOptions);
     if (!res.ok || !res.body) {
       let detail = `HTTP ${res.status}`;
       try {
@@ -799,9 +826,18 @@ async function streamIntoBubble(url, options, bubble) {
       }
     }
   } catch (err) {
-    error = true;
-    bubble.textContent = `${t("error.prefix")} ${err.message}`;
-    bubble.classList.add("error");
+    if (err && err.name === "AbortError") {
+      if (!acc.trim()) {
+        acc = t("chat.stopped");
+        textEl.textContent = acc;
+      }
+    } else {
+      error = true;
+      bubble.textContent = `${t("error.prefix")} ${err.message}`;
+      bubble.classList.add("error");
+    }
+  } finally {
+    if (generationAbort === controller) generationAbort = null;
   }
 
   if (!error && acc.trim()) {
@@ -817,12 +853,15 @@ async function analyzeNow() {
   pushHistory("user", text);
 
   const botBubble = addMessage("bot", t("analysis.preparing"));
+  const controller = new AbortController();
+  generationAbort = controller;
   setComposerBusy(true);
 
   const { acc, error } = await streamIntoBubble(
     `/api/analysis?${profileQuery()}`,
-    { method: "POST" },
-    botBubble
+    { method: "POST", signal: controller.signal },
+    botBubble,
+    controller
   );
 
   if (!error) {
@@ -2369,7 +2408,7 @@ btnSaveNote.addEventListener("click", () => {
   openNoteModal(lastAssistant ? lastAssistant.content : "");
 });
 btnSaveCard.addEventListener("click", () => {
-  if (sendBtn.disabled) return;
+  if (generationAbort) return;
   const text = t("chat.saveCardAsk");
   inputEl.value = "";
   autoResize();
@@ -3207,6 +3246,7 @@ inputEl.addEventListener("keydown", (e) => {
 sendBtn.addEventListener("click", send);
 
 newChatBtn.addEventListener("click", () => {
+  abortGeneration();
   history = [];
   saveHistory();
   messagesEl.innerHTML = "";

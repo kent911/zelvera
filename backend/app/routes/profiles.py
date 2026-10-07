@@ -7,6 +7,7 @@ from pydantic import BaseModel, field_validator
 from app.services import audit, database, i18n
 from app.services.logger import logger
 from app.services import settings_store
+from app.services.norms import normalize_sex
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ class ProfileIn(BaseModel):
     height_cm: int | None = None
     weight_kg: float | None = None
     blood_type: str | None = None
+    sex: str | None = None
 
     @field_validator("name", mode="before")
     @classmethod
@@ -50,6 +52,13 @@ class ProfileIn(BaseModel):
         # "a(ii) rh+" -> "A(II) Rh+", "o(i)" -> "O(I)"
         s = s.replace("rh+", "Rh+").replace("rh-", "Rh-").replace("RH+", "Rh+").replace("RH-", "Rh-")
         return s[:1].upper() + s[1:]
+
+    @field_validator("sex", mode="before")
+    @classmethod
+    def _clean_sex(cls, v: Any) -> str | None:
+        if v is None or v == "":
+            return None
+        return normalize_sex(str(v))
 
 
 def _profile_ids() -> list[int]:
@@ -102,6 +111,7 @@ def rename_profile(profile_id: int, body: ProfileIn) -> dict[str, Any]:
         height_cm=body.height_cm,
         weight_kg=body.weight_kg,
         blood_type=body.blood_type,
+        sex=body.sex,
     ):
         raise HTTPException(status_code=404, detail=i18n.t("profile.not_found"))
     logger.info("Профиль обновлён: id=%s name=%s", profile_id, body.name)

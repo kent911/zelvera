@@ -3,6 +3,7 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Iterator
 
 from app.config import DATA_DIR, DB_PATH
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     height_cm INTEGER DEFAULT NULL,
     weight_kg REAL DEFAULT NULL,
     blood_type TEXT DEFAULT NULL,
+    sex TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS reminders (
@@ -124,8 +126,11 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 @contextmanager
 def get_conn() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
@@ -133,6 +138,16 @@ def get_conn() -> Iterator[sqlite3.Connection]:
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def checkpoint() -> None:
+    if not Path(DB_PATH).is_file():
+        return
+    conn = sqlite3.connect(DB_PATH, timeout=5)
+    try:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     finally:
         conn.close()
 
@@ -165,6 +180,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE profiles ADD COLUMN weight_kg REAL DEFAULT NULL")
     if "blood_type" not in profile_cols:
         conn.execute("ALTER TABLE profiles ADD COLUMN blood_type TEXT DEFAULT NULL")
+    if "sex" not in profile_cols:
+        conn.execute("ALTER TABLE profiles ADD COLUMN sex TEXT DEFAULT NULL")
 
     if "validation" not in _columns(conn, "markers"):
         conn.execute("ALTER TABLE markers ADD COLUMN validation TEXT DEFAULT NULL")
@@ -601,7 +618,7 @@ def clear_audit() -> None:
 def list_profiles() -> list[dict[str, Any]]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, name, birth_year, height_cm, weight_kg, blood_type, created_at "
+            "SELECT id, name, birth_year, height_cm, weight_kg, blood_type, sex, created_at "
             "FROM profiles ORDER BY id"
         ).fetchall()
         return [dict(r) for r in rows]
@@ -613,17 +630,19 @@ def create_profile(
     height_cm: int | None = None,
     weight_kg: float | None = None,
     blood_type: str | None = None,
+    sex: str | None = None,
 ) -> dict[str, Any]:
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO profiles (name, birth_year, height_cm, weight_kg, blood_type, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO profiles (name, birth_year, height_cm, weight_kg, blood_type, sex, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 name,
                 birth_year,
                 height_cm,
                 weight_kg,
                 blood_type,
+                sex,
                 datetime.now().strftime("%Y-%m-%d %H:%M"),
             ),
         )
@@ -634,7 +653,7 @@ def create_profile(
 def get_profile(profile_id: int) -> dict[str, Any]:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, birth_year, height_cm, weight_kg, blood_type, created_at "
+            "SELECT id, name, birth_year, height_cm, weight_kg, blood_type, sex, created_at "
             "FROM profiles WHERE id = ?",
             (profile_id,),
         ).fetchone()
@@ -650,12 +669,13 @@ def update_profile(
     height_cm: int | None = None,
     weight_kg: float | None = None,
     blood_type: str | None = None,
+    sex: str | None = None,
 ) -> bool:
     with get_conn() as conn:
         cur = conn.execute(
             "UPDATE profiles SET name = ?, birth_year = ?, height_cm = ?, weight_kg = ?, "
-            "blood_type = ? WHERE id = ?",
-            (name, birth_year, height_cm, weight_kg, blood_type, profile_id),
+            "blood_type = ?, sex = ? WHERE id = ?",
+            (name, birth_year, height_cm, weight_kg, blood_type, sex, profile_id),
         )
         return cur.rowcount > 0
 

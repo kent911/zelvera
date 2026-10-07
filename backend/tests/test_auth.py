@@ -195,3 +195,72 @@ def test_reset_password_invalidates_old_session(tmp_path, monkeypatch):
     auth.request_reset()
     auth.confirm_reset(sent[0], "newpass12")
     assert auth.session_username(old_token) is None
+
+
+def _https_request(scheme="http", proto=None, host="127.0.0.1"):
+    from starlette.requests import Request
+
+    headers = []
+    if proto:
+        headers.append((b"x-forwarded-proto", proto.encode()))
+    return Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": scheme,
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "headers": headers,
+            "client": (host, 12345),
+            "server": ("test", 80),
+        }
+    )
+
+
+def test_request_is_https_trusts_local_proxy_only():
+    assert auth.request_is_https(None) is False
+    assert auth.request_is_https(_https_request()) is False
+    assert auth.request_is_https(_https_request(scheme="https")) is True
+    assert auth.request_is_https(_https_request(proto="https", host="127.0.0.1")) is True
+    assert auth.request_is_https(_https_request(proto="https", host="testclient")) is True
+    assert auth.request_is_https(_https_request(proto="https", host="192.168.88.10")) is False
+    assert auth.request_is_https(_https_request(proto="http", host="127.0.0.1")) is False
+
+
+def test_session_cookie_secure_only_behind_https(tmp_path, monkeypatch):
+    _isolate(tmp_path, monkeypatch)
+    from app.services import database
+    from app.services.telegram_bot import bot as telegram_bot
+
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "test.db")
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(telegram_bot, "start", _noop)
+    monkeypatch.setattr(telegram_bot, "stop", _noop)
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/auth/setup",
+            json={"username": "egor", "password": "secret123"},
+        )
+        cookie = created.headers.get("set-cookie", "")
+        assert "zelvera_session=" in cookie
+        assert "HttpOnly" in cookie
+        assert "Secure" not in cookie
+        client.post("/api/auth/logout")
+        https_login = client.post(
+            "/api/auth/login",
+            json={"username": "egor", "password": "secret123"},
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        https_cookie = https_login.headers.get("set-cookie", "")
+        assert "zelvera_session=" in https_cookie
+        assert "Secure" in https_cookie

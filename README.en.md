@@ -203,7 +203,7 @@ images.
 | DELETE | `/api/reminders/{id}` | Delete a reminder |
 | GET | `/api/audit` | Audit log of actions (with type filter) |
 | DELETE | `/api/audit` | Clear the audit log |
-| GET | `/api/backup/export` | Download a ZIP archive of all data (DB, articles, settings) |
+| GET | `/api/backup/export` | Download a ZIP archive of all data (DB, photos, articles, settings) |
 | POST | `/api/backup/import` | Restore data from a ZIP archive |
 
 ## Backup
@@ -212,10 +212,11 @@ In the settings ("AI settings") there is a "Backup" section:
 
 - **Save a copy** — downloads a ZIP archive with all data: `medical.db`
   (medical record, articles, notes, profile, reminders, audit, L0–L3 memory),
-  `settings.json` and the vector article database `chroma/`;
+  `settings.json`, `auth.json`, the vector article database `chroma/`, and
+  original lab photos `media/`. A SQLite WAL checkpoint runs before the copy;
 - **Restore from a copy** — uploads the ZIP archive; the data is fully
-  replaced (with confirmation). The archive is validated for integrity and the
-  presence of `medical.db`;
+  replaced (with confirmation). The archive is validated for integrity, the
+  presence of `medical.db`, and safe member paths (zip-slip is rejected);
 - all actions are written to the audit log (`backup_export`, `backup_import`).
 
 ## Step 2 — document processing
@@ -418,7 +419,7 @@ user actions (SQLite, table `audit_log`):
 - document recognition (photo/PDF/DOCX) and adding records to the card;
 - article upload/deletion and searching them;
 - saving/deleting/exporting notes;
-- editing the health profile (name, birth year, height, weight, blood type);
+- editing the health profile (name, birth year, sex, height, weight, blood type);
 - creating/deleting lab-retest reminders;
 - changing settings and downloading models;
 - AI tool calls (function calling);
@@ -432,7 +433,8 @@ Filtering by action type and full log cleanup are available.
 The app works with a single profile — for one person. The header on the left
 shows the profile name; the pencil button opens editing:
 
-- profile fields: name, birth year, height, weight, blood type;
+- profile fields: name, birth year, sex, height, weight, blood type;
+  sex is passed into marker-norm checks (same as age from birth year);
 - all data (medical record, reminders, L0–L3 memory, AI tools) is tied to this profile;
 - the blood type is stored normalized, e.g. `A(II) Rh+`;
 
@@ -512,7 +514,7 @@ Implemented:
 - health profiles and lab-retest reminders;
 - AI tools (function calling: reading the card/articles/memory, writing lab records and memory facts)
   over the active profile's data;
-- backup: ZIP export and restore (`medical.db`, `settings.json`, `chroma/`);
+- backup: ZIP export and restore (`medical.db`, `settings.json`, `auth.json`, `chroma/`, `media/`);
 - marker catalog with name normalization, parse refinement and chat help via
   the offline Wikipedia (with caching), pytest tests in CI;
 - marker trend charts with a norm corridor and two-record comparison;
@@ -583,12 +585,15 @@ data/                # databases (SQLite, ChromaDB) — not in git
   `/api/*` routes require a cookie session. The password is stored as a PBKDF2
   hash in `data/auth.json`. After 5 failed logins the account is locked for
   15 minutes. Changing the password signs out other sessions. `GET /api/settings`
-  does not return SMTP/Telegram/API secrets.
+  does not return SMTP/Telegram/API secrets. Session cookie: HttpOnly,
+  SameSite=Lax; `Secure` only when the request is already HTTPS (plain
+  `:8000` keeps working).
 - If the password is forgotten: on the login screen use “Forgot password?” —
   a code is emailed to the address from AI settings (SMTP + recovery email).
   The code is valid for 15 minutes. Without SMTP you can still delete
   `data/auth.json` in the container and create the account again.
-- Do not use public Wi-Fi networks when working with lab results without encryption.
+- On LAN, terminate TLS with Caddy (`deploy/proxmox/Caddyfile`, internal CA).
+  Do not use public Wi-Fi when working with lab results without HTTPS.
 
 ## License
 

@@ -482,6 +482,11 @@ def profile_summary(profile: dict[str, Any]) -> str:
         if age is not None:
             part += i18n.t("tool.profile.age", value=age)
         parts.append(part)
+    sex = profile.get("sex")
+    if sex == "m":
+        parts.append(i18n.t("tool.profile.sex_m"))
+    elif sex == "f":
+        parts.append(i18n.t("tool.profile.sex_f"))
     if profile.get("blood_type"):
         parts.append(i18n.t("tool.profile.blood", value=profile["blood_type"]))
     if profile.get("height_cm"):
@@ -498,7 +503,7 @@ def profile_context() -> str:
         return ""
     if not any(
         profile.get(k)
-        for k in ("name", "birth_year", "height_cm", "weight_kg", "blood_type")
+        for k in ("name", "birth_year", "height_cm", "weight_kg", "blood_type", "sex")
     ):
         return ""
     return i18n.t("tool.profile.context", summary=profile_summary(profile))
@@ -678,16 +683,22 @@ async def check_marker_norm(
     """Проверяет показатель по справочнику референсных норм (пол/возраст)."""
     if not marker.strip():
         return i18n.t("tool.check_marker_norm.empty")
-    if age is None:
-        pid = _current_profile_id()
-        if pid is not None:
-            try:
-                profile = database.get_profile(pid)
-                by = profile.get("birth_year")
-                if by:
-                    age = datetime.now().year - int(by)
-            except (KeyError, TypeError, ValueError):
-                age = None
+    profile = None
+    pid = _current_profile_id()
+    if pid is not None:
+        try:
+            profile = database.get_profile(pid)
+        except KeyError:
+            profile = None
+    if age is None and profile:
+        try:
+            by = profile.get("birth_year")
+            if by:
+                age = datetime.now().year - int(by)
+        except (TypeError, ValueError):
+            age = None
+    if not sex and profile:
+        sex = profile.get("sex")
     result = norms.check_norm(marker, value, unit, sex, age)
     if result is None:
         return i18n.t("norm.not_found", marker=marker) + await _wiki_grounding([marker])

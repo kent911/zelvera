@@ -314,19 +314,41 @@ def read_session(request: Request) -> str | None:
     return session_username(request.cookies.get(COOKIE_NAME))
 
 
-def set_session_cookie(response: Response) -> None:
+_LOCAL_PROXY = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
+def request_is_https(request: Request | None) -> bool:
+    if request is None:
+        return False
+    if request.url.scheme == "https":
+        return True
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if proto != "https":
+        return False
+    client = (request.client.host if request.client else "") or ""
+    return client in _LOCAL_PROXY
+
+
+def set_session_cookie(response: Response, request: Request | None = None) -> None:
     response.set_cookie(
         COOKIE_NAME,
         make_session_token(),
         httponly=True,
         samesite="lax",
+        secure=request_is_https(request),
         max_age=SESSION_DAYS * 24 * 3600,
         path="/",
     )
 
 
-def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(COOKIE_NAME, path="/")
+def clear_session_cookie(response: Response, request: Request | None = None) -> None:
+    response.delete_cookie(
+        COOKIE_NAME,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=request_is_https(request),
+    )
 
 
 def status(request: Request) -> dict[str, Any]:

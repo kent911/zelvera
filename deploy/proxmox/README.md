@@ -11,11 +11,12 @@ Proxmox (мини-ПК)
 ├── LXC "ollama"   — Ollama + NVIDIA GPU (passthrough)
 │   └── http://<ip-ollama>:11434
 ├── LXC "zelvera"  — приложение (FastAPI + uvicorn, systemd, автозапуск)
-│   ├── http://<ip-zelvera>:8000  (веб-интерфейс)
+│   ├── http://<ip-zelvera>:8000  (прямой доступ, cookie без Secure)
+│   ├── https://zelvera.lan       (Caddy, внутренний TLS)
 │   └── данные в /opt/zelvera/data (на постоянном storage)
 ├── LXC "kiwix"    — офлайн-Википедия (kiwix-serve, ZIM ~110 ГБ)
 │   └── http://<ip-kiwix>:8080    (база знаний ИИ)
-└── (опционально) Caddy — доступ по имени, например http://zelvera.lan
+└── (опционально) Caddy — HTTPS на LAN, например https://zelvera.lan
 ```
 
 ## Шаг 1. Создание контейнеров
@@ -232,20 +233,84 @@ curl http://<ip-kiwix>:8080
 до 4000 символов, по умолчанию до 3 статей за запрос). Это не тянет 110 ГБ:
 модель получает только нужные фрагменты.
 
-## Шаг 7. (Опционально) Доступ по имени через Caddy
+## Шаг 7. HTTPS на LAN через Caddy
 
-На хосте (или в контейнере Zelvera):
+Рабочая схема (проверено): Caddy внутри контейнера Zelvera (CTID **108**,
+IP `192.168.88.62`), домен `zelvera.lan`, `tls internal`. Без `tls internal`
+Caddy лезет за публичным сертификатом и падает.
+
+Uvicorn остаётся на `:8000`. Cookie `Secure` ставится только на HTTPS
+(схема или `X-Forwarded-Proto` от локального прокси), прямой
+`http://192.168.88.62:8000` не ломается.
+
+### 1. Caddy в контейнере 108
 
 ```bash
+pct enter 108
+apt-get update
 apt-get install -y caddy
+cp /opt/zelvera/deploy/proxmox/Caddyfile /etc/caddy/Caddyfile
 ```
 
-Скопируйте `Caddyfile` из этой папки в `/etc/caddy/Caddyfile`, замените
-`zelvera.lan` на нужное имя и перезапустите:
+Минимальный рабочий Caddyfile (если не копируете из репо):
+
+```text
+zelvera.lan {
+    reverse_proxy 127.0.0.1:8000
+    tls internal
+}
+```
+
+Строка `tls internal` обязательна.
+
+### 2. Перезапуск
 
 ```bash
-systemctl restart caddy
+systemctl stop caddy
+# если раньше Caddy уже пытался взять публичный сертификат:
+# не удаляйте PKI целиком — только кэш публичных сертификатов
+systemctl start caddy
+systemctl status caddy
 ```
+
+`caddy trust` внутри контейнера может написать `failed to install root
+certificate` — это не критично, сертификат ставится на телефон/ПК вручную.
+
+### 3. Корневой сертификат на хост Proxmox
+
+```bash
+pct exec 108 -- cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt > /root/caddy-root.crt
+```
+
+Дальше скопируйте `/root/caddy-root.crt` на устройство.
+
+- Windows: открыть файл → «Установить сертификат» → «Локальный компьютер» →
+  «Доверенные корневые центры сертификации».
+- Linux: `cp caddy-root.crt /usr/local/share/ca-certificates/ && update-ca-certificates`
+- Android: Настройки → Безопасность → Установить сертификат → Сертификат ЦС.
+- iOS: открыть файл → Настройки → Основные → VPN и управление устройством →
+  Установить → включить полное доверие.
+
+### 4. DNS
+
+В роутере или в `hosts` клиента:
+
+```text
+192.168.88.62  zelvera.lan
+```
+
+Windows: `C:\Windows\System32\drivers\etc\hosts`. Linux/Mac: `/etc/hosts`.
+
+### 5. Проверка
+
+Открыть `https://zelvera.lan`. Прямой HTTP `http://192.168.88.62:8000`
+по-прежнему работает.
+
+Если Caddy стоит на хосте Proxmox, а не в 108, в Caddyfile замените
+`127.0.0.1:8000` на `192.168.88.62:8000`.
+
+Сообщения вроде `No OCSP server specified` для внутреннего CA можно
+игнорировать.
 
 ## Резервное копирование
 

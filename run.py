@@ -27,4 +27,6 @@ if __name__ == "__main__":
         host=(os.getenv("ZELVERA_HOST") or "0.0.0.0").strip(),
         port=int((os.getenv("ZELVERA_PORT") or "8000").strip()),
         reload=_env_flag("ZELVERA_DEV"),
+        proxy_headers=True,
+        forwarded_allow_ips="127.0.0.1",
     )

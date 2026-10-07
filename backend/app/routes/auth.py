@@ -33,7 +33,7 @@ async def auth_status(request: Request) -> dict:
 
 
 @router.post("/auth/setup")
-async def auth_setup(body: SetupIn, response: Response) -> dict:
+async def auth_setup(body: SetupIn, request: Request, response: Response) -> dict:
     try:
         saved = auth.setup(body.username, body.password)
     except ValueError as exc:
@@ -43,13 +43,13 @@ async def auth_setup(body: SetupIn, response: Response) -> dict:
         if code == "username":
             raise HTTPException(status_code=400, detail=i18n.t("auth.username_short")) from exc
         raise HTTPException(status_code=400, detail=i18n.t("auth.password_short")) from exc
-    auth.set_session_cookie(response)
+    auth.set_session_cookie(response, request)
     audit.log_action("auth_setup", saved["username"])
     return {"ok": True, "username": saved["username"]}
 
 
 @router.post("/auth/login")
-async def auth_login(body: LoginIn, response: Response) -> dict:
+async def auth_login(body: LoginIn, request: Request, response: Response) -> dict:
     try:
         ok = auth.attempt_login(body.username, body.password)
     except ValueError as exc:
@@ -61,14 +61,14 @@ async def auth_login(body: LoginIn, response: Response) -> dict:
         raise HTTPException(status_code=401, detail=i18n.t("auth.invalid")) from exc
     if not ok:
         raise HTTPException(status_code=401, detail=i18n.t("auth.invalid"))
-    auth.set_session_cookie(response)
+    auth.set_session_cookie(response, request)
     audit.log_action("auth_login", auth.username())
     return {"ok": True, "username": auth.username()}
 
 
 @router.post("/auth/logout")
-async def auth_logout(response: Response) -> dict:
-    auth.clear_session_cookie(response)
+async def auth_logout(request: Request, response: Response) -> dict:
+    auth.clear_session_cookie(response, request)
     return {"ok": True}
 
 
@@ -85,7 +85,7 @@ async def auth_password(body: PasswordChangeIn, request: Request, response: Resp
         if code == "missing":
             raise HTTPException(status_code=400, detail=i18n.t("auth.not_configured")) from exc
         raise HTTPException(status_code=400, detail=i18n.t("auth.password_short")) from exc
-    auth.set_session_cookie(response)
+    auth.set_session_cookie(response, request)
     audit.log_action("auth_password", auth.username())
     return {"ok": True}
 
@@ -110,7 +110,7 @@ async def auth_reset_request() -> dict:
 
 
 @router.post("/auth/reset/confirm")
-async def auth_reset_confirm(body: ResetConfirmIn, response: Response) -> dict:
+async def auth_reset_confirm(body: ResetConfirmIn, request: Request, response: Response) -> dict:
     try:
         auth.confirm_reset(body.code, body.new_password)
     except ValueError as exc:
@@ -120,6 +120,6 @@ async def auth_reset_confirm(body: ResetConfirmIn, response: Response) -> dict:
         if code == "password":
             raise HTTPException(status_code=400, detail=i18n.t("auth.password_short")) from exc
         raise HTTPException(status_code=400, detail=i18n.t("auth.reset_invalid")) from exc
-    auth.set_session_cookie(response)
+    auth.set_session_cookie(response, request)
     audit.log_action("auth_reset", auth.username())
     return {"ok": True, "username": auth.username()}

@@ -802,6 +802,13 @@ nav {
   cursor: not-allowed;
 }
 
+.send-btn.stop-btn {
+  background: var(--danger, #e5484d);
+  color: #fff;
+  opacity: 1;
+  cursor: pointer;
+}
+
 .voice-btn {
   flex-shrink: 0;
   width: 44px;

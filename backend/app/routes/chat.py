@@ -4,7 +4,7 @@ import json
 import logging
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -84,7 +84,7 @@ async def config() -> dict:
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest) -> StreamingResponse:
+async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     messages: list[dict] = []
     if req.system_prompt:
         messages.append({"role": "system", "content": req.system_prompt})
@@ -150,13 +150,19 @@ async def chat(req: ChatRequest) -> StreamingResponse:
                 async for item in chat_with_tools(
                     messages, tools.get_tools(), tool_executor
                 ):
+                    if await request.is_disconnected():
+                        return
                     if isinstance(item, str):
                         acc += item
                     yield _sse(item)
             except llm.LLMError:
                 async for chunk in stream_chat(messages):
+                    if await request.is_disconnected():
+                        return
                     acc += chunk
                     yield _sse(chunk)
+            except asyncio.CancelledError:
+                return
             if pending:
                 yield _sse({"images": pending})
             yield "data: [DONE]\n\n"

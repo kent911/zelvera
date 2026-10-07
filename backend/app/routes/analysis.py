@@ -3,7 +3,7 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.services import articles_db, audit, database, embeddings, i18n, llm
@@ -41,7 +41,7 @@ def _marker_line(m: dict[str, Any]) -> str:
 
 
 @router.post("/analysis")
-async def analysis(profile_id: int | None = None) -> StreamingResponse:
+async def analysis(request: Request, profile_id: int | None = None) -> StreamingResponse:
     if profile_id is not None:
         try:
             database.get_profile(profile_id)
@@ -101,8 +101,13 @@ async def analysis(profile_id: int | None = None) -> StreamingResponse:
     async def event_stream():
         if not article_results:
             yield _sse(i18n.t("analysis.no_articles_note"))
-        async for chunk in llm.stream_chat(messages):
-            yield _sse(chunk)
+        try:
+            async for chunk in llm.stream_chat(messages):
+                if await request.is_disconnected():
+                    return
+                yield _sse(chunk)
+        except asyncio.CancelledError:
+            return
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
