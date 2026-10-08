@@ -3,13 +3,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
   <title>Zelvera — локальный медицинский ассистент</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=25" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=25" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=25" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=25" />
-  <link rel="stylesheet" href="css/style.css?v=42" />
+  <link rel="stylesheet" href="css/style.css?v=43" />
 </head>
 <body>
   <div id="login-overlay" class="login-overlay hidden">
@@ -49,6 +50,12 @@
       <button type="button" id="login-back" class="link-btn hidden" data-i18n="auth.backToLogin">К входу</button>
     </div>
   </div>
+  <button type="button" id="menu-toggle" class="menu-toggle" data-i18n-title="nav.menu" title="Меню" aria-label="Меню" aria-expanded="false">
+    <span class="menu-toggle-bar"></span>
+    <span class="menu-toggle-bar"></span>
+    <span class="menu-toggle-bar"></span>
+  </button>
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
   <div id="app">
     <aside id="sidebar">
       <div class="brand">
@@ -220,6 +227,13 @@
         </div>
       </section>
     </main>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Основное меню">
+      <button class="nav-item active" data-view="chat" data-i18n="nav.chatShort">Чат</button>
+      <button class="nav-item" data-view="card" data-i18n="nav.cardShort">Карта</button>
+      <button class="nav-item" data-view="articles" data-i18n="nav.articlesShort">Статьи</button>
+      <button class="nav-item" data-view="notes" data-i18n="nav.notesShort">Заметки</button>
+      <button class="nav-item" data-view="memory" data-i18n="nav.memoryShort">Память</button>
+    </nav>
   </div>
 
   <div id="settings-modal" class="modal-overlay hidden">
@@ -533,7 +547,7 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script src="js/i18n.js?v=42"></script>
-  <script src="js/app.js?v=42"></script>
+  <script src="js/i18n.js?v=43"></script>
+  <script src="js/app.js?v=43"></script>
 </body>
 </html>

@@ -13,6 +13,12 @@ const I18N_STRINGS = {
     "nav.articles": "База статей",
     "nav.notes": "Заметки",
     "nav.memory": "Память",
+    "nav.chatShort": "Чат",
+    "nav.cardShort": "Карта",
+    "nav.articlesShort": "Статьи",
+    "nav.notesShort": "Заметки",
+    "nav.memoryShort": "Память",
+    "nav.menu": "Меню",
     "settingsBtn": "Настройки ИИ",
     "logsBtn": "Логи и ошибки",
     "auth.setupTitle": "Создайте логин и пароль",
@@ -431,6 +437,12 @@ const I18N_STRINGS = {
     "nav.articles": "Article database",
     "nav.notes": "Notes",
     "nav.memory": "Memory",
+    "nav.chatShort": "Chat",
+    "nav.cardShort": "Card",
+    "nav.articlesShort": "Papers",
+    "nav.notesShort": "Notes",
+    "nav.memoryShort": "Memory",
+    "nav.menu": "Menu",
     "settingsBtn": "AI settings",
     "logsBtn": "Logs & errors",
     "auth.setupTitle": "Create a username and password",
@@ -872,7 +884,9 @@ function applyI18n() {
     el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
   });
   document.querySelectorAll("[data-i18n-title]").forEach((el) => {
-    el.title = t(el.getAttribute("data-i18n-title"));
+    const title = t(el.getAttribute("data-i18n-title"));
+    el.title = title;
+    if (el.hasAttribute("aria-label")) el.setAttribute("aria-label", title);
   });
   const toggle = document.getElementById("lang-toggle");
   if (toggle) toggle.textContent = LANG === "ru" ? "EN" : "RU";

@@ -930,6 +930,16 @@ function showToast(message, type = "info", timeout = 6000) {
   setTimeout(dismiss, timeout);
 }
 
+function setMobileMenu(open) {
+  document.body.classList.toggle("sidebar-open", open);
+  const toggle = document.getElementById("menu-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function closeMobileMenu() {
+  setMobileMenu(false);
+}
+
 function switchView(view) {
   navItems.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === view && !btn.disabled);
@@ -943,6 +953,7 @@ function switchView(view) {
   if (view === "articles") loadArticles();
   if (view === "notes") loadNotes();
   if (view === "memory") loadMemory();
+  closeMobileMenu();
 }
 
 async function saveRecord(record, originalFile) {
@@ -1154,6 +1165,23 @@ navItems.forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   }
 });
+
+const menuToggle = document.getElementById("menu-toggle");
+const sidebarOverlay = document.getElementById("sidebar-overlay");
+if (menuToggle) {
+  menuToggle.setAttribute("aria-expanded", "false");
+  menuToggle.addEventListener("click", () => {
+    setMobileMenu(!document.body.classList.contains("sidebar-open"));
+  });
+}
+if (sidebarOverlay) {
+  sidebarOverlay.addEventListener("click", closeMobileMenu);
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeMobileMenu();
+});
+if (btnSettings) btnSettings.addEventListener("click", closeMobileMenu);
+if (btnLogs) btnLogs.addEventListener("click", closeMobileMenu);
 btnRefresh.addEventListener("click", loadRecords);
 
 const TREND_KEYS = {
