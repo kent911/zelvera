@@ -27,15 +27,15 @@ graph TD
     API --> DB["SQLite medical.db"]
     API --> RAG["ChromaDB articles"]
     API --> KX["Kiwix offline Wikipedia"]
-    LLM --> LS["llama-server / OpenAI API"]
-    LLM --> OL["Ollama"]
+    LLM -->|"chat / tools"| LS["llama-server / OpenAI API"]
+    LLM -->|"chat / tools"| OL["Ollama"]
     VIS --> OL
-    RAG --> OL
+    RAG -->|"embeddings only"| OL
 ```
 
 - Chat and function calling go to the selected backend: Ollama or an OpenAI-compatible API (llama-server).
 - Photo recognition has its own backend; llama-server without mmproj cannot read images, so OCR falls back to Ollama.
-- Article embeddings always go through Ollama.
+- Article embeddings always go through Ollama. llama-server / OpenAI does not talk to ChromaDB: the `search_articles` tool embeds the query with Ollama, then searches ChromaDB.
 - Data stays local in `data/` (SQLite + ChromaDB).
 
 ## Getting started

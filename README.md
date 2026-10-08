@@ -27,15 +27,15 @@ graph TD
     API --> DB["SQLite medical.db"]
     API --> RAG["ChromaDB статьи"]
     API --> KX["Kiwix офлайн-Википедия"]
-    LLM --> LS["llama-server / OpenAI API"]
-    LLM --> OL["Ollama"]
+    LLM -->|"чат / tools"| LS["llama-server / OpenAI API"]
+    LLM -->|"чат / tools"| OL["Ollama"]
     VIS --> OL
-    RAG --> OL
+    RAG -->|"эмбеддинги только"| OL
 ```
 
 - Чат и function calling идут в выбранный движок: Ollama или OpenAI-совместимый API (llama-server).
 - Распознавание фото имеет отдельный движок; без mmproj llama-server картинки не читает — OCR уходит в Ollama.
-- Эмбеддинги базы статей всегда через Ollama.
+- Эмбеддинги базы статей всегда через Ollama. llama-server / OpenAI к ChromaDB не подключается: tool `search_articles` эмбеддит запрос в Ollama и только потом ищет в ChromaDB.
 - Данные остаются локально в `data/` (SQLite + ChromaDB).
 
 ## Запуск
