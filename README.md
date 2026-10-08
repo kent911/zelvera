@@ -206,6 +206,8 @@ USER_LLM_MODEL=bonsai2-27B
 | POST | `/api/auth/login` | Войти |
 | POST | `/api/auth/logout` | Выйти |
 | POST | `/api/auth/password` | Сменить пароль |
+| POST | `/api/auth/reset/request` | Отправить код сброса пароля на почту |
+| POST | `/api/auth/reset/confirm` | Сменить пароль по коду из письма |
 | GET | `/api/health` | Статус и активная модель |
 | GET | `/api/config` | Текущий бэкенд/модель для UI |
 | POST | `/api/chat` | Диалог, ответ стримится по SSE (`data: {content}`) |
@@ -225,14 +227,14 @@ USER_LLM_MODEL=bonsai2-27B
 | POST | `/api/articles/{id}/search` | Поиск внутри одной статьи (для «Обсудить с ИИ») |
 | DELETE | `/api/articles/{id}` | Удалить статью |
 | POST | `/api/analysis` | Аналитический отчёт «анализы ↔ статьи» (SSE-стриминг, `?profile_id=`) |
-| GET | `/api/settings` | Текущие модели (Ollama) |
-| POST | `/api/settings` | Сохранить выбранные модели |
+| GET | `/api/settings` | Текущие настройки ИИ (секреты замаскированы) |
+| POST | `/api/settings` | Сохранить выбранные модели и параметры |
 | POST | `/api/settings/ollama-models` | Список моделей из запущенной Ollama |
 | POST | `/api/settings/openai-models` | Список моделей OpenAI-совместимого API (llama-server) |
-| POST | `/api/settings/ollama-pull` | Скачать модель в Ollama (`ollama pull`, фоновая задача) |
-| GET | `/api/settings/ollama-pull/{model}` | Статус скачивания модели |
+| POST | `/api/settings/kiwix-books` | Проверить Kiwix и список ZIM-книг |
 | POST | `/api/settings/telegram-test` | Проверить токен Telegram-бота (`getMe`) |
 | GET | `/api/settings/telegram-status` | Статус Telegram-бота: настроен/запущен, STT/TTS |
+| POST | `/api/settings/smtp-test` | Проверить SMTP для сброса пароля |
 | GET | `/api/logs` | Последние строки журнала приложения |
 | GET | `/api/logs/download` | Скачать журнал (.log) |
 | POST | `/api/logs/client` | Записать ошибку с фронтенда в журнал/аудит |
@@ -245,9 +247,11 @@ USER_LLM_MODEL=bonsai2-27B
 | DELETE | `/api/memory` | Очистить память профиля (L0–L3) |
 | GET | `/api/notes/export.pdf` | Экспорт заметок в PDF |
 | GET | `/api/profiles` | Список профилей + текущий (один профиль) |
-| PATCH | `/api/profiles/{id}` | Обновить профиль (name, birth_year, height_cm, weight_kg, blood_type) |
+| POST | `/api/profiles` | Создать профиль |
+| PATCH | `/api/profiles/{id}` | Обновить профиль (name, birth_year, sex, height_cm, weight_kg, blood_type) |
 | POST | `/api/profiles/{id}/activate` | Сделать профиль текущим |
 | GET | `/api/profiles/current` | Текущий профиль |
+| DELETE | `/api/profiles/{id}` | Удалить профиль |
 | GET | `/api/reminders` | Список напоминаний (`?profile_id=`) |
 | POST | `/api/reminders` | Создать напоминание о пересдаче анализа |
 | DELETE | `/api/reminders/{id}` | Удалить напоминание |
@@ -372,8 +376,8 @@ ollama pull gemma4:26b   # поддерживает изображения
 Во вкладке «База статей»:
 
 - Загрузка PDF/DOCX/TXT → текст извлекается, делится на перекрывающиеся чанки,
-  для каждого чанка считаются эмбеддинги (Ollama `nomic-embed-text`
-  или OpenAI `text-embedding-3-small`), LLM пишет резюме на русском.
+  для каждого чанка считаются эмбеддинги через Ollama (`nomic-embed-text`),
+  LLM пишет резюме на русском. OpenAI / llama-server для эмбеддингов не используется.
 - Чанки хранятся в ChromaDB (`data/chroma`, косинусная метрика), метаданные
   статьи — в SQLite.
 - Поиск по смыслу: запрос эмбеддится и ищется по всем чанкам, возвращаются
@@ -570,13 +574,13 @@ SOCKS-прокси требует пакет `socksio` (уже в `requirements.
 - долгосрочный отчёт: годовая сводка показателей и ИИ-оценка здоровья за период;
 - Telegram-бот: текст-чат, фото анализов в карту, голосовые сообщения, напоминания;
 - аудит действий, логи, десктопное окно (pywebview), сборка Windows (PyInstaller + CI);
-- долгая память ассистента L0–L3 (факты, саммари, портрет) локально в SQLite.
+- долгая память ассистента L0–L3 (факты, саммари, портрет) локально в SQLite;
+- мобильная вёрстка веб-интерфейса (бургер, нижняя навигация; не отдельное приложение).
 
 Возможные следующие шаги (не приоритетные):
 
 - авто-сводка «Итог за месяц» — LLM-резюме динамики показателей за 30 дней;
-- уведомления о напоминаниях при запуске приложения;
-- мобильная адаптация интерфейса.
+- уведомления о напоминаниях при запуске приложения.
 
 ## Структура
 

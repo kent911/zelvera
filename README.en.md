@@ -206,6 +206,8 @@ images.
 | POST | `/api/auth/login` | Sign in |
 | POST | `/api/auth/logout` | Sign out |
 | POST | `/api/auth/password` | Change password |
+| POST | `/api/auth/reset/request` | Send a password-reset code by email |
+| POST | `/api/auth/reset/confirm` | Change password using the email code |
 | GET | `/api/health` | Status and active model |
 | GET | `/api/config` | Current backend/model for the UI |
 | POST | `/api/chat` | Chat; the reply streams via SSE (`data: {content}`) |
@@ -225,14 +227,14 @@ images.
 | POST | `/api/articles/{id}/search` | Search inside one article (for "Discuss with AI") |
 | DELETE | `/api/articles/{id}` | Delete an article |
 | POST | `/api/analysis` | Analytical report "labs ↔ articles" (SSE streaming, `?profile_id=`) |
-| GET | `/api/settings` | Current models (Ollama) |
-| POST | `/api/settings` | Save selected models |
+| GET | `/api/settings` | Current AI settings (secrets masked) |
+| POST | `/api/settings` | Save selected models and parameters |
 | POST | `/api/settings/ollama-models` | List of models from a running Ollama |
 | POST | `/api/settings/openai-models` | List of models from an OpenAI-compatible API (llama-server) |
-| POST | `/api/settings/ollama-pull` | Download a model into Ollama (`ollama pull`, background task) |
-| GET | `/api/settings/ollama-pull/{model}` | Model download status |
+| POST | `/api/settings/kiwix-books` | Check Kiwix and list ZIM books |
 | POST | `/api/settings/telegram-test` | Validate the Telegram bot token (`getMe`) |
 | GET | `/api/settings/telegram-status` | Telegram bot status: configured/running, STT/TTS |
+| POST | `/api/settings/smtp-test` | Test SMTP for password reset |
 | GET | `/api/logs` | Latest lines of the app log |
 | GET | `/api/logs/download` | Download the log (.log) |
 | POST | `/api/logs/client` | Write a frontend error into the log/audit |
@@ -245,9 +247,11 @@ images.
 | DELETE | `/api/memory` | Clear profile memory (L0–L3) |
 | GET | `/api/notes/export.pdf` | Export notes to PDF |
 | GET | `/api/profiles` | List of profiles + current (single profile) |
-| PATCH | `/api/profiles/{id}` | Update a profile (name, birth_year, height_cm, weight_kg, blood_type) |
+| POST | `/api/profiles` | Create a profile |
+| PATCH | `/api/profiles/{id}` | Update a profile (name, birth_year, sex, height_cm, weight_kg, blood_type) |
 | POST | `/api/profiles/{id}/activate` | Make a profile current |
 | GET | `/api/profiles/current` | Current profile |
+| DELETE | `/api/profiles/{id}` | Delete a profile |
 | GET | `/api/reminders` | List of reminders (`?profile_id=`) |
 | POST | `/api/reminders` | Create a lab-retest reminder |
 | DELETE | `/api/reminders/{id}` | Delete a reminder |
@@ -372,8 +376,8 @@ The "AI settings" button in the side menu:
 In the "Article database" tab:
 
 - Upload PDF/DOCX/TXT → text is extracted, split into overlapping chunks,
-  embeddings are computed per chunk (Ollama `nomic-embed-text`
-  or OpenAI `text-embedding-3-small`), the LLM writes a short summary.
+  embeddings are computed per chunk via Ollama (`nomic-embed-text`),
+  the LLM writes a short summary. OpenAI / llama-server is not used for embeddings.
 - Chunks are stored in ChromaDB (`data/chroma`, cosine metric), article
   metadata in SQLite.
 - Semantic search: the query is embedded and matched against all chunks,
@@ -571,13 +575,13 @@ Implemented:
 - long-term report: per-year marker summary and an AI health assessment for a period;
 - Telegram bot: text chat, lab-report photos into the card, voice messages, reminders;
 - action audit, logs, desktop window (pywebview), Windows build (PyInstaller + CI);
-- long-term assistant memory L0–L3 (facts, recaps, portrait) locally in SQLite.
+- long-term assistant memory L0–L3 (facts, recaps, portrait) locally in SQLite;
+- mobile web layout (burger menu, bottom nav; not a store app).
 
 Possible next steps (not prioritized):
 
 - "Monthly summary" auto-digest — an LLM summary of marker dynamics over 30 days;
-- notifications for reminders on app startup;
-- mobile UI adaptation.
+- notifications for reminders on app startup.
 
 ## Structure
 
