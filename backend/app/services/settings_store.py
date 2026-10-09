@@ -215,6 +215,31 @@ async def list_ollama_models(base_url: str) -> list[str]:
     return [m.get("name", "") for m in models if m.get("name")]
 
 
+async def probe_llm() -> dict[str, str | bool]:
+    """Пинг выбранного чат-движка. Не бросает: UI красит точку по reachable."""
+    backend = llm_backend()
+    model = get("chat_model")
+    result: dict[str, str | bool] = {
+        "backend": backend,
+        "model": model,
+        "reachable": False,
+        "error": "",
+    }
+    try:
+        if backend == "openai":
+            names = await list_openai_models(openai_base_url(), openai_api_key())
+        else:
+            names = await list_ollama_models(get("ollama_base_url"))
+        result["reachable"] = True
+        if model and names and model not in names:
+            result["error"] = "model"
+    except ConnectionError as exc:
+        result["error"] = str(exc)
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
+
+
 def get_current_profile_id() -> int | None:
     value = _load().get("current_profile_id", "")
     if value and value.strip().isdigit():

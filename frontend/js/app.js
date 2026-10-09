@@ -691,15 +691,29 @@ async function init() {
   try {
     const res = await fetch("/api/config");
     const cfg = await res.json();
-    modelLabel.textContent = `${cfg.backend} / ${cfg.model}`;
-    modelDot.classList.add("ok");
+    renderModelStatus(cfg);
     renderKiwixStatus(cfg.kiwix);
   } catch {
     modelLabel.textContent = t("chat.noServer");
+    modelDot.classList.remove("ok");
     modelDot.classList.add("err");
     kiwixLabel.textContent = t("status.kiwix") + ": " + t("chat.noServer");
+    kiwixDot.classList.remove("ok");
     kiwixDot.classList.add("err");
   }
+}
+
+function renderModelStatus(cfg) {
+  const backend = cfg.backend || "";
+  const model = cfg.model || "";
+  modelDot.classList.remove("ok", "err");
+  if (cfg.reachable) {
+    modelLabel.textContent = `${backend} / ${model}`;
+    modelDot.classList.add("ok");
+    return;
+  }
+  modelLabel.textContent = `${backend} / ${model}: ${t("chat.noLlm")}`;
+  modelDot.classList.add("err");
 }
 
 function renderKiwixStatus(k) {
@@ -2829,8 +2843,13 @@ async function saveSettings() {
       setModelsStatus(t("settings.error", { msg: data.detail || t("error.unknown") }), true);
       return;
     }
-    modelLabel.textContent = `${data.backend} / ${data.chat_model}`;
     closeSettings();
+    try {
+      const cfgRes = await fetch("/api/config");
+      renderModelStatus(await cfgRes.json());
+    } catch {
+      modelLabel.textContent = `${data.backend} / ${data.chat_model}`;
+    }
   } catch (err) {
     setModelsStatus(t("settings.error", { msg: err.message }), true);
   }

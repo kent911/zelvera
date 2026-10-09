@@ -73,13 +73,19 @@ async def health() -> dict:
 
 @router.get("/config")
 async def config() -> dict:
+    llm_status, kiwix_status = await asyncio.gather(
+        settings_store.probe_llm(),
+        kiwix.check_connection(),
+    )
     return {
-        "backend": settings_store.llm_backend(),
+        "backend": llm_status["backend"],
         "vision_backend": settings_store.vision_backend(),
-        "model": settings_store.get("chat_model"),
+        "model": llm_status["model"],
+        "reachable": llm_status["reachable"],
+        "llm_error": llm_status["error"],
         "ollama_url": settings_store.get("ollama_base_url"),
         "openai_url": settings_store.openai_base_url(),
-        "kiwix": await kiwix.check_connection(),
+        "kiwix": kiwix_status,
     }
 
 

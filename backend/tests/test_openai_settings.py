@@ -111,6 +111,50 @@ def test_vision_backend_rejects_unknown(tmp_path, monkeypatch):
     assert settings_store.vision_backend() == "openai"
 
 
+def test_probe_llm_openai_down(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(
+        llm_backend="openai",
+        openai_base_url="http://127.0.0.1:9",
+        chat_model="bonsai2-27B",
+    )
+
+    async def boom(*_args, **_kwargs):
+        raise ConnectionError("unreachable")
+
+    monkeypatch.setattr(settings_store, "list_openai_models", boom)
+    status = asyncio.run(settings_store.probe_llm())
+    assert status["backend"] == "openai"
+    assert status["model"] == "bonsai2-27B"
+    assert status["reachable"] is False
+    assert status["error"]
+
+
+def test_probe_llm_openai_up(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(
+        llm_backend="openai",
+        openai_base_url="http://127.0.0.1:8080",
+        chat_model="bonsai2-27B",
+    )
+
+    async def ok(*_args, **_kwargs):
+        return ["bonsai2-27B"]
+
+    monkeypatch.setattr(settings_store, "list_openai_models", ok)
+    status = asyncio.run(settings_store.probe_llm())
+    assert status["reachable"] is True
+    assert status["error"] == ""
+
+
 def test_openai_image_unsupported_detects_mmproj():
     assert _openai_image_unsupported(
         Exception("image input is not supported - hint: if this is unexpected, you may need to provide the mmproj")
