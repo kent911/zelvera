@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from app.config import CHROMA_DIR, DATA_DIR, DB_PATH, MEDIA_DIR
-from app.services import audit, database, i18n
+from app.services import articles_db, audit, database, i18n
 from app.services.logger import logger
 
 router = APIRouter()
@@ -139,39 +139,40 @@ def _restore_from(zip_path: Path, work_dir: Path) -> list[str]:
             )
 
     db_src = extract_dir / "medical.db"
-    if db_src.is_file():
-        shutil.copy2(db_src, DB_PATH)
-        for extra in (f"{DB_PATH}-wal", f"{DB_PATH}-shm"):
-            extra_path = Path(extra)
-            if extra_path.is_file():
-                extra_path.unlink()
-        restored.append("medical.db")
+    with database.exclusive():
+        if db_src.is_file():
+            shutil.copy2(db_src, DB_PATH)
+            for extra in (f"{DB_PATH}-wal", f"{DB_PATH}-shm"):
+                extra_path = Path(extra)
+                if extra_path.is_file():
+                    extra_path.unlink()
+            restored.append("medical.db")
 
-    settings_src = extract_dir / "settings.json"
-    if settings_src.is_file():
-        shutil.copy2(settings_src, DATA_DIR / "settings.json")
-        from app.services import settings_store
+        settings_src = extract_dir / "settings.json"
+        if settings_src.is_file():
+            shutil.copy2(settings_src, DATA_DIR / "settings.json")
+            from app.services import settings_store
 
-        settings_store.reset_cache()
-        restored.append("settings.json")
+            settings_store.reset_cache()
+            restored.append("settings.json")
 
-    auth_src = extract_dir / "auth.json"
-    if auth_src.is_file():
-        shutil.copy2(auth_src, DATA_DIR / "auth.json")
-        from app.services import auth as auth_store
+        auth_src = extract_dir / "auth.json"
+        if auth_src.is_file():
+            shutil.copy2(auth_src, DATA_DIR / "auth.json")
+            from app.services import auth as auth_store
 
-        auth_store.reset_cache()
-        restored.append("auth.json")
+            auth_store.reset_cache()
+            restored.append("auth.json")
 
-    chroma_src = extract_dir / "chroma"
-    if chroma_src.is_dir():
-        _copy_tree(chroma_src, CHROMA_DIR)
-        restored.append("chroma/")
+        chroma_src = extract_dir / "chroma"
+        if chroma_src.is_dir():
+            _copy_tree(chroma_src, CHROMA_DIR)
+            restored.append("chroma/")
 
-    media_src = extract_dir / "media"
-    if media_src.is_dir():
-        _copy_tree(media_src, MEDIA_DIR)
-        restored.append("media/")
+        media_src = extract_dir / "media"
+        if media_src.is_dir():
+            _copy_tree(media_src, MEDIA_DIR)
+            restored.append("media/")
     return restored
 
 
@@ -205,6 +206,7 @@ async def import_backup(file: UploadFile = File(...)) -> dict:
         shutil.rmtree(work_dir, ignore_errors=True)
 
     database.init_db()
+    articles_db.reset_cache()
     audit.log_action("backup_import", ", ".join(restored))
     logger.info("Импорт резервной копии: %s", ", ".join(restored))
     return {"ok": True, "restored": restored}

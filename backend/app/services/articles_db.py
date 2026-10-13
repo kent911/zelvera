@@ -96,6 +96,11 @@ def _invalidate_index() -> None:
         _index = None
 
 
+def reset_cache() -> None:
+    """Сбрасывает кэш BM25 (например, после восстановления из копии)."""
+    _invalidate_index()
+
+
 def _ensure_index() -> dict[str, Any]:
     """Лениво строит инвертированный индекс фрагментов для BM25.
 

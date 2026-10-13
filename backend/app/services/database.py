@@ -1,12 +1,17 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import re
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 
 from app.config import DATA_DIR, DB_PATH
+
+# Сериализует доступ к файлу БД: все соединения открываются под этим локом,
+# а восстановление из копии удерживает его, пока подменяет medical.db.
+_DB_LOCK = threading.RLock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (
@@ -126,20 +131,30 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 @contextmanager
 def get_conn() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH, timeout=5)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with _DB_LOCK:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
+@contextmanager
+def exclusive() -> Iterator[None]:
+    """Монопольный доступ к БД: пока удерживается, ни один get_conn() не откроет
+    файл. Используется при восстановлении из резервной копии, чтобы подмена
+    medical.db не совпала с параллельным чтением/записью."""
+    with _DB_LOCK:
+        yield
 
 
 def checkpoint() -> None:

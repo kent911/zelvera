@@ -18,7 +18,9 @@ logger = logging.getLogger("chat")
 
 class ChatRequest(BaseModel):
     messages: list[dict] = Field(..., description="История диалога [{role, content}]")
-    system_prompt: str | None = None
+
+
+_ALLOWED_ROLES = {"user", "assistant"}
 
 
 async def _rag_context(query: str) -> str:
@@ -91,14 +93,15 @@ async def config() -> dict:
 
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
-    messages: list[dict] = []
-    if req.system_prompt:
-        messages.append({"role": "system", "content": req.system_prompt})
-    else:
-        messages.append({"role": "system", "content": i18n.t("chat_system")})
+    messages: list[dict] = [{"role": "system", "content": i18n.t("chat_system")}]
     messages.extend(
-        {"role": m.get("role", "user"), "content": m.get("content", "")}
+        {
+            "role": role,
+            "content": str(m.get("content", "")),
+        }
         for m in req.messages
+        for role in [m.get("role", "user")]
+        if role in _ALLOWED_ROLES
     )
 
     last_user = next(

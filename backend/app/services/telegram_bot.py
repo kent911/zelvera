@@ -9,7 +9,6 @@ settings_store (настройки в UI) с фолбэком на переме�
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import html
 import time
 from datetime import datetime
@@ -33,6 +32,16 @@ from app.services import (
     voice,
 )
 from app.services.logger import logger
+
+try:
+    import fcntl
+except ImportError:  # Windows: межпроцессная блокировка файла недоступна
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:  # не Windows
+    msvcrt = None
 
 API_BASE = "https://api.telegram.org"
 POLL_TIMEOUT = 0
@@ -153,7 +162,11 @@ class TelegramBot:
         try:
             LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
             lock_file = open(LOCK_PATH, "w")
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            elif msvcrt is not None:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError:
             logger.error(
                 "Telegram-бот: другой процесс уже опрашивает бота (%s). "
@@ -169,7 +182,11 @@ class TelegramBot:
         if self._lock_file is None:
             return
         try:
-            fcntl.flock(self._lock_file, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(self._lock_file, fcntl.LOCK_UN)
+            elif msvcrt is not None:
+                self._lock_file.seek(0)
+                msvcrt.locking(self._lock_file.fileno(), msvcrt.LK_UNLCK, 1)
         except OSError:
             pass
         try:

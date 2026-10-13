@@ -43,7 +43,7 @@ def wait_until_up(port: int, timeout: float = 30.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1)
+            urlopen(f"http://127.0.0.1:{port}/api/auth/status", timeout=1)
             return True
         except Exception:
             time.sleep(0.2)

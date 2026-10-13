@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,10 +41,31 @@ PUBLIC_API = {
 }
 
 
+def _is_cross_site(request: Request) -> bool:
+    """Отсекает CSRF: запросы со сторонних сайтов не должны трогать /api/*.
+
+    Опирается на Sec-Fetch-Site (современные браузеры), с фолбэком на
+    сравнение Origin/Referer с Host. Если заголовков нет — не блокируем
+    (старые браузеры, локальные клиенты вроде testclient).
+    """
+    site = (request.headers.get("sec-fetch-site") or "").strip().lower()
+    if site:
+        return site == "cross-site"
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if not origin:
+        return False
+    host = urlparse(origin).netloc
+    return bool(host) and host != (request.headers.get("host") or "")
+
+
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     path = request.url.path
-    if request.method == "OPTIONS" or not path.startswith("/api/") or path in PUBLIC_API:
+    if request.method == "OPTIONS" or not path.startswith("/api/"):
+        return await call_next(request)
+    if _is_cross_site(request):
+        return JSONResponse(status_code=403, content={"detail": i18n.t("auth.forbidden")})
+    if path in PUBLIC_API:
         return await call_next(request)
     if auth.is_configured() and auth.read_session(request):
         return await call_next(request)
