@@ -108,6 +108,8 @@ async def analysis(request: Request, profile_id: int | None = None) -> Streaming
                 yield _sse(chunk)
         except asyncio.CancelledError:
             return
+        except llm.LLMError as exc:
+            yield _sse(f"{i18n.t('error.prefix')} {exc}")
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

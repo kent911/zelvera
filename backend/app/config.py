@@ -77,9 +77,6 @@ class Settings:
         self.user_llm_vision_model: str = os.getenv(
             "USER_LLM_VISION_MODEL", "gpt-4o"
         ).strip()
-        self.user_llm_embed_model: str = os.getenv(
-            "USER_LLM_EMBED_MODEL", "text-embedding-3-small"
-        ).strip()
 
         self.kiwix_base_url: str = os.getenv(
             "KIWIX_BASE_URL", "http://localhost:8080"
@@ -123,17 +120,6 @@ class Settings:
             "true",
             "yes",
             "on",
-        )
-
-        self.system_prompt: str = os.getenv(
-            "SYSTEM_PROMPT",
-            (
-                "Ты — медицинский ИИ-ассистент, помогающий пользователю "
-                "понимать его анализы и научные статьи. Отвечай понятно, "
-                "структурированно, на русском языке. Ты НЕ врач и НЕ ставишь "
-                "диагнозы. В конце ответа о здоровье добавь одну короткую "
-                "строку: 'Не является медицинской консультацией.'"
-            ),
         )
 
     @property

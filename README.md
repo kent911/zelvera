@@ -220,7 +220,9 @@ USER_LLM_MODEL=bonsai2-27B
 | POST | `/api/records/longterm/report` | ИИ-отчёт о здоровье за период по годовой сводке (SSE-стриминг) |
 | GET | `/api/records/export.pdf` | Экспорт мед. карты в PDF (`?profile_id=`) |
 | GET | `/api/records/{id}` | Запись с маркерами (с полем `critical` у критических) |
+| GET | `/api/records/{id}/image` | Оригинал фото бланка, привязанный к записи |
 | DELETE | `/api/records/{id}` | Удалить запись из карты |
+| GET | `/api/markers/catalog` | Каталог показателей: категории, канонические имена, синонимы |
 | POST | `/api/articles` | Загрузить научную статью (PDF/DOCX/TXT) → чанки + эмбеддинги + резюме |
 | GET | `/api/articles` | Список статей |
 | POST | `/api/articles/search` | Смысловой поиск по всем статьям |
@@ -232,12 +234,14 @@ USER_LLM_MODEL=bonsai2-27B
 | POST | `/api/settings/ollama-models` | Список моделей из запущенной Ollama |
 | POST | `/api/settings/openai-models` | Список моделей OpenAI-совместимого API (llama-server) |
 | POST | `/api/settings/kiwix-books` | Проверить Kiwix и список ZIM-книг |
+| GET | `/api/kiwix/image` | Прокси изображений из ZIM-статей (`?zim=&path=`) |
 | POST | `/api/settings/telegram-test` | Проверить токен Telegram-бота (`getMe`) |
 | GET | `/api/settings/telegram-status` | Статус Telegram-бота: настроен/запущен, STT/TTS |
 | POST | `/api/settings/smtp-test` | Проверить SMTP для сброса пароля |
 | GET | `/api/logs` | Последние строки журнала приложения |
 | GET | `/api/logs/download` | Скачать журнал (.log) |
 | POST | `/api/logs/client` | Записать ошибку с фронтенда в журнал/аудит |
+| DELETE | `/api/logs` | Очистить журнал приложения |
 | GET | `/api/notes` | Список заметок (выводы ИИ) |
 | POST | `/api/notes` | Сохранить заметку (можно привязать к статье) |
 | DELETE | `/api/notes/{id}` | Удалить заметку |
@@ -247,11 +251,11 @@ USER_LLM_MODEL=bonsai2-27B
 | DELETE | `/api/memory` | Очистить память профиля (L0–L3) |
 | GET | `/api/notes/export.pdf` | Экспорт заметок в PDF |
 | GET | `/api/profiles` | Список профилей + текущий (один профиль) |
-| POST | `/api/profiles` | Создать профиль |
+| POST | `/api/profiles` | Не поддерживается: профиль всегда один (403) |
 | PATCH | `/api/profiles/{id}` | Обновить профиль (name, birth_year, sex, height_cm, weight_kg, blood_type) |
 | POST | `/api/profiles/{id}/activate` | Сделать профиль текущим |
 | GET | `/api/profiles/current` | Текущий профиль |
-| DELETE | `/api/profiles/{id}` | Удалить профиль |
+| DELETE | `/api/profiles/{id}` | Не поддерживается: профиль всегда один (403) |
 | GET | `/api/reminders` | Список напоминаний (`?profile_id=`) |
 | POST | `/api/reminders` | Создать напоминание о пересдаче анализа |
 | DELETE | `/api/reminders/{id}` | Удалить напоминание |
@@ -595,10 +599,10 @@ backend/app/
   routes/analysis.py # аналитический отчёт «анализы ↔ статьи»
   routes/settings.py # настройки моделей Ollama
   routes/notes.py    # заметки (выводы ИИ по статьям) + экспорт PDF
-  routes/profiles.py # профили здоровья (CRUD + текущий профиль)
+  routes/profiles.py # профиль здоровья (один профиль: чтение/переименование)
   routes/reminders.py# напоминания о пересдаче анализов
   routes/backup.py    # экспорт/импорт ZIP резервной копии
-  routes/kiwix.py     # статус и поиск офлайн-Википедии
+  routes/kiwix.py     # прокси изображений из ZIM-статей (офлайн-Википедия)
   routes/logs.py      # журнал приложения
   services/telegram_bot.py # Telegram-бот: чат, фото анализов, напоминания, память
   services/voice.py  # опциональные STT/TTS для Telegram (faster-whisper, edge-tts)

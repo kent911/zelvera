@@ -261,6 +261,13 @@ async def _complete_with_tools_ollama(
         fn = tc.get("function", {})
         name = fn.get("name", "")
         arguments = fn.get("arguments") or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = {}
+        if not isinstance(arguments, dict):
+            arguments = {}
         calls.append({"name": name, "arguments": arguments})
     return content, calls
 

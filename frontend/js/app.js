@@ -675,6 +675,10 @@ btnChangePassword?.addEventListener("click", async () => {
 });
 
 async function init() {
+  const chips = document.getElementById("suggest-chips");
+  messagesEl.innerHTML = "";
+  const welcome = addMessage("bot", t("chat.welcome"));
+  welcome.setAttribute("data-i18n", "chat.welcome");
   for (const m of history) {
     const bubble = addMessage(m.role === "assistant" ? "bot" : m.role, m.content);
     if (m.role === "assistant" && Array.isArray(m.images)) {
@@ -684,9 +688,12 @@ async function init() {
     }
     if (m.role === "assistant") attachSpeakControl(bubble, m.content);
   }
+  if (chips) messagesEl.appendChild(chips);
   if (history.length) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
     hideSuggestChips();
+  } else {
+    showSuggestChips();
   }
   try {
     const res = await fetch("/api/config");
@@ -718,6 +725,7 @@ function renderModelStatus(cfg) {
 
 function renderKiwixStatus(k) {
   if (!k) return;
+  kiwixDot.classList.remove("ok", "err");
   if (k.ok) {
     kiwixLabel.textContent = t("status.kiwix") + " / " + (k.zim || k.url || "");
     kiwixDot.classList.add("ok");
@@ -1298,10 +1306,10 @@ function trendChartSvg(points, refLow, refHigh) {
   );
 }
 
-function trendBits(t) {
+function trendBits(trend) {
   const bits = [];
-  const low = t.ref_low;
-  const high = t.ref_high;
+  const low = trend.ref_low;
+  const high = trend.ref_high;
   const hasLow = low != null && isFinite(low);
   const hasHigh = high != null && isFinite(high);
   if (hasLow && hasHigh) {
@@ -1311,7 +1319,7 @@ function trendBits(t) {
   } else if (hasLow) {
     bits.push(t("trend.refMin", { low: fmtNum(low) }));
   }
-  const points = t.points || [];
+  const points = trend.points || [];
   if (points.length >= 2) {
     const prev = points[points.length - 2];
     const cur = points[points.length - 1];
@@ -1336,30 +1344,36 @@ function renderTrends(trends) {
     return;
   }
   trendsEl.innerHTML = "";
-  for (const t of trends) {
+  for (const trend of trends) {
     const card = document.createElement("div");
     card.className = "trend-card";
     const head = document.createElement("div");
     head.className = "trend-head";
     const name = document.createElement("div");
     name.className = "trend-name";
-    name.textContent = `${t.name}${t.unit ? ", " + t.unit : ""}`;
+    name.textContent = `${trend.name}${trend.unit ? ", " + trend.unit : ""}`;
     const badge = document.createElement("div");
-    badge.className = `trend-badge ${t.trend}`;
-    badge.textContent = TREND_KEYS[t.trend] ? t(TREND_KEYS[t.trend]) : t.trend;
+    badge.className = `trend-badge ${trend.trend}`;
+    badge.textContent = TREND_KEYS[trend.trend]
+      ? t(TREND_KEYS[trend.trend])
+      : trend.trend;
     head.append(name, badge);
 
     const value = document.createElement("div");
     value.className = "trend-value";
-    value.textContent = fmtNum(t.latest);
+    value.textContent = fmtNum(trend.latest);
 
     const meta = document.createElement("div");
     meta.className = "trend-meta";
-    const firstDate = t.points[0].date;
-    const lastDate = t.points[t.points.length - 1].date;
-    meta.textContent = t("trend.measurements", { n: t.count, from: firstDate, to: lastDate });
+    const firstDate = trend.points[0].date;
+    const lastDate = trend.points[trend.points.length - 1].date;
+    meta.textContent = t("trend.measurements", {
+      n: trend.count,
+      from: firstDate,
+      to: lastDate,
+    });
 
-    const bits = trendBits(t);
+    const bits = trendBits(trend);
     if (bits.length) {
       const sub = document.createElement("div");
       sub.className = "trend-meta trend-sub";
@@ -1368,7 +1382,10 @@ function renderTrends(trends) {
     } else {
       card.append(head, value, meta);
     }
-    card.insertAdjacentHTML("beforeend", trendChartSvg(t.points, t.ref_low, t.ref_high));
+    card.insertAdjacentHTML(
+      "beforeend",
+      trendChartSvg(trend.points, trend.ref_low, trend.ref_high)
+    );
     trendsEl.appendChild(card);
   }
 }
@@ -3296,9 +3313,11 @@ newChatBtn.addEventListener("click", () => {
   abortGeneration();
   history = [];
   saveHistory();
+  const chips = document.getElementById("suggest-chips");
   messagesEl.innerHTML = "";
   const wb = addMessage("bot", t("chat.newDialog"));
   attachSpeakControl(wb, t("chat.newDialog"));
+  if (chips) messagesEl.appendChild(chips);
   showSuggestChips();
   inputEl.focus();
 });

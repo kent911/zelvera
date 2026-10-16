@@ -220,7 +220,9 @@ images.
 | POST | `/api/records/longterm/report` | AI health report for the period based on the yearly summary (SSE stream) |
 | GET | `/api/records/export.pdf` | Export the medical record to PDF (`?profile_id=`) |
 | GET | `/api/records/{id}` | Record with markers (critical ones have the `critical` field) |
+| GET | `/api/records/{id}/image` | Original scan photo attached to the record |
 | DELETE | `/api/records/{id}` | Delete a record from the card |
+| GET | `/api/markers/catalog` | Marker catalog: categories, canonical names, synonyms |
 | POST | `/api/articles` | Upload a scientific article (PDF/DOCX/TXT) → chunks + embeddings + summary |
 | GET | `/api/articles` | List of articles |
 | POST | `/api/articles/search` | Semantic search across all articles |
@@ -232,12 +234,14 @@ images.
 | POST | `/api/settings/ollama-models` | List of models from a running Ollama |
 | POST | `/api/settings/openai-models` | List of models from an OpenAI-compatible API (llama-server) |
 | POST | `/api/settings/kiwix-books` | Check Kiwix and list ZIM books |
+| GET | `/api/kiwix/image` | Proxy images from ZIM articles (`?zim=&path=`) |
 | POST | `/api/settings/telegram-test` | Validate the Telegram bot token (`getMe`) |
 | GET | `/api/settings/telegram-status` | Telegram bot status: configured/running, STT/TTS |
 | POST | `/api/settings/smtp-test` | Test SMTP for password reset |
 | GET | `/api/logs` | Latest lines of the app log |
 | GET | `/api/logs/download` | Download the log (.log) |
 | POST | `/api/logs/client` | Write a frontend error into the log/audit |
+| DELETE | `/api/logs` | Clear the app log |
 | GET | `/api/notes` | List of notes (AI takeaways) |
 | POST | `/api/notes` | Save a note (can be linked to an article) |
 | DELETE | `/api/notes/{id}` | Delete a note |
@@ -247,11 +251,11 @@ images.
 | DELETE | `/api/memory` | Clear profile memory (L0–L3) |
 | GET | `/api/notes/export.pdf` | Export notes to PDF |
 | GET | `/api/profiles` | List of profiles + current (single profile) |
-| POST | `/api/profiles` | Create a profile |
+| POST | `/api/profiles` | Not supported: there is always a single profile (403) |
 | PATCH | `/api/profiles/{id}` | Update a profile (name, birth_year, sex, height_cm, weight_kg, blood_type) |
 | POST | `/api/profiles/{id}/activate` | Make a profile current |
 | GET | `/api/profiles/current` | Current profile |
-| DELETE | `/api/profiles/{id}` | Delete a profile |
+| DELETE | `/api/profiles/{id}` | Not supported: there is always a single profile (403) |
 | GET | `/api/reminders` | List of reminders (`?profile_id=`) |
 | POST | `/api/reminders` | Create a lab-retest reminder |
 | DELETE | `/api/reminders/{id}` | Delete a reminder |
@@ -596,10 +600,10 @@ backend/app/
   routes/analysis.py # analytical report "labs ↔ articles"
   routes/settings.py # Ollama model settings
   routes/notes.py    # notes (AI takeaways on articles) + PDF export
-  routes/profiles.py # health profiles (CRUD + current profile)
+  routes/profiles.py # health profile (single profile: read/rename)
   routes/reminders.py# lab-retest reminders
   routes/backup.py    # ZIP backup export/import
-  routes/kiwix.py     # offline Wikipedia status and search
+  routes/kiwix.py     # image proxy for ZIM articles (offline Wikipedia)
   routes/logs.py      # application log
   services/telegram_bot.py # Telegram bot: chat, lab-report photos, reminders, memory
   services/voice.py  # optional STT/TTS for Telegram (faster-whisper, edge-tts)

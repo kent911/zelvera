@@ -165,11 +165,14 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                         acc += item
                     yield _sse(item)
             except llm.LLMError:
-                async for chunk in stream_chat(messages):
-                    if await request.is_disconnected():
-                        return
-                    acc += chunk
-                    yield _sse(chunk)
+                try:
+                    async for chunk in stream_chat(messages):
+                        if await request.is_disconnected():
+                            return
+                        acc += chunk
+                        yield _sse(chunk)
+                except llm.LLMError as exc:
+                    yield _sse(f"{i18n.t('error.prefix')} {exc}")
             except asyncio.CancelledError:
                 return
             if pending:
