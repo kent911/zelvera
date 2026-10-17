@@ -187,19 +187,26 @@ async def ingest_turn(
     pid = profile_id if profile_id is not None else _profile_id()
     remember_turn(user_text, assistant_text, pid, channel, session_id)
     try:
-        n = database.count_memory_messages(pid)
+        # count() упирается в L0_KEEP, поэтому для расписания берём монотонный id:
+        # иначе после заполнения L0 саммари писалось бы на каждом ходу.
+        seq = database.max_memory_message_id(pid)
         tasks = []
         if _should_extract(user_text):
             tasks.append(_extract_facts(user_text, assistant_text, pid, channel))
-        if n >= SUMMARIZE_EVERY and n % SUMMARIZE_EVERY < 2:
+        if seq >= SUMMARIZE_EVERY and seq % SUMMARIZE_EVERY < 2:
             tasks.append(_summarize_recent(pid, session_id))
         fact_count = len(database.list_memory_facts(pid))
-        if fact_count and (n % PORTRAIT_EVERY < 2 or not database.get_memory_portrait(pid)):
+        if fact_count and (
+            seq % PORTRAIT_EVERY < 2 or not database.get_memory_portrait(pid)
+        ):
             tasks.append(_refresh_portrait(pid))
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
     except Exception:
         log.debug("memory ingest skipped", exc_info=True)
+
+
+_background_tasks: set[asyncio.Task] = set()
 
 
 def schedule_ingest(
@@ -213,9 +220,13 @@ def schedule_ingest(
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    loop.create_task(
+    # Ссылку на задачу надо держать: loop хранит только weakref,
+    # иначе ingest может быть собран GC посреди работы.
+    task = loop.create_task(
         ingest_turn(user_text, assistant_text, profile_id, channel, session_id)
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 async def _extract_facts(

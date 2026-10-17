@@ -174,6 +174,54 @@ def test_get_tools_follows_language(monkeypatch):
     assert "long-term" in desc.lower() or "memory" in desc.lower()
 
 
+def test_summary_cadence_survives_l0_trim(db, monkeypatch):
+    """После заполнения L0 (80 сообщений) саммари не пишется каждый ход.
+
+    Периодичность считается по монотонному id, а не по count(), который
+    упирается в L0_KEEP.
+    """
+    profile = db.create_profile("Egor")
+    pid = profile["id"]
+    summary_calls = []
+
+    async def fake_complete(messages):
+        if messages[0]["content"] == i18n.t("memory.summary_system"):
+            summary_calls.append(1)
+            return "Итог диалога: пользователь говорил про сон."
+        return '{"facts": []}'
+
+    monkeypatch.setattr(memory.llm, "complete", fake_complete)
+    monkeypatch.setattr(memory, "L0_KEEP", 20)
+
+    async def run_turns(n):
+        for i in range(n):
+            await memory.ingest_turn(f"сообщение пользователя номер {i}", "ответ", pid)
+
+    asyncio.run(run_turns(40))
+    assert db.count_memory_messages(pid) == 20
+    # ~каждые 4 хода (каждые 8 реплик), а не на каждом из 40 ходов
+    assert 5 <= len(summary_calls) <= 12
+
+
+def test_schedule_ingest_keeps_task_reference(db, monkeypatch):
+    profile = db.create_profile("Egor")
+    pid = profile["id"]
+
+    async def fake_complete(_messages):
+        return '{"facts": []}'
+
+    monkeypatch.setattr(memory.llm, "complete", fake_complete)
+
+    async def run():
+        memory.schedule_ingest("у меня аллергия на пыльцу", "учту", pid)
+        assert len(memory._background_tasks) == 1
+        await asyncio.gather(*memory._background_tasks)
+        assert not memory._background_tasks
+
+    asyncio.run(run())
+    assert db.count_memory_messages(pid) == 2
+
+
 def test_profile_id_falls_back_to_first(db, monkeypatch):
     monkeypatch.setattr(memory.settings_store, "get_current_profile_id", lambda: None)
     profiles = db.list_profiles()

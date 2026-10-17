@@ -866,6 +866,22 @@ def count_memory_messages(profile_id: int | None = None) -> int:
     return int(row[0] if row else 0)
 
 
+def max_memory_message_id(profile_id: int | None = None) -> int:
+    """Последний id реплики профиля — монотонный счётчик для периодических задач.
+
+    В отличие от count_memory_messages() не упирается в L0_KEEP и позволяет
+    запускать саммари/портрет по расписанию, а не каждый ход после обрезки.
+    """
+    if profile_id is None:
+        return 0
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM memory_messages WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()
+    return int(row[0] if row else 0)
+
+
 def upsert_memory_fact(
     category: str,
     key: str,
