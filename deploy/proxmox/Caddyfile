@@ -13,13 +13,23 @@ http://zelvera.lan, http:// {
 
 zelvera.lan, :443 {
 	tls internal
-	encode gzip
+	encode gzip {
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type text/javascript*
+			header Content-Type image/svg+xml*
+		}
+	}
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy same-origin
 		X-Frame-Options DENY
 	}
 	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
 		header_up X-Forwarded-Proto {scheme}
 		header_up X-Forwarded-Host {host}
 	}

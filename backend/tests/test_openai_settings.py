@@ -155,6 +155,64 @@ def test_probe_llm_openai_up(tmp_path, monkeypatch):
     assert status["error"] == ""
 
 
+def test_openai_models_empty_url_is_400(tmp_path, monkeypatch):
+    from app.services import auth
+    from app.services import database
+    from app.services.telegram_bot import bot as telegram_bot
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(auth, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth.json")
+    auth.reset_cache()
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "test.db")
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(telegram_bot, "start", _noop)
+    monkeypatch.setattr(telegram_bot, "stop", _noop)
+
+    with TestClient(app) as client:
+        client.post("/api/auth/setup", json={"username": "egor", "password": "secret123"})
+        resp = client.post("/api/settings/openai-models", json={"openai_base_url": ""})
+        assert resp.status_code == 400
+        assert "адрес" in resp.json()["detail"].lower() or "specify" in resp.json()["detail"].lower()
+
+
+def test_client_log_maps_warn_to_warning(tmp_path, monkeypatch, caplog):
+    import logging
+    from app.services import auth
+    from app.services import database
+    from app.services.telegram_bot import bot as telegram_bot
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(auth, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth.json")
+    auth.reset_cache()
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "test.db")
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(telegram_bot, "start", _noop)
+    monkeypatch.setattr(telegram_bot, "stop", _noop)
+
+    with caplog.at_level(logging.WARNING, logger="zelvera"):
+        with TestClient(app) as client:
+            client.post("/api/auth/setup", json={"username": "egor", "password": "secret123"})
+            resp = client.post(
+                "/api/logs/client",
+                json={"level": "warn", "message": "HTTP 502 /api/settings/openai-models", "url": "/"},
+            )
+            assert resp.status_code == 200
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+    assert not any(r.levelno >= logging.ERROR and "openai-models" in r.getMessage() for r in caplog.records)
+
+
 def test_openai_image_unsupported_detects_mmproj():
     assert _openai_image_unsupported(
         Exception("image input is not supported - hint: if this is unexpected, you may need to provide the mmproj")

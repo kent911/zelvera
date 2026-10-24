@@ -43,8 +43,16 @@ window.fetch = async (...args) => {
     showLoginOverlay(true);
     return res;
   }
-  if (!res.ok && !url.includes("/api/logs/client")) {
-    reportClientError("warn", `HTTP ${res.status} ${url}`);
+  if (
+    !res.ok &&
+    !url.includes("/api/logs/client") &&
+    !url.includes("/api/settings/openai-models") &&
+    !url.includes("/api/settings/ollama-models") &&
+    !url.includes("/api/settings/kiwix-books") &&
+    !url.includes("/api/settings/telegram-test") &&
+    !url.includes("/api/settings/smtp-test")
+  ) {
+    reportClientError("warning", `HTTP ${res.status} ${url}`);
   }
   return res;
 };
@@ -786,14 +794,43 @@ async function sendWithText(text) {
   setComposerBusy(false);
 }
 
+function makeStatusEl(label) {
+  const el = document.createElement("div");
+  el.className = "msg-status";
+  const dots = document.createElement("span");
+  dots.className = "msg-status-dots";
+  dots.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 3; i++) dots.appendChild(document.createElement("i"));
+  const text = document.createElement("span");
+  text.className = "msg-status-label";
+  text.textContent = label;
+  el.append(dots, text);
+  return el;
+}
+
+function setStatusLabel(statusEl, status) {
+  const key = "chat.tool." + status;
+  const label = t(key);
+  const text = statusEl.querySelector(".msg-status-label");
+  const next = label === key ? t("chat.tool.generic") : label;
+  if (text) text.textContent = next;
+  else statusEl.textContent = next;
+  statusEl.classList.remove("hidden");
+}
+
 async function streamIntoBubble(url, options, bubble, controller) {
   let acc = "";
   let error = false;
   const images = [];
   const addedUrls = new Set();
+  bubble.textContent = "";
+  bubble.classList.add("is-pending");
+  const statusEl = makeStatusEl(t("chat.tool.thinking"));
+  bubble.appendChild(statusEl);
   const textEl = document.createElement("div");
   textEl.className = "msg-text";
   bubble.appendChild(textEl);
+  if (isNearBottom()) scrollToBottom();
   controller = controller || new AbortController();
   generationAbort = controller;
   const fetchOptions = { ...options, signal: controller.signal };
@@ -829,6 +866,7 @@ async function streamIntoBubble(url, options, bubble, controller) {
 
         try {
           const msg = JSON.parse(payload);
+          if (msg.status) setStatusLabel(statusEl, msg.status);
           if (msg.content) {
             acc += msg.content;
             textEl.textContent = acc;
@@ -859,6 +897,8 @@ async function streamIntoBubble(url, options, bubble, controller) {
       bubble.classList.add("error");
     }
   } finally {
+    statusEl.classList.add("hidden");
+    bubble.classList.remove("is-pending");
     if (generationAbort === controller) generationAbort = null;
   }
 
@@ -2792,8 +2832,13 @@ backupFileInput?.addEventListener("change", async () => {
   }
 });
 
+let modelsRefreshAbort = null;
+
 async function refreshModels() {
   const openai = (setLlmBackend?.value || "ollama") === "openai";
+  if (modelsRefreshAbort) modelsRefreshAbort.abort();
+  const controller = new AbortController();
+  modelsRefreshAbort = controller;
   setModelsStatus(t("settings.fetchingModels"));
   try {
     const res = openai
@@ -2804,11 +2849,13 @@ async function refreshModels() {
             openai_base_url: setOpenaiUrl?.value.trim() || "",
             openai_api_key: setOpenaiKey?.value.trim() || "",
           }),
+          signal: controller.signal,
         })
       : await fetch("/api/settings/ollama-models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ollama_base_url: setOllamaUrl.value.trim() }),
+          signal: controller.signal,
         });
     const data = await res.json();
     if (!res.ok) {
@@ -2818,7 +2865,10 @@ async function refreshModels() {
     setModelsDatalist(data.models || []);
     setModelsStatus(t("settings.foundModels", { n: (data.models || []).length }));
   } catch (err) {
+    if (err && err.name === "AbortError") return;
     setModelsStatus(t("settings.error", { msg: err.message }), true);
+  } finally {
+    if (modelsRefreshAbort === controller) modelsRefreshAbort = null;
   }
 }
 

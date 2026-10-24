@@ -109,24 +109,6 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
         "",
     )
     audit.log_chat(str(last_user))
-    rag_text = await _rag_context(str(last_user))
-
-    if rag_text:
-        messages.insert(
-            1,
-            {
-                "role": "system",
-                "content": (
-                    "Ниже приведены фрагменты из базы научных статей пользователя. "
-                    "Используй их ТОЛЬКО если вопрос действительно про научные данные, "
-                    "исследования или статьи. Если вопрос про медицинскую карту, анализы "
-                    "или показатели пользователя — фрагменты игнорируй и используй "
-                    "инструмент get_medical_card. Не выдумывай данные, которых нет "
-                    "в фрагментах.\n\n"
-                    f"Фрагменты:\n{rag_text}"
-                ),
-            },
-        )
 
     profile_text = tools.profile_context()
     if profile_text:
@@ -140,11 +122,31 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
         start = time.monotonic()
         rounds = 0
         acc = ""
+        pending: list[dict] = []
         try:
-            if rag_text and _looks_like_article_query(last_user):
-                yield _sse("Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n")
-
-            pending: list[dict] = []
+            yield _SSE_PAD
+            yield _sse({"status": "thinking"})
+            if _looks_like_article_query(last_user):
+                rag_text = await _rag_context(str(last_user))
+                if rag_text:
+                    messages.insert(
+                        1,
+                        {
+                            "role": "system",
+                            "content": (
+                                "Ниже приведены фрагменты из базы научных статей пользователя. "
+                                "Используй их ТОЛЬКО если вопрос действительно про научные данные, "
+                                "исследования или статьи. Если вопрос про медицинскую карту, анализы "
+                                "или показатели пользователя — фрагменты игнорируй и используй "
+                                "инструмент get_medical_card. Не выдумывай данные, которых нет "
+                                "в фрагментах.\n\n"
+                                f"Фрагменты:\n{rag_text}"
+                            ),
+                        },
+                    )
+                    yield _sse(
+                        "Поискал в вашей базе научных статей — вот что нашлось по вопросу.\n\n"
+                    )
 
             async def tool_executor(name: str, arguments: dict):
                 nonlocal rounds
@@ -163,7 +165,9 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                         return
                     if isinstance(item, str):
                         acc += item
-                    yield _sse(item)
+                        yield _sse(item)
+                    elif isinstance(item, dict) and item.get("status"):
+                        yield _sse({"status": item["status"]})
             except llm.LLMError:
                 try:
                     async for chunk in stream_chat(messages):
@@ -191,8 +195,16 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers=_SSE_HEADERS,
     )
+
+
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "X-Accel-Buffering": "no",
+    "Connection": "keep-alive",
+}
+_SSE_PAD = ":" + (" " * 2048) + "\n\n"
 
 
 def _sse(data: str | dict) -> str:

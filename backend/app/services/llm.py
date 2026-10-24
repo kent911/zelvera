@@ -113,36 +113,54 @@ async def chat_with_tools(
     messages: list[ChatMessage],
     tools: list[dict],
     tool_executor,
-) -> AsyncIterator[str]:
+) -> AsyncIterator[str | dict]:
     """Диалог с поддержкой вызова инструментов (function calling).
 
-    Пока модель вызывает инструменты — сервер исполняет их и возвращает
-    результат в беседу. Когда модель даёт финальный текстовый ответ —
-    он стримится наружу.
+    Сначала наружу уходит статус (thinking / имя тула). Пока модель
+    вызывает инструменты — сервер исполняет их. Финальный текст
+    стримится токенами.
     """
     history: list[ChatMessage] = [dict(m) for m in messages]
+    yield {"status": "thinking"}
     for _ in range(MAX_TOOL_ROUNDS):
-        if _use_openai():
-            content, tool_calls = await _complete_with_tools_openai(history, tools)
-        else:
-            content, tool_calls = await _complete_with_tools_ollama(history, tools)
+        content = ""
+        tool_calls: list[dict] = []
+        async for kind, payload in _iter_tools_round(history, tools):
+            if kind == "tool_calls":
+                tool_calls = payload
+            elif kind == "content":
+                content += payload
+                if not tool_calls:
+                    yield payload
 
         if not tool_calls:
-            if content:
-                yield content
             return
 
         history.append(_assistant_tool_message(content, tool_calls))
         for call in tool_calls:
             name = call.get("name", "")
             arguments = call.get("arguments", {})
+            if name:
+                yield {"status": name}
             try:
                 result = await tool_executor(name, arguments)
-            except Exception as exc:
-                result = i18n.t("llm.tool_exec_error", name=name, err=exc)
+            except Exception as extra:
+                result = i18n.t("llm.tool_exec_error", name=name, err=extra)
             history.append(_tool_result_message(call, result))
+        yield {"status": "thinking"}
 
     yield _error_message(i18n.t("llm.tool_round_limit"))
+
+
+async def _iter_tools_round(
+    messages: list[ChatMessage], tools: list[dict]
+) -> AsyncIterator[tuple[str, object]]:
+    if _use_openai():
+        async for item in _stream_tools_openai(messages, tools):
+            yield item
+    else:
+        async for item in _stream_tools_ollama(messages, tools):
+            yield item
 
 
 def _assistant_tool_message(content: str, tool_calls: list[dict]) -> ChatMessage:
@@ -256,20 +274,147 @@ async def _complete_with_tools_ollama(
     _log_ollama_metrics(model, "ollama_tools_round", data, time.monotonic() - t0)
     msg = data.get("message", {})
     content = (msg.get("content") or "").strip()
+    calls = [
+        _normalize_ollama_tool_call(tc) for tc in msg.get("tool_calls") or []
+    ]
+    return content, calls
+
+
+def _normalize_ollama_tool_call(tc: dict) -> dict:
+    fn = tc.get("function", {})
+    name = fn.get("name", "")
+    arguments = fn.get("arguments") or {}
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            arguments = {}
+    if not isinstance(arguments, dict):
+        arguments = {}
+    return {"name": name, "arguments": arguments}
+
+
+async def _stream_tools_openai(
+    messages: list[ChatMessage], tools: list[dict]
+) -> AsyncIterator[tuple[str, object]]:
+    model = _openai_chat_model()
+    client = _openai_client()
+    t0 = time.monotonic()
+    usage = None
+    buckets: dict[int, dict] = {}
+    try:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=coalesce_system_messages(messages),
+            tools=tools,
+            tool_choice="auto",
+            stream=True,
+        )
+        async for chunk in stream:
+            if getattr(chunk, "usage", None):
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            for tc in delta.tool_calls or []:
+                idx = tc.index if tc.index is not None else 0
+                bucket = buckets.setdefault(
+                    idx, {"id": "", "name": "", "arguments": ""}
+                )
+                if tc.id:
+                    bucket["id"] = tc.id
+                fn = tc.function
+                if fn is None:
+                    continue
+                if fn.name:
+                    bucket["name"] += fn.name
+                if fn.arguments:
+                    bucket["arguments"] += fn.arguments
+            if delta.content and not buckets:
+                yield ("content", delta.content)
+    except Exception as exc:
+        raise LLMError(i18n.t("llm.tools_api_error", err=exc)) from exc
+    _log_openai_metrics(
+        model, "openai_tools_stream", usage, time.monotonic() - t0
+    )
+    if not buckets:
+        return
     calls: list[dict] = []
-    for tc in msg.get("tool_calls") or []:
-        fn = tc.get("function", {})
-        name = fn.get("name", "")
-        arguments = fn.get("arguments") or {}
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                arguments = {}
+    for idx in sorted(buckets):
+        bucket = buckets[idx]
+        try:
+            arguments = json.loads(bucket["arguments"] or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
         if not isinstance(arguments, dict):
             arguments = {}
-        calls.append({"name": name, "arguments": arguments})
-    return content, calls
+        calls.append(
+            {
+                "id": bucket["id"],
+                "name": bucket["name"],
+                "arguments": arguments,
+            }
+        )
+    yield ("tool_calls", calls)
+
+
+async def _stream_tools_ollama(
+    messages: list[ChatMessage], tools: list[dict]
+) -> AsyncIterator[tuple[str, object]]:
+    base_url = settings_store.get("ollama_base_url")
+    model = settings_store.get("chat_model")
+    url = f"{base_url}/api/chat"
+    payload = {
+        "model": model,
+        "messages": messages,
+        "tools": tools,
+        "stream": True,
+        "keep_alive": await _keep_alive(),
+        "options": {"num_ctx": await _num_ctx()},
+    }
+    t0 = time.monotonic()
+    done_data: dict | None = None
+    calls: list[dict] = []
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10)) as client:
+        try:
+            async with client.stream("POST", url, json=payload) as resp:
+                if resp.status_code != 200:
+                    detail = (await resp.aread()).decode("utf-8", "ignore")[:500]
+                    log.warning(
+                        "Ollama chat (tools stream) ошибка: %s %s", url, detail
+                    )
+                    resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    msg = data.get("message") or {}
+                    chunk_calls = msg.get("tool_calls") or []
+                    if chunk_calls:
+                        calls = [
+                            _normalize_ollama_tool_call(tc) for tc in chunk_calls
+                        ]
+                    chunk = msg.get("content") or ""
+                    if chunk and not chunk_calls:
+                        yield ("content", chunk)
+                    if data.get("done"):
+                        done_data = data
+                        break
+        except httpx.HTTPError as extra:
+            log.warning(
+                "Ollama chat (tools stream) ошибка: %s %s", url, extra
+            )
+            raise LLMError(
+                i18n.t("llm.ollama_connect_failed", url=url, err=extra)
+            ) from extra
+    _log_ollama_metrics(
+        model, "ollama_tools_stream", done_data, time.monotonic() - t0
+    )
+    if calls:
+        yield ("tool_calls", calls)
 
 
 async def complete(messages: list[ChatMessage]) -> str:

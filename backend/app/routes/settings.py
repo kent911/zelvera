@@ -88,13 +88,16 @@ async def ollama_models(body: BaseUrlIn) -> dict[str, Any]:
 
 @router.post("/settings/openai-models")
 async def openai_models(body: OpenAIUrlIn) -> dict[str, Any]:
+    url = settings_store.normalize_openai_base_url(body.openai_base_url)
+    if not url:
+        raise HTTPException(status_code=400, detail=i18n.t("settings.openai_url_required"))
     try:
         models = await settings_store.list_openai_models(
-            body.openai_base_url,
+            url,
             body.openai_api_key or settings_store.openai_api_key(),
         )
-    except ConnectionError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ConnectionError as extra:
+        raise HTTPException(status_code=502, detail=str(extra)) from extra
     return {"models": models}
 
 

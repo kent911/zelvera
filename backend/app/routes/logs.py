@@ -56,6 +56,8 @@ async def download_logs() -> FileResponse:
 async def client_log(body: ClientLogIn) -> dict:
     root = logging.getLogger("zelvera")
     level = (body.level or "error").lower()
+    if level == "warn":
+        level = "warning"
     if level not in {"debug", "info", "warning", "error", "critical"}:
         level = "error"
     message = f"[фронтенд] {body.message} (url: {body.url})"
