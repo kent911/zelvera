@@ -25,7 +25,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import httpx
 
@@ -37,10 +37,33 @@ log = logging.getLogger("kiwix")
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
 ARTICLE_HTML_MAX_CHARS = 300_000
-IMAGE_CAP_TOTAL = 8
-IMAGE_CAP_PER_ARTICLE = 4
+IMAGE_CAP_TOTAL = 4
+IMAGE_CAP_PER_ARTICLE = 2
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MIN_IMAGE_WIDTH = 100
+_STOP_WORDS = {
+    "the",
+    "and",
+    "for",
+    "from",
+    "with",
+    "what",
+    "how",
+    "does",
+    "about",
+    "this",
+    "that",
+    "into",
+    "show",
+    "tell",
+}
+_SKIP_IMAGE_RE = re.compile(
+    r"(icon|logo|flag|coat.of.arms|commons.logo|wikimedia|edit.clear|"
+    r"ambox|padlock|question.book|speaker|sound.?icon|increase2|decrease2|"
+    r"crystal.clear|nuvola|gnome-mime|pictogram|stub|featured|"
+    r"portal|disambig|wiki.letter)",
+    re.I,
+)
 
 _MIME_BY_EXT = {
     ".jpg": "image/jpeg",
@@ -483,7 +506,80 @@ def _extract_images(
             alt = (alt_m.group(1) if alt_m.group(1) is not None else alt_m.group(2) or "")
             alt = html.unescape(alt).strip()
         candidates.append({"zim": zim, "path": path, "alt": alt})
-    return candidates[: max(0, int(max_images))]
+    return candidates[: max(0, int(max_images) * 4)]
+
+
+def _tokens(text: str) -> list[str]:
+    return [
+        t
+        for t in re.findall(r"[a-z0-9]+", (text or "").lower())
+        if len(t) >= 3 and t not in _STOP_WORDS
+    ]
+
+
+def _article_match_score(item: dict[str, str], query: str) -> int:
+    tokens = _tokens(query)
+    title = (item.get("title") or "").lower()
+    href = (item.get("href") or "").lower()
+    snippet = (item.get("snippet") or "").lower()
+    q = (query or "").strip().lower()
+    score = 0
+    if title == q or title.replace(" ", "") == q.replace(" ", ""):
+        score += 100
+    title_hits = sum(1 for t in tokens if t in title)
+    score += title_hits * 25
+    if tokens and title_hits == len(tokens):
+        score += 40
+    score += sum(8 for t in tokens if t in href)
+    score += sum(2 for t in tokens if t in snippet)
+    if "disambiguation" in title:
+        score -= 80
+    if title.startswith("list of"):
+        score -= 40
+    return score
+
+
+def rank_search_results(results: list[dict[str, str]], query: str) -> list[dict[str, str]]:
+    """Ставит точное совпадение заголовка выше случайных упоминаний в тексте."""
+    if not results:
+        return []
+    scored = [(_article_match_score(item, query), item) for item in results]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best = scored[0][0]
+    if best >= 40:
+        floor = max(20, int(best * 0.3))
+        scored = [x for x in scored if x[0] >= floor]
+    return [item for _, item in scored]
+
+
+def pick_relevant_images(
+    candidates: list[dict[str, str]],
+    query: str,
+    article_title: str,
+    max_images: int,
+) -> list[dict[str, str]]:
+    """Оставляет картинки по теме запроса; иконки и чужие схемы отбрасывает."""
+    q_tokens = _tokens(query)
+    t_tokens = _tokens(article_title)
+    scored: list[tuple[int, int, dict[str, str]]] = []
+    for i, img in enumerate(candidates):
+        path = img.get("path") or ""
+        alt = img.get("alt") or ""
+        blob = unquote(f"{path} {alt}").lower().replace("_", " ").replace("-", " ")
+        if _SKIP_IMAGE_RE.search(path) or _SKIP_IMAGE_RE.search(alt):
+            continue
+        score = sum(12 for t in q_tokens if t in blob)
+        score += sum(8 for t in t_tokens if t in blob)
+        if i == 0:
+            score += 5
+        scored.append((score, i, img))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    topical = [img for score, _, img in scored if score >= 8]
+    if topical:
+        return topical[: max(0, int(max_images))]
+    if scored:
+        return [scored[0][2]]
+    return []
 
 
 def take_pending_images() -> list[dict]:
@@ -630,7 +726,7 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         return t("kiwix.empty_query")
     try:
         zim = await resolve_zim()
-        results = await search(query, zim)
+        results = rank_search_results(await search(query, zim), query)
     except KiwixError as exc:
         detail = t(exc.key)
         if exc.err:
@@ -662,8 +758,13 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                     if article:
                         body_parts.append(article)
                     if image_count < IMAGE_CAP_TOTAL:
-                        images_for_article = _extract_images(
-                            html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
+                        images_for_article = pick_relevant_images(
+                            _extract_images(
+                                html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
+                            ),
+                            query,
+                            item.get("title") or "",
+                            IMAGE_CAP_PER_ARTICLE,
                         )
                         if not images_for_article:
                             img_tags = _IMG_TAG_RE.findall(html_text)

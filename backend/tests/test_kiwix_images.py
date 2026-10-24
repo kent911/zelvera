@@ -44,3 +44,25 @@ def test_wikipedia_images_are_numbered(monkeypatch):
     assert [p["index"] for p in pending] == [1, 2]
     assert pending[0]["source"] == "Heart valve"
     assert pending[1]["caption"] == "prosthetic valve"
+
+
+def test_rank_prefers_title_match_over_mention():
+    results = [
+        {"title": "ABO (gene)", "href": "/A/ABO_(gene)", "snippet": "heart of the antigen"},
+        {"title": "Heart", "href": "/A/Heart", "snippet": "the human heart"},
+        {"title": "Heart (disambiguation)", "href": "/A/Heart_(disambiguation)", "snippet": "heart"},
+    ]
+    ranked = kiwix.rank_search_results(results, "heart")
+    assert ranked[0]["title"] == "Heart"
+    assert all(r["title"] != "ABO (gene)" for r in ranked)
+
+
+def test_pick_relevant_images_skips_offtopic():
+    candidates = [
+        {"zim": "z", "path": "/I/Chromosome_9.png", "alt": "Chromosome 9"},
+        {"zim": "z", "path": "/I/ABO_gene.svg", "alt": "ABO gene"},
+        {"zim": "z", "path": "/I/Heart_diagram.svg", "alt": "Diagram of the human heart"},
+        {"zim": "z", "path": "/I/Wiki_letter_w.svg", "alt": "icon"},
+    ]
+    picked = kiwix.pick_relevant_images(candidates, "heart", "Heart", 2)
+    assert [p["path"] for p in picked] == ["/I/Heart_diagram.svg"]
