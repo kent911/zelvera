@@ -340,6 +340,98 @@ function addMessage(role, text, isError = false) {
   return bubble;
 }
 
+const FIG_MARK_RE = /\[\[(?:рис|fig|рисунок|figure)\.?\s*(\d+)\]\]/gi;
+const WIKI_CITE_RE = /\[(?:Википедия|Wikipedia):\s*([^\]]+)\]/gi;
+const IMAGE_TAG_RE = /\[Image\s+\d+[^\]]*\]/g;
+
+function speakableText(text) {
+  FIG_MARK_RE.lastIndex = 0;
+  IMAGE_TAG_RE.lastIndex = 0;
+  return String(text || "")
+    .replace(FIG_MARK_RE, "")
+    .replace(IMAGE_TAG_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function takeImageByIndex(images, used, n) {
+  const byIndex = images.find((im) => im && Number(im.index) === n && im.url && !used.has(im.url));
+  if (byIndex) return byIndex;
+  const fallback = images[n - 1];
+  if (fallback && fallback.url && !used.has(fallback.url)) return fallback;
+  return null;
+}
+
+function takeImageBySource(images, used, sourceName) {
+  const name = (sourceName || "").trim().toLowerCase();
+  if (!name) return null;
+  for (const img of images) {
+    if (!img || !img.url || used.has(img.url)) continue;
+    const src = (img.source || "").trim().toLowerCase();
+    if (src && (src === name || src.includes(name) || name.includes(src))) return img;
+  }
+  return null;
+}
+
+function appendPlain(el, text) {
+  if (!text) return;
+  el.appendChild(document.createTextNode(text));
+}
+
+function appendTextWithCiteImages(el, text, images, used) {
+  if (!text) return;
+  const leftover = images.filter((im) => im && im.url && !used.has(im.url));
+  if (!leftover.length) {
+    appendPlain(el, text);
+    return;
+  }
+  const chunks = text.split(/(\n{2,})/);
+  for (const chunk of chunks) {
+    appendPlain(el, chunk);
+    if (/^\n+$/.test(chunk)) continue;
+    WIKI_CITE_RE.lastIndex = 0;
+    const seen = new Set();
+    let m;
+    while ((m = WIKI_CITE_RE.exec(chunk))) {
+      const key = (m[1] || "").trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const img = takeImageBySource(images, used, m[1]);
+      if (!img) continue;
+      used.add(img.url);
+      el.appendChild(makeFigure(img));
+    }
+  }
+}
+
+function renderMessageBody(el, text, images) {
+  el.replaceChildren();
+  const list = Array.isArray(images) ? images : [];
+  const used = new Set();
+  IMAGE_TAG_RE.lastIndex = 0;
+  const raw = String(text || "").replace(IMAGE_TAG_RE, "");
+  FIG_MARK_RE.lastIndex = 0;
+  const hasMarks = FIG_MARK_RE.test(raw);
+  FIG_MARK_RE.lastIndex = 0;
+  const parts = raw.split(FIG_MARK_RE);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      if (hasMarks) appendPlain(el, parts[i]);
+      else appendTextWithCiteImages(el, parts[i], list, used);
+      continue;
+    }
+    const img = takeImageByIndex(list, used, parseInt(parts[i], 10));
+    if (!img) continue;
+    used.add(img.url);
+    el.appendChild(makeFigure(img));
+  }
+  if (!used.size) {
+    for (const img of list) {
+      if (img && img.url) el.appendChild(makeFigure(img));
+    }
+  }
+}
+
 function makeFigure(img) {
   const fig = document.createElement("figure");
   fig.className = "msg-figure";
@@ -688,13 +780,16 @@ async function init() {
   const welcome = addMessage("bot", t("chat.welcome"));
   welcome.setAttribute("data-i18n", "chat.welcome");
   for (const m of history) {
-    const bubble = addMessage(m.role === "assistant" ? "bot" : m.role, m.content);
-    if (m.role === "assistant" && Array.isArray(m.images)) {
-      for (const img of m.images) {
-        if (img && img.url) bubble.appendChild(makeFigure(img));
-      }
+    if (m.role === "assistant") {
+      const bubble = addMessage("bot", "");
+      const body = document.createElement("div");
+      body.className = "msg-body";
+      bubble.appendChild(body);
+      renderMessageBody(body, m.content, m.images || []);
+      attachSpeakControl(bubble, speakableText(m.content));
+    } else {
+      addMessage(m.role, m.content);
     }
-    if (m.role === "assistant") attachSpeakControl(bubble, m.content);
   }
   if (chips) messagesEl.appendChild(chips);
   if (history.length) {
@@ -827,9 +922,10 @@ async function streamIntoBubble(url, options, bubble, controller) {
   bubble.classList.add("is-pending");
   const statusEl = makeStatusEl(t("chat.tool.thinking"));
   bubble.appendChild(statusEl);
-  const textEl = document.createElement("div");
-  textEl.className = "msg-text";
-  bubble.appendChild(textEl);
+  const bodyEl = document.createElement("div");
+  bodyEl.className = "msg-body";
+  bubble.appendChild(bodyEl);
+  renderMessageBody(bodyEl, "", []);
   if (isNearBottom()) scrollToBottom();
   controller = controller || new AbortController();
   generationAbort = controller;
@@ -869,15 +965,15 @@ async function streamIntoBubble(url, options, bubble, controller) {
           if (msg.status) setStatusLabel(statusEl, msg.status);
           if (msg.content) {
             acc += msg.content;
-            textEl.textContent = acc;
+            renderMessageBody(bodyEl, acc, images);
           }
           if (Array.isArray(msg.images)) {
             for (const img of msg.images) {
               if (!img || !img.url || addedUrls.has(img.url)) continue;
               addedUrls.add(img.url);
               images.push(img);
-              bubble.appendChild(makeFigure(img));
             }
+            renderMessageBody(bodyEl, acc, images);
           }
           if (isNearBottom()) scrollToBottom();
         } catch {
@@ -889,7 +985,7 @@ async function streamIntoBubble(url, options, bubble, controller) {
     if (err && err.name === "AbortError") {
       if (!acc.trim()) {
         acc = t("chat.stopped");
-        textEl.textContent = acc;
+        renderMessageBody(bodyEl, acc, images);
       }
     } else {
       error = true;
@@ -903,7 +999,8 @@ async function streamIntoBubble(url, options, bubble, controller) {
   }
 
   if (!error && acc.trim()) {
-    attachSpeakControl(bubble, acc.trim());
+    renderMessageBody(bodyEl, acc, images);
+    attachSpeakControl(bubble, speakableText(acc));
   }
 
   return { acc, error, images };

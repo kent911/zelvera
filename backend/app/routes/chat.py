@@ -167,6 +167,8 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                         acc += item
                         yield _sse(item)
                     elif isinstance(item, dict) and item.get("status"):
+                        if pending:
+                            yield _sse(_images_payload(pending))
                         yield _sse({"status": item["status"]})
             except llm.LLMError:
                 try:
@@ -180,7 +182,7 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
             except asyncio.CancelledError:
                 return
             if pending:
-                yield _sse({"images": pending})
+                yield _sse(_images_payload(pending))
             yield "data: [DONE]\n\n"
             if acc.strip() and str(last_user).strip():
                 memory.schedule_ingest(str(last_user), acc)
@@ -205,6 +207,15 @@ _SSE_HEADERS = {
     "Connection": "keep-alive",
 }
 _SSE_PAD = ":" + (" " * 2048) + "\n\n"
+
+
+def _images_payload(images: list[dict]) -> dict:
+    out = []
+    for i, img in enumerate(images, 1):
+        item = dict(img)
+        item.setdefault("index", i)
+        out.append(item)
+    return {"images": out}
 
 
 def _sse(data: str | dict) -> str:

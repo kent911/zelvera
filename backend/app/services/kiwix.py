@@ -494,11 +494,19 @@ def take_pending_images() -> list[dict]:
     return imgs
 
 
-def _record_image(zim: str, path: str, caption: str, source: str = "") -> None:
+def _record_image(
+    zim: str,
+    path: str,
+    caption: str,
+    source: str = "",
+    index: int | None = None,
+) -> None:
     if not zim or not path:
         return
     url = f"/api/kiwix/image?zim={quote(zim, safe='')}&path={quote(path, safe='/')}"
     item = {"zim": zim, "path": path, "caption": caption, "url": url, "source": source}
+    if index is not None:
+        item["index"] = index
     if item not in _pending_images:
         _pending_images.append(item)
 
@@ -634,6 +642,7 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         return t("kiwix.no_results")
     blocks: list[str] = []
     image_count = 0
+    image_legend: list[str] = []
     vision_available = True
     for item in results[: max(1, min(int(limit), 5))]:
         header = f"[Wikipedia: {item['title'] or item['href']}]"
@@ -680,19 +689,29 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                                     vision_available = False
                                 elif desc:
                                     caption = desc
+                            image_count += 1
+                            title = item.get("title") or item.get("href") or ""
                             _record_image(
                                 img["zim"],
                                 working_path,
                                 caption,
-                                source=item.get("title") or item.get("href") or "",
+                                source=title,
+                                index=image_count,
                             )
-                            image_count += 1
-                            if caption:
-                                body_parts.append(f"[Image: {caption}]")
+                            tag = f"[Image {image_count}: {caption}]" if caption else f"[Image {image_count}]"
+                            body_parts.append(tag)
+                            image_legend.append(
+                                f"{image_count}. {caption or 'image'} (Wikipedia: {title})"
+                            )
         if body_parts:
             blocks.append(header + "\n" + "\n".join(body_parts))
     if image_count:
         log.info("kiwix: по запросу %r извлечено изображений: %d", query, image_count)
+        blocks.append(
+            "Available images — after the paragraph each picture illustrates, "
+            "output [[рис. N]] on its own line. Do not dump images at the end.\n"
+            + "\n".join(image_legend)
+        )
     if not blocks:
         return t("kiwix.no_results")
     return "\n\n---\n\n".join(blocks)

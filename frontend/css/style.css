@@ -656,8 +656,10 @@ nav {
   border-color: #ef4444;
 }
 
-.msg-text {
+.msg-text,
+.msg-body {
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .message.bot .bubble.is-pending {
