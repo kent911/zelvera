@@ -61,7 +61,8 @@ _SKIP_IMAGE_RE = re.compile(
     r"(icon|logo|flag|coat.of.arms|commons.logo|wikimedia|edit.clear|"
     r"ambox|padlock|question.book|speaker|sound.?icon|increase2|decrease2|"
     r"crystal.clear|nuvola|gnome-mime|pictogram|stub|featured|"
-    r"portal|disambig|wiki.letter|poster|film.?poster|movie.?poster|"
+    r"portal|disambig|wiki.letter|film.?poster|movie.?poster|"
+    r"(?:^|[^a-z0-9])poster(?:[^a-z0-9]|$)|"
     r"album.?cover|dvd.?cover|soundtrack|theatrical)",
     re.I,
 )
@@ -468,22 +469,56 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
     if "/content/" in src:
         zim, path = _split_content_link(src)
         return (zim or article_zim), unquote(path)
+    if src.lower().startswith("data:"):
+        return "", ""
     if src.startswith("/I/"):
         return article_zim, unquote(src)
     if src.startswith("/"):
-        rest = src.lstrip("/")
+        decoded = unquote(src)
+        rest = decoded.lstrip("/")
         parts = rest.split("/", 1)
-        if len(parts) == 2 and parts[0] == article_zim and parts[1].startswith("I/"):
-            return article_zim, "/" + unquote(parts[1])
+        if len(parts) == 2 and parts[0] == article_zim and (
+            parts[1].startswith("I/") or "/_assets_/" in parts[1]
+        ):
+            return article_zim, "/" + parts[1]
+        if decoded.startswith("/I/") or "/_assets_/" in decoded:
+            return article_zim, decoded
         return "", ""
     base = posixpath.dirname(article_path or "/")
     joined = posixpath.normpath(posixpath.join(base, unquote(src)))
-    if joined.startswith("/I/") or "/_assets_/" in joined:
+    if not joined.startswith("/"):
+        joined = "/" + joined
+    if "/I/" in joined:
+        return article_zim, "/I/" + joined.split("/I/", 1)[-1]
+    if "/_assets_/" in joined:
         return article_zim, joined
     return "", ""
 
 
 _IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
+
+
+def _img_src_from_tag(tag: str) -> str:
+    """src картинки; если src — data: или пуст, берёт первый URL из srcset."""
+    src_m = re.search(
+        r"\bsrc\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
+    )
+    src = ""
+    if src_m:
+        src = src_m.group(1) if src_m.group(1) is not None else src_m.group(2) or ""
+        src = src.strip()
+        if src and not src.lower().startswith("data:"):
+            return src
+    srcset_m = re.search(
+        r"\bsrcset\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
+    )
+    if not srcset_m:
+        return ""
+    srcset = srcset_m.group(1) if srcset_m.group(1) is not None else srcset_m.group(2) or ""
+    first = srcset.split(",")[0].strip().split()[0] if srcset.strip() else ""
+    if first.lower().startswith("data:"):
+        return ""
+    return first
 
 
 def _extract_images(
@@ -492,17 +527,13 @@ def _extract_images(
     """Извлекает <img ... src=...> из HTML статьи в порядке появления.
 
     Ведущая/инфобокс-картинка обычно стоит первой в статье (часто без alt),
-    поэтому порядок документа сохраняется; отсекаются только мелкие иконки.
+    поэтому порядок документа сохраняется; отсекаются иконки и мелкие значки.
     """
     candidates: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
+    limit = max(0, int(max_images) * 10)
     for tag in _IMG_TAG_RE.findall(raw):
-        src_m = re.search(
-            r"\bsrc\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
-        )
-        if not src_m:
-            continue
-        src = src_m.group(1) if src_m.group(1) is not None else src_m.group(2)
+        src = _img_src_from_tag(tag)
         zim, path = _normalize_img_src(src or "", article_zim, article_path)
         if not zim or not path:
             continue
@@ -512,14 +543,18 @@ def _extract_images(
         key = (zim, path)
         if key in seen:
             continue
-        seen.add(key)
         alt_m = re.search(r"\balt\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I)
         alt = ""
         if alt_m:
             alt = (alt_m.group(1) if alt_m.group(1) is not None else alt_m.group(2) or "")
             alt = html.unescape(alt).strip()
+        if _SKIP_IMAGE_RE.search(path) or _SKIP_IMAGE_RE.search(alt):
+            continue
+        seen.add(key)
         candidates.append({"zim": zim, "path": path, "alt": alt})
-    return candidates[: max(0, int(max_images) * 4)]
+        if len(candidates) >= limit:
+            break
+    return candidates
 
 
 def _tokens(text: str) -> list[str]:
@@ -599,16 +634,14 @@ def pick_relevant_images(
             continue
         score = sum(12 for t in q_tokens if t in blob)
         score += sum(8 for t in t_tokens if t in blob)
-        if i == 0:
-            score += 5
         scored.append((score, i, img))
     scored.sort(key=lambda x: (-x[0], x[1]))
+    cap = max(0, int(max_images))
     topical = [img for score, _, img in scored if score >= 8]
     if topical:
-        return topical[: max(0, int(max_images))]
-    if scored:
-        return [scored[0][2]]
-    return []
+        return topical[:cap]
+    by_order = sorted(scored, key=lambda x: x[1])
+    return [img for _, _, img in by_order[:cap]]
 
 
 def take_pending_images() -> list[dict]:

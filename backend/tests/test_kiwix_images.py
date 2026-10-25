@@ -104,6 +104,50 @@ def test_pick_skips_film_poster():
     assert [p["path"] for p in picked] == ["/I/Heart_diagram.svg"]
 
 
+def test_pick_keeps_posterior_not_poster():
+    candidates = [
+        {
+            "zim": "z",
+            "path": "/I/Blausen_0466_Heart_Posterior.png",
+            "alt": "Heart, posterior view",
+        },
+        {
+            "zim": "z",
+            "path": "/I/Map_of_the_Human_Heart_poster.jpg",
+            "alt": "Theatrical poster",
+        },
+    ]
+    picked = kiwix.pick_relevant_images(candidates, "heart", "Heart", 2)
+    assert [p["path"] for p in picked] == ["/I/Blausen_0466_Heart_Posterior.png"]
+
+
+def test_pick_keeps_infobox_without_query_in_name():
+    candidates = [
+        {"zim": "z", "path": "/I/Wiki_letter_w.svg", "alt": "icon"},
+        {"zim": "z", "path": "/A/_assets_/2010.jpg", "alt": ""},
+        {"zim": "z", "path": "/A/_assets_/chambers.svg", "alt": "four chambers"},
+    ]
+    picked = kiwix.pick_relevant_images(candidates, "сердце в разрезе", "Heart", 2)
+    assert [p["path"] for p in picked] == [
+        "/A/_assets_/2010.jpg",
+        "/A/_assets_/chambers.svg",
+    ]
+
+
+def test_extract_skips_icons_and_reads_srcset():
+    html = """
+    <img src="../I/Wiki_letter_w.svg" width="20" alt="icon">
+    <img src="./_assets_/tiny.png" width="16" alt="">
+    <img src="" srcset="./_assets_/Blausen_0466_Heart_Posterior.png 1.5x" alt="">
+    <img src="../I/Heart_diagram.svg" alt="Diagram of the human heart">
+    """
+    extracted = kiwix._extract_images(html, "zim", "/A/Heart", 2)
+    assert [p["path"] for p in extracted] == [
+        "/A/_assets_/Blausen_0466_Heart_Posterior.png",
+        "/I/Heart_diagram.svg",
+    ]
+
+
 def test_images_only_from_primary_article(monkeypatch):
     kiwix.take_pending_images()
     fetched_hrefs: list[str] = []
