@@ -37,7 +37,7 @@ log = logging.getLogger("kiwix")
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
 ARTICLE_HTML_MAX_CHARS = 300_000
-IMAGE_CAP_TOTAL = 4
+IMAGE_CAP_TOTAL = 2
 IMAGE_CAP_PER_ARTICLE = 2
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MIN_IMAGE_WIDTH = 100
@@ -552,6 +552,14 @@ def rank_search_results(results: list[dict[str, str]], query: str) -> list[dict[
     return [item for _, item in scored]
 
 
+def pick_primary_article(
+    results: list[dict[str, str]], query: str
+) -> dict[str, str] | None:
+    """Одна статья: лучший заголовок, не случайное упоминание в тексте."""
+    ranked = rank_search_results(results, query)
+    return ranked[0] if ranked else None
+
+
 def pick_relevant_images(
     candidates: list[dict[str, str]],
     query: str,
@@ -734,78 +742,95 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         return f"{t('error.prefix')} {detail}"
     except httpx.HTTPError as exc:
         return f"{t('error.prefix')} {t('kiwix.unreachable', url=get_base_url() or '—', err=exc)}"
-    if not results:
+    primary = pick_primary_article(results, query)
+    if not primary:
         return t("kiwix.no_results")
+    extras = [
+        item
+        for item in results
+        if item is not primary and (item.get("href") or item.get("title"))
+        != (primary.get("href") or primary.get("title"))
+    ][: max(0, min(int(limit), 5) - 1)]
     blocks: list[str] = []
     image_count = 0
     image_legend: list[str] = []
     vision_available = True
-    for item in results[: max(1, min(int(limit), 5))]:
-        header = f"[Wikipedia: {item['title'] or item['href']}]"
-        body_parts = []
-        if item.get("snippet"):
-            body_parts.append(item["snippet"])
-        if item.get("href"):
-            article_zim = item.get("zim") or zim
-            if article_zim:
-                html_text = ""
-                try:
-                    html_text = await get_article_html(article_zim, item["href"])
-                except (KiwixError, httpx.HTTPError):
-                    pass
-                if html_text:
-                    article = _strip_html(html_text)[:ARTICLE_MAX_CHARS]
-                    if article:
-                        body_parts.append(article)
-                    if image_count < IMAGE_CAP_TOTAL:
-                        images_for_article = pick_relevant_images(
-                            _extract_images(
-                                html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
-                            ),
-                            query,
-                            item.get("title") or "",
-                            IMAGE_CAP_PER_ARTICLE,
+    item = primary
+    header = f"[Wikipedia: {item['title'] or item['href']}]"
+    body_parts = []
+    if item.get("snippet"):
+        body_parts.append(item["snippet"])
+    if item.get("href"):
+        article_zim = item.get("zim") or zim
+        if article_zim:
+            html_text = ""
+            try:
+                html_text = await get_article_html(article_zim, item["href"])
+            except (KiwixError, httpx.HTTPError):
+                pass
+            if html_text:
+                article = _strip_html(html_text)[:ARTICLE_MAX_CHARS]
+                if article:
+                    body_parts.append(article)
+                images_for_article = pick_relevant_images(
+                    _extract_images(
+                        html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
+                    ),
+                    query,
+                    item.get("title") or "",
+                    IMAGE_CAP_PER_ARTICLE,
+                )
+                if not images_for_article:
+                    img_tags = _IMG_TAG_RE.findall(html_text)
+                    if img_tags:
+                        log.info(
+                            "kiwix: статья %s: %d <img>, но не извлечено ни одного; примеры src: %s",
+                            item["href"],
+                            len(img_tags),
+                            "; ".join(img_tags[:3])[:400],
                         )
-                        if not images_for_article:
-                            img_tags = _IMG_TAG_RE.findall(html_text)
-                            if img_tags:
-                                log.info(
-                                    "kiwix: статья %s: %d <img>, но не извлечено ни одного; примеры src: %s",
-                                    item["href"],
-                                    len(img_tags),
-                                    "; ".join(img_tags[:3])[:400],
-                                )
-                        for img in images_for_article:
-                            if image_count >= IMAGE_CAP_TOTAL:
-                                break
-                            data, working_path = await _fetch_image(img["zim"], img["path"])
-                            if data is None:
-                                continue
-                            caption = img["alt"]
-                            if vision_available:
-                                desc = await _describe_image_bytes(
-                                    data, _mime_for_path(working_path)
-                                )
-                                if desc is None:
-                                    vision_available = False
-                                elif desc:
-                                    caption = desc
-                            image_count += 1
-                            title = item.get("title") or item.get("href") or ""
-                            _record_image(
-                                img["zim"],
-                                working_path,
-                                caption,
-                                source=title,
-                                index=image_count,
-                            )
-                            tag = f"[Image {image_count}: {caption}]" if caption else f"[Image {image_count}]"
-                            body_parts.append(tag)
-                            image_legend.append(
-                                f"{image_count}. {caption or 'image'} (Wikipedia: {title})"
-                            )
-        if body_parts:
-            blocks.append(header + "\n" + "\n".join(body_parts))
+                for img in images_for_article:
+                    if image_count >= IMAGE_CAP_TOTAL:
+                        break
+                    data, working_path = await _fetch_image(img["zim"], img["path"])
+                    if data is None:
+                        continue
+                    caption = img["alt"]
+                    if vision_available:
+                        desc = await _describe_image_bytes(
+                            data, _mime_for_path(working_path)
+                        )
+                        if desc is None:
+                            vision_available = False
+                        elif desc:
+                            caption = desc
+                    image_count += 1
+                    title = item.get("title") or item.get("href") or ""
+                    _record_image(
+                        img["zim"],
+                        working_path,
+                        caption,
+                        source=title,
+                        index=image_count,
+                    )
+                    tag = (
+                        f"[Image {image_count}: {caption}]"
+                        if caption
+                        else f"[Image {image_count}]"
+                    )
+                    body_parts.append(tag)
+                    image_legend.append(
+                        f"{image_count}. {caption or 'image'} (Wikipedia: {title})"
+                    )
+    if body_parts:
+        blocks.append(header + "\n" + "\n".join(body_parts))
+    if extras:
+        related = []
+        for extra in extras:
+            title = extra.get("title") or extra.get("href") or ""
+            snippet = (extra.get("snippet") or "").strip()
+            related.append(f"- {title}" + (f": {snippet}" if snippet else ""))
+        blocks.append("Related titles (text only, no images):\n" + "\n".join(related))
     if image_count:
         log.info("kiwix: по запросу %r извлечено изображений: %d", query, image_count)
         blocks.append(

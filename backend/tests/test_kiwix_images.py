@@ -66,3 +66,48 @@ def test_pick_relevant_images_skips_offtopic():
     ]
     picked = kiwix.pick_relevant_images(candidates, "heart", "Heart", 2)
     assert [p["path"] for p in picked] == ["/I/Heart_diagram.svg"]
+
+
+def test_images_only_from_primary_article(monkeypatch):
+    kiwix.take_pending_images()
+    fetched_hrefs: list[str] = []
+
+    async def resolve_zim():
+        return "zim"
+
+    async def search(_query, _zim):
+        return [
+            {"title": "ABO (gene)", "href": "/A/ABO_(gene)", "snippet": "heart of the antigen"},
+            {"title": "Heart", "href": "/A/Heart", "snippet": "the human heart"},
+        ]
+
+    async def get_article_html(_zim, href):
+        fetched_hrefs.append(href)
+        return "<html><body>text</body></html>"
+
+    def extract_images(_html, zim, href, _max_images):
+        if href == "/A/ABO_(gene)":
+            return [{"zim": zim, "path": "/I/Chromosome_9.png", "alt": "Chromosome 9"}]
+        return [{"zim": zim, "path": "/I/Heart_diagram.svg", "alt": "Diagram of the human heart"}]
+
+    async def fetch_image(_zim, path):
+        return b"img", path
+
+    async def describe(_data, _mime):
+        return None
+
+    monkeypatch.setattr(kiwix, "resolve_zim", resolve_zim)
+    monkeypatch.setattr(kiwix, "search", search)
+    monkeypatch.setattr(kiwix, "get_article_html", get_article_html)
+    monkeypatch.setattr(kiwix, "_extract_images", extract_images)
+    monkeypatch.setattr(kiwix, "_fetch_image", fetch_image)
+    monkeypatch.setattr(kiwix, "_describe_image_bytes", describe)
+
+    out = asyncio.run(kiwix.fetch_tool_results("heart", limit=3))
+    pending = kiwix.take_pending_images()
+
+    assert fetched_hrefs == ["/A/Heart"]
+    assert "[Wikipedia: Heart]" in out
+    assert "Chromosome" not in out
+    assert [p["path"] for p in pending] == ["/I/Heart_diagram.svg"]
+    assert pending[0]["source"] == "Heart"
