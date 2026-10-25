@@ -61,7 +61,20 @@ _SKIP_IMAGE_RE = re.compile(
     r"(icon|logo|flag|coat.of.arms|commons.logo|wikimedia|edit.clear|"
     r"ambox|padlock|question.book|speaker|sound.?icon|increase2|decrease2|"
     r"crystal.clear|nuvola|gnome-mime|pictogram|stub|featured|"
-    r"portal|disambig|wiki.letter)",
+    r"portal|disambig|wiki.letter|poster|film.?poster|movie.?poster|"
+    r"album.?cover|dvd.?cover|soundtrack|theatrical)",
+    re.I,
+)
+_OFFTOPIC_TITLE_RE = re.compile(
+    r"\b(film|movie|album|song|novel|novella|television|tv series|"
+    r"soundtrack|video game|episode|poem|band|singer|actor)\b|"
+    r"\((film|album|song|novel|tv|television|video game)\)",
+    re.I,
+)
+_MEDICAL_TITLE_RE = re.compile(
+    r"\b(anatomy|anatomical|physiology|organ|medicine|medical|"
+    r"disease|syndrome|artery|vein|muscle|bone|heart|lung|liver|"
+    r"kidney|brain|trachea|valve|cardiac|anatomy of)\b",
     re.I,
 )
 
@@ -525,17 +538,25 @@ def _article_match_score(item: dict[str, str], query: str) -> int:
     q = (query or "").strip().lower()
     score = 0
     if title == q or title.replace(" ", "") == q.replace(" ", ""):
-        score += 100
+        score += 120
+    if tokens and title in tokens:
+        score += 80
     title_hits = sum(1 for t in tokens if t in title)
     score += title_hits * 25
-    if tokens and title_hits == len(tokens):
+    if tokens and title_hits == len(tokens) and len(title.split()) <= len(tokens) + 2:
         score += 40
     score += sum(8 for t in tokens if t in href)
     score += sum(2 for t in tokens if t in snippet)
+    if _MEDICAL_TITLE_RE.search(title):
+        score += 35
+    if _OFFTOPIC_TITLE_RE.search(title):
+        score -= 120
     if "disambiguation" in title:
         score -= 80
     if title.startswith("list of"):
         score -= 40
+    extra_words = max(0, len(_tokens(title)) - max(1, len(tokens)))
+    score -= extra_words * 8
     return score
 
 
