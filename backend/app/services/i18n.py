@@ -85,8 +85,8 @@ RU = {
     "tool.search_articles.desc": "Смысловой поиск в базе научных статей пользователя. Возвращает релевантные фрагменты статей с их названиями. Используй, когда пользователь спрашивает о научных данных, исследованиях или хочет найти информацию в своих статьях.",
     "tool.search_articles.query": "Поисковый запрос на русском языке.",
     "tool.search_articles.limit": "Максимум результатов (по умолчанию 5).",
-    "tool.search_wikipedia.desc": "Поиск в офлайн-Википедии (Kiwix, английский). Сначала выбирает одну статью по заголовку, картинки берёт только из неё (не из соседних совпадений). Возвращает текст и [Image N: описание]. После абзаца, который картинка поясняет, поставь [[рис. N]] на отдельной строке. Используй для терминов, лекарств, заболеваний.",
-    "tool.search_wikipedia.query": "Поисковый запрос на английском — лучше точный заголовок статьи (Heart, Trachea).",
+    "tool.search_wikipedia.desc": "Поиск в офлайн-Википедии (Kiwix, английский). Вызови ОДИН раз с точным заголовком органа (Heart, Trachea), не перебирай формулировки. Картинки только из выбранной статьи. Если картинок нет — отвечай текстом, не вызывай инструмент снова. После абзаца поставь [[рис. N]].",
+    "tool.search_wikipedia.query": "Точный английский заголовок статьи: Heart, Human heart, Trachea. Не фильмы и не общая Anatomy.",
     "tool.search_wikipedia.limit": "Сколько соседних заголовков показать текстом без картинок (по умолчанию 3).",
     "tool.list_kiwix_books.desc": "Возвращает список книг, подключённых к Kiwix (офлайн-контент: Википедия и другие). Используй, когда пользователь спрашивает, какие книги или какие Википедии доступны/подключены.",
     "kiwix.no_books": "В Kiwix не подключено ни одной книги.",
@@ -340,7 +340,9 @@ RU = {
   исследованиях, или просят найти информацию в базе статей.
 - search_wikipedia — когда нужны общие медицинские факты, термины, описание
   заболеваний/лекарств или сравнение данных из Википедии. Википедия
-  англоязычная — формулируй поисковый запрос на английском языке.
+  англоязычная — формулируй запрос как точный заголовок (Heart, не
+  «human heart cross section»). Вызови инструмент один раз. Если в результате
+  нет [Image N] — не ищи заново, отвечай текстом.
 - list_kiwix_books — когда спрашивают, какие книги или Википедии подключены
    к Kiwix.
 - search_memory / list_memory — когда вопрос опирается на то, что пользователь
@@ -631,8 +633,8 @@ EN = {
     "tool.search_articles.desc": "Semantic search across the user's scientific articles database. Returns relevant article fragments with their titles. Use when the user asks about scientific data, research, or wants to find information in their articles.",
     "tool.search_articles.query": "Search query in English.",
     "tool.search_articles.limit": "Maximum number of results (default 5).",
-    "tool.search_wikipedia.desc": "Search the offline Wikipedia (Kiwix, English). Picks one article by title first; images come only from that article, not from other hits. Returns text and [Image N: description]. After the paragraph a picture illustrates, put [[рис. N]] on its own line. Use for terms, drugs, diseases.",
-    "tool.search_wikipedia.query": "Search query in English — prefer the exact article title (Heart, Trachea).",
+    "tool.search_wikipedia.desc": "Search offline Wikipedia (Kiwix, English). Call ONCE with the exact organ title (Heart, Trachea); do not retry other phrasings. Images come only from that article. If none, answer in text — do not call the tool again. After the paragraph put [[рис. N]].",
+    "tool.search_wikipedia.query": "Exact English article title: Heart, Human heart, Trachea. Not films and not generic Anatomy.",
     "tool.search_wikipedia.limit": "How many related titles to list as text without images (default 3).",
     "tool.list_kiwix_books.desc": "Returns the list of books connected to Kiwix (offline content: Wikipedia and others). Use when the user asks which books or which Wikipedias are available/connected.",
     "kiwix.no_books": "No books are connected to Kiwix.",
@@ -885,7 +887,8 @@ Tools:
   or asked to find information in the articles database.
 - search_wikipedia — when general medical facts, terms, descriptions of diseases/drugs,
   or comparison of Wikipedia data are needed. The Wikipedia is English —
-  formulate the search query in English.
+  use the exact article title (Heart, not "human heart cross section").
+  Call the tool once. If the result has no [Image N], do not search again; answer in text.
 - list_kiwix_books — when asked which books or Wikipedias are connected to Kiwix.
 - search_memory / list_memory — when the question depends on what the user said
   earlier (allergies, habits, complaints, "what do you remember about me").

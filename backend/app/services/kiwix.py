@@ -68,14 +68,24 @@ _SKIP_IMAGE_RE = re.compile(
 )
 _OFFTOPIC_TITLE_RE = re.compile(
     r"\b(film|movie|album|song|novel|novella|television|tv series|"
-    r"soundtrack|video game|episode|poem|band|singer|actor)\b|"
+    r"soundtrack|video game|episode|poem|band|singer|actor|humanity)\b|"
     r"\((film|album|song|novel|tv|television|video game)\)",
+    re.I,
+)
+_OFFTOPIC_SNIPPET_RE = re.compile(
+    r"\b(silent film|\d{4} (american |british )?(silent )?film|feature film|"
+    r"directed by|starring|theatrical release|film poster)\b",
     re.I,
 )
 _MEDICAL_TITLE_RE = re.compile(
     r"\b(anatomy|anatomical|physiology|organ|medicine|medical|"
     r"disease|syndrome|artery|vein|muscle|bone|heart|lung|liver|"
     r"kidney|brain|trachea|valve|cardiac|anatomy of)\b",
+    re.I,
+)
+_ORGAN_QUERY_RE = re.compile(
+    r"\b(heart|lung|liver|kidney|brain|trachea|valve|cardiac|"
+    r"stomach|spleen|pancreas|intestine)\b",
     re.I,
 )
 
@@ -565,6 +575,34 @@ def _tokens(text: str) -> list[str]:
     ]
 
 
+def _contains_word(text: str, word: str) -> bool:
+    if not text or not word:
+        return False
+    return re.search(rf"\b{re.escape(word)}\b", text) is not None
+
+
+def _is_offtopic_article(item: dict[str, str]) -> bool:
+    title = item.get("title") or ""
+    snippet = item.get("snippet") or ""
+    return bool(
+        _OFFTOPIC_TITLE_RE.search(title) or _OFFTOPIC_SNIPPET_RE.search(snippet)
+    )
+
+
+def _article_title_on_topic(article_title: str, query: str) -> bool:
+    """Инфобокс без слов запроса в имени — только если сама статья по теме."""
+    if _is_offtopic_article({"title": article_title, "snippet": ""}):
+        return False
+    qtok = _tokens(query)
+    ttok = _tokens(article_title)
+    title = (article_title or "").lower()
+    if qtok:
+        if any(_contains_word(title, t) for t in qtok):
+            return True
+        return bool(ttok) and all(t in qtok for t in ttok)
+    return len(ttok) <= 2 and bool(_MEDICAL_TITLE_RE.search(title))
+
+
 def _article_match_score(item: dict[str, str], query: str) -> int:
     tokens = _tokens(query)
     title = (item.get("title") or "").lower()
@@ -576,22 +614,33 @@ def _article_match_score(item: dict[str, str], query: str) -> int:
         score += 120
     if tokens and title in tokens:
         score += 80
-    title_hits = sum(1 for t in tokens if t in title)
+    title_hits = sum(1 for t in tokens if _contains_word(title, t))
     score += title_hits * 25
     if tokens and title_hits == len(tokens) and len(title.split()) <= len(tokens) + 2:
         score += 40
-    score += sum(8 for t in tokens if t in href)
-    score += sum(2 for t in tokens if t in snippet)
-    if _MEDICAL_TITLE_RE.search(title):
+    href_blob = href.replace("_", " ").replace("-", " ")
+    score += sum(8 for t in tokens if _contains_word(href_blob, t))
+    score += sum(2 for t in tokens if _contains_word(snippet, t))
+    title_tokens = _tokens(title)
+    medical_extra = [
+        w for w in title_tokens if not _MEDICAL_TITLE_RE.search(w) and w not in tokens
+    ]
+    if _MEDICAL_TITLE_RE.search(title) and not medical_extra:
         score += 35
-    if _OFFTOPIC_TITLE_RE.search(title):
+    if _is_offtopic_article(item):
         score -= 120
+    if _ORGAN_QUERY_RE.search(query or "") and re.fullmatch(
+        r"anatomy( \(.+\))?", title.strip()
+    ):
+        score -= 100
     if "disambiguation" in title:
         score -= 80
     if title.startswith("list of"):
         score -= 40
-    extra_words = max(0, len(_tokens(title)) - max(1, len(tokens)))
+    extra_words = max(0, len(title_tokens) - max(1, len(tokens)))
     score -= extra_words * 8
+    if extra_words >= 2:
+        score -= 40
     return score
 
 
@@ -611,8 +660,11 @@ def rank_search_results(results: list[dict[str, str]], query: str) -> list[dict[
 def pick_primary_article(
     results: list[dict[str, str]], query: str
 ) -> dict[str, str] | None:
-    """Одна статья: лучший заголовок, не случайное упоминание в тексте."""
+    """Одна статья: лучший заголовок, не фильм и не случайное упоминание."""
     ranked = rank_search_results(results, query)
+    on_topic = [item for item in ranked if not _is_offtopic_article(item)]
+    if on_topic:
+        return on_topic[0]
     return ranked[0] if ranked else None
 
 
@@ -623,8 +675,15 @@ def pick_relevant_images(
     max_images: int,
 ) -> list[dict[str, str]]:
     """Оставляет картинки по теме запроса; иконки и чужие схемы отбрасывает."""
+    title = article_title or ""
+    if _is_offtopic_article({"title": title, "snippet": ""}):
+        return []
     q_tokens = _tokens(query)
     t_tokens = _tokens(article_title)
+    if re.fullmatch(r"anatomy( \(.+\))?", title.strip(), flags=re.I) and not any(
+        t in {"anatomy", "anatomical"} for t in q_tokens
+    ):
+        return []
     scored: list[tuple[int, int, dict[str, str]]] = []
     for i, img in enumerate(candidates):
         path = img.get("path") or ""
@@ -640,6 +699,8 @@ def pick_relevant_images(
     topical = [img for score, _, img in scored if score >= 8]
     if topical:
         return topical[:cap]
+    if not _article_title_on_topic(article_title, query):
+        return []
     by_order = sorted(scored, key=lambda x: x[1])
     return [img for _, _, img in by_order[:cap]]
 
@@ -802,8 +863,10 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
     extras = [
         item
         for item in results
-        if item is not primary and (item.get("href") or item.get("title"))
+        if item is not primary
+        and (item.get("href") or item.get("title"))
         != (primary.get("href") or primary.get("title"))
+        and not _is_offtopic_article(item)
     ][: max(0, min(int(limit), 5) - 1)]
     blocks: list[str] = []
     image_count = 0
@@ -891,6 +954,11 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
             "Available images — after the paragraph each picture illustrates, "
             "output [[рис. N]] on its own line. Do not dump images at the end.\n"
             + "\n".join(image_legend)
+        )
+    else:
+        blocks.append(
+            "No images from this article. Answer from the text. "
+            "Do not call search_wikipedia again."
         )
     if not blocks:
         return t("kiwix.no_results")

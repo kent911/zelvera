@@ -76,6 +76,30 @@ def test_rank_skips_film_when_anatomy_exists():
     assert ranked[0]["title"] != "Map of the Human Heart"
 
 
+def test_rank_heart_over_film_and_generic_anatomy():
+    results = [
+        {
+            "title": "The Heart of Humanity",
+            "href": "/A/The_Heart_of_Humanity",
+            "snippet": "1918 American silent film",
+        },
+        {"title": "Anatomy", "href": "/A/Anatomy", "snippet": "fish and frog diagrams"},
+        {"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"},
+    ]
+    primary = kiwix.pick_primary_article(results, "human heart")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+
+
+def test_pick_skips_generic_anatomy_images():
+    candidates = [
+        {"zim": "z", "path": "/I/Fish_anatomy.svg", "alt": "Fish anatomy"},
+        {"zim": "z", "path": "/I/Frog_dissection.jpg", "alt": "Frog heart labeled"},
+    ]
+    picked = kiwix.pick_relevant_images(candidates, "heart", "Anatomy", 2)
+    assert picked == []
+
+
 def test_pick_relevant_images_skips_offtopic():
     candidates = [
         {"zim": "z", "path": "/I/Chromosome_9.png", "alt": "Chromosome 9"},

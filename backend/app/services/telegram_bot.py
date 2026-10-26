@@ -489,9 +489,15 @@ class TelegramBot:
 
         async def tool_executor(name: str, arguments: dict) -> str:
             result = await tools.execute_tool(name, arguments)
-            for img in kiwix.take_pending_images():
-                if img not in pending_images:
-                    pending_images.append(img)
+            imgs = kiwix.take_pending_images()
+            if name == "search_wikipedia":
+                if imgs:
+                    pending_images.clear()
+                    pending_images.extend(imgs)
+            else:
+                for img in imgs:
+                    if img not in pending_images:
+                        pending_images.append(img)
             return result
 
         acc = ""

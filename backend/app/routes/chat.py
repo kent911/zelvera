@@ -152,9 +152,15 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                 nonlocal rounds
                 rounds += 1
                 result = await tools.execute_tool(name, arguments)
-                for img in kiwix.take_pending_images():
-                    if img not in pending:
-                        pending.append(img)
+                imgs = kiwix.take_pending_images()
+                if name == "search_wikipedia":
+                    if imgs:
+                        pending.clear()
+                        pending.extend(imgs)
+                else:
+                    for img in imgs:
+                        if img not in pending:
+                            pending.append(img)
                 return result
 
             try:
