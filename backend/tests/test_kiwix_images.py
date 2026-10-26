@@ -91,6 +91,38 @@ def test_rank_heart_over_film_and_generic_anatomy():
     assert primary["title"] == "Heart"
 
 
+def test_rank_heart_over_novel():
+    results = [
+        {
+            "title": "Any Human Heart",
+            "href": "/A/Any_Human_Heart",
+            "snippet": "2002 novel by William Boyd",
+        },
+        {
+            "title": "Anatomy of the human heart",
+            "href": "/A/Anatomy_of_the_human_heart",
+            "snippet": "chambers and valves",
+        },
+        {"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"},
+    ]
+    primary = kiwix.pick_primary_article(results, "human heart")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+    picked = kiwix.pick_relevant_images(
+        [
+            {
+                "zim": "z",
+                "path": "/I/Any_Human_Heart_cover.jpg",
+                "alt": "First edition book cover",
+            }
+        ],
+        "heart",
+        "Any Human Heart",
+        2,
+    )
+    assert picked == []
+
+
 def test_pick_skips_generic_anatomy_images():
     candidates = [
         {"zim": "z", "path": "/I/Fish_anatomy.svg", "alt": "Fish anatomy"},

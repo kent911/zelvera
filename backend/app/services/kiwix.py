@@ -63,7 +63,8 @@ _SKIP_IMAGE_RE = re.compile(
     r"crystal.clear|nuvola|gnome-mime|pictogram|stub|featured|"
     r"portal|disambig|wiki.letter|film.?poster|movie.?poster|"
     r"(?:^|[^a-z0-9])poster(?:[^a-z0-9]|$)|"
-    r"album.?cover|dvd.?cover|soundtrack|theatrical)",
+    r"album.?cover|dvd.?cover|book.?cover|dust.?jacket|first.?edition|"
+    r"paperback|hardcover|soundtrack|theatrical)",
     re.I,
 )
 _OFFTOPIC_TITLE_RE = re.compile(
@@ -74,7 +75,8 @@ _OFFTOPIC_TITLE_RE = re.compile(
 )
 _OFFTOPIC_SNIPPET_RE = re.compile(
     r"\b(silent film|\d{4} (american |british )?(silent )?film|feature film|"
-    r"directed by|starring|theatrical release|film poster)\b",
+    r"directed by|starring|theatrical release|film poster|"
+    r"novel|novella|short story|author|isbn|bestseller|book cover)\b",
     re.I,
 )
 _MEDICAL_TITLE_RE = re.compile(
@@ -581,17 +583,36 @@ def _contains_word(text: str, word: str) -> bool:
     return re.search(rf"\b{re.escape(word)}\b", text) is not None
 
 
-def _is_offtopic_article(item: dict[str, str]) -> bool:
+def _title_mismatches_organ(title: str, query: str) -> bool:
+    """«Any Human Heart» / «Map of the Human Heart» — не статья про орган."""
+    m = _ORGAN_QUERY_RE.search(query or "")
+    if not m:
+        return False
+    organ = m.group(0).lower()
+    title_l = (title or "").lower()
+    if not _contains_word(title_l, organ):
+        return False
+    ttok = _tokens(title)
+    if not ttok:
+        return False
+    qtok = set(_tokens(query))
+    extra = [
+        t for t in ttok if t not in qtok and not _MEDICAL_TITLE_RE.search(t)
+    ]
+    return bool(extra)
+
+
+def _is_offtopic_article(item: dict[str, str], query: str = "") -> bool:
     title = item.get("title") or ""
     snippet = item.get("snippet") or ""
-    return bool(
-        _OFFTOPIC_TITLE_RE.search(title) or _OFFTOPIC_SNIPPET_RE.search(snippet)
-    )
+    if _OFFTOPIC_TITLE_RE.search(title) or _OFFTOPIC_SNIPPET_RE.search(snippet):
+        return True
+    return _title_mismatches_organ(title, query)
 
 
 def _article_title_on_topic(article_title: str, query: str) -> bool:
     """Инфобокс без слов запроса в имени — только если сама статья по теме."""
-    if _is_offtopic_article({"title": article_title, "snippet": ""}):
+    if _is_offtopic_article({"title": article_title, "snippet": ""}, query):
         return False
     qtok = _tokens(query)
     ttok = _tokens(article_title)
@@ -627,7 +648,7 @@ def _article_match_score(item: dict[str, str], query: str) -> int:
     ]
     if _MEDICAL_TITLE_RE.search(title) and not medical_extra:
         score += 35
-    if _is_offtopic_article(item):
+    if _is_offtopic_article(item, query):
         score -= 120
     if _ORGAN_QUERY_RE.search(query or "") and re.fullmatch(
         r"anatomy( \(.+\))?", title.strip()
@@ -662,7 +683,7 @@ def pick_primary_article(
 ) -> dict[str, str] | None:
     """Одна статья: лучший заголовок, не фильм и не случайное упоминание."""
     ranked = rank_search_results(results, query)
-    on_topic = [item for item in ranked if not _is_offtopic_article(item)]
+    on_topic = [item for item in ranked if not _is_offtopic_article(item, query)]
     if on_topic:
         return on_topic[0]
     return ranked[0] if ranked else None
@@ -676,7 +697,7 @@ def pick_relevant_images(
 ) -> list[dict[str, str]]:
     """Оставляет картинки по теме запроса; иконки и чужие схемы отбрасывает."""
     title = article_title or ""
-    if _is_offtopic_article({"title": title, "snippet": ""}):
+    if _is_offtopic_article({"title": title, "snippet": ""}, query):
         return []
     q_tokens = _tokens(query)
     t_tokens = _tokens(article_title)
@@ -866,7 +887,7 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
         if item is not primary
         and (item.get("href") or item.get("title"))
         != (primary.get("href") or primary.get("title"))
-        and not _is_offtopic_article(item)
+        and not _is_offtopic_article(item, query)
     ][: max(0, min(int(limit), 5) - 1)]
     blocks: list[str] = []
     image_count = 0
