@@ -123,6 +123,40 @@ def test_rank_heart_over_novel():
     assert picked == []
 
 
+def test_rank_heart_over_radio_station():
+    results = [
+        {"title": "Heart UK", "href": "/A/Heart_UK", "snippet": "British radio station"},
+        {"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"},
+    ]
+    primary = kiwix.pick_primary_article(results, "Heart")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+
+
+def test_canonical_heart_when_search_misses_article():
+    results = [
+        {"title": "Heart UK", "href": "/A/Heart_UK", "snippet": "British radio station"},
+        {
+            "title": "Any Human Heart",
+            "href": "/A/Any_Human_Heart",
+            "snippet": "2002 novel by William Boyd",
+        },
+    ]
+    primary = kiwix.pick_primary_article(results, "Heart")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+    assert primary["href"] == "/A/Heart"
+
+
+def test_extract_reads_data_src_and_relative_png():
+    html = """
+    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         data-src="./Diagram_of_the_human_heart.svg.png" alt="Heart">
+    """
+    extracted = kiwix._extract_images(html, "zim", "/A/Heart", 2)
+    assert [p["path"] for p in extracted] == ["/A/Diagram_of_the_human_heart.svg.png"]
+
+
 def test_pick_skips_generic_anatomy_images():
     candidates = [
         {"zim": "z", "path": "/I/Fish_anatomy.svg", "alt": "Fish anatomy"},

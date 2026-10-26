@@ -69,7 +69,8 @@ _SKIP_IMAGE_RE = re.compile(
 )
 _OFFTOPIC_TITLE_RE = re.compile(
     r"\b(film|movie|album|song|novel|novella|television|tv series|"
-    r"soundtrack|video game|episode|poem|band|singer|actor|humanity)\b|"
+    r"soundtrack|video game|episode|poem|band|singer|actor|humanity|"
+    r"radio|station)\b|"
     r"\((film|album|song|novel|tv|television|video game)\)",
     re.I,
 )
@@ -90,6 +91,16 @@ _ORGAN_QUERY_RE = re.compile(
     r"stomach|spleen|pancreas|intestine)\b",
     re.I,
 )
+
+_IMAGE_EXT_RE = re.compile(r"\.(?:jpe?g|png|gif|webp|svg|tiff?)(?:\.png)?$", re.I)
+_CANONICAL_TITLES = {
+    "heart": ("heart", "human heart", "anatomy of the human heart"),
+    "lung": ("lung", "human lung", "lungs"),
+    "liver": ("liver", "human liver"),
+    "kidney": ("kidney", "human kidney"),
+    "brain": ("brain", "human brain"),
+    "trachea": ("trachea",),
+}
 
 _MIME_BY_EXT = {
     ".jpg": "image/jpeg",
@@ -495,6 +506,8 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
             return article_zim, "/" + parts[1]
         if decoded.startswith("/I/") or "/_assets_/" in decoded:
             return article_zim, decoded
+        if _IMAGE_EXT_RE.search(decoded):
+            return article_zim, decoded
         return "", ""
     base = posixpath.dirname(article_path or "/")
     joined = posixpath.normpath(posixpath.join(base, unquote(src)))
@@ -504,33 +517,48 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
         return article_zim, "/I/" + joined.split("/I/", 1)[-1]
     if "/_assets_/" in joined:
         return article_zim, joined
+    if _IMAGE_EXT_RE.search(joined):
+        return article_zim, joined
     return "", ""
 
 
 _IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
 
 
-def _img_src_from_tag(tag: str) -> str:
-    """src картинки; если src — data: или пуст, берёт первый URL из srcset."""
-    src_m = re.search(
-        r"\bsrc\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
+def _attr_value(tag: str, name: str) -> str:
+    m = re.search(
+        rf"\b{name}\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
     )
-    src = ""
-    if src_m:
-        src = src_m.group(1) if src_m.group(1) is not None else src_m.group(2) or ""
-        src = src.strip()
-        if src and not src.lower().startswith("data:"):
-            return src
-    srcset_m = re.search(
-        r"\bsrcset\s*=\s*(?:\"([^\"]*)\"|'([^']*)')", tag, flags=re.I
-    )
-    if not srcset_m:
+    if not m:
         return ""
-    srcset = srcset_m.group(1) if srcset_m.group(1) is not None else srcset_m.group(2) or ""
+    return (m.group(1) if m.group(1) is not None else m.group(2) or "").strip()
+
+
+def _usable_src(src: str) -> str:
+    src = (src or "").strip()
+    if not src or src.lower().startswith("data:"):
+        return ""
+    if src.startswith(("http://", "https://", "//")):
+        return ""
+    return src
+
+
+def _first_srcset(srcset: str) -> str:
     first = srcset.split(",")[0].strip().split()[0] if srcset.strip() else ""
-    if first.lower().startswith("data:"):
-        return ""
-    return first
+    return _usable_src(first)
+
+
+def _img_src_from_tag(tag: str) -> str:
+    """src картинки; data-src / srcset, если src — data: или пуст."""
+    for name in ("src", "data-src", "data-original"):
+        src = _usable_src(_attr_value(tag, name))
+        if src:
+            return src
+    for name in ("srcset", "data-srcset"):
+        src = _first_srcset(_attr_value(tag, name))
+        if src:
+            return src
+    return ""
 
 
 def _extract_images(
@@ -597,7 +625,11 @@ def _title_mismatches_organ(title: str, query: str) -> bool:
         return False
     qtok = set(_tokens(query))
     extra = [
-        t for t in ttok if t not in qtok and not _MEDICAL_TITLE_RE.search(t)
+        t
+        for t in ttok
+        if t not in qtok
+        and t not in {"human", "anatomy", "anatomical"}
+        and not _MEDICAL_TITLE_RE.search(t)
     ]
     return bool(extra)
 
@@ -678,12 +710,49 @@ def rank_search_results(results: list[dict[str, str]], query: str) -> list[dict[
     return [item for _, item in scored]
 
 
+def _canonical_titles_for_query(query: str) -> tuple[str, ...]:
+    m = _ORGAN_QUERY_RE.search(query or "")
+    if not m:
+        return ()
+    return _CANONICAL_TITLES.get(m.group(0).lower(), ())
+
+
+def _href_for_title(title: str) -> str:
+    slug = (title or "").strip().replace(" ", "_")
+    return f"/A/{slug}" if slug else ""
+
+
+def _query_is_organ_lookup(query: str) -> bool:
+    wanted = _canonical_titles_for_query(query)
+    if not wanted:
+        return False
+    qtok = set(_tokens(query))
+    allowed: set[str] = set()
+    for title in wanted:
+        allowed.update(_tokens(title))
+    allowed.update({"human", "anatomy", "anatomical", "organ"})
+    return bool(qtok) and qtok <= allowed
+
+
 def pick_primary_article(
     results: list[dict[str, str]], query: str
 ) -> dict[str, str] | None:
-    """Одна статья: лучший заголовок, не фильм и не случайное упоминание."""
+    """Одна статья: канонический орган (Heart), не фильм и не радиостанция."""
     ranked = rank_search_results(results, query)
     on_topic = [item for item in ranked if not _is_offtopic_article(item, query)]
+    wanted = _canonical_titles_for_query(query)
+    if wanted and _query_is_organ_lookup(query):
+        wanted_l = {t.lower() for t in wanted}
+        for item in on_topic:
+            if (item.get("title") or "").strip().lower() in wanted_l:
+                return item
+        organ = wanted[0]
+        display = organ[:1].upper() + organ[1:] if organ else ""
+        return {
+            "title": display,
+            "href": _href_for_title(display),
+            "snippet": "",
+        }
     if on_topic:
         return on_topic[0]
     return ranked[0] if ranked else None
