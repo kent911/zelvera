@@ -493,15 +493,32 @@ async def get_article(zim: str, path: str) -> str:
     raise KiwixError("kiwix.article_failed", err="; ".join(errors))
 
 
+def _article_path_candidates(path: str) -> list[str]:
+    raw = (path or "").strip()
+    if not raw:
+        return []
+    if not raw.startswith("/"):
+        raw = "/" + raw
+    name = raw.rsplit("/", 1)[-1]
+    variants = [raw, f"/A/{name}", f"/{name}", f"/A/{name}.html", f"/{name}.html"]
+    seen: list[str] = []
+    for v in variants:
+        if v and v not in seen:
+            seen.append(v)
+    return seen
+
+
 async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MAX_CHARS) -> str:
     """Возвращает сырой HTML статьи (ограничен), для извлечения <img> и текста."""
     base = get_base_url()
     if not base:
         raise KiwixError("kiwix.not_configured")
-    attempts = [
-        f"{base}/raw/{zim}/content{path}",
-        f"{base}/raw/{zim}{path}",
-    ]
+    attempts: list[str] = []
+    for p in _article_path_candidates(path):
+        attempts += [
+            f"{base}/raw/{zim}/content{p}",
+            f"{base}/raw/{zim}{p}",
+        ]
     errors: list[str] = []
     for url in attempts:
         try:
@@ -529,11 +546,16 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
     src = src.split("#")[0].split("?")[0].strip()
     if not src:
         return "", ""
+    if src.lower().startswith("data:"):
+        return "", ""
+    if src.startswith(("http://", "https://", "//")):
+        name = _filename_from_remote(src)
+        if name:
+            return article_zim, "/I/" + name
+        return "", ""
     if "/content/" in src:
         zim, path = _split_content_link(src)
         return (zim or article_zim), unquote(path)
-    if src.lower().startswith("data:"):
-        return "", ""
     if src.startswith("/I/"):
         return article_zim, unquote(src)
     if src.startswith("/"):
@@ -578,9 +600,23 @@ def _usable_src(src: str) -> str:
     src = (src or "").strip()
     if not src or src.lower().startswith("data:"):
         return ""
-    if src.startswith(("http://", "https://", "//")):
-        return ""
     return src
+
+
+def _filename_from_remote(src: str) -> str:
+    """Имя файла из upload.wikimedia.org / Special:FilePath — искать его в ZIM."""
+    raw = src.strip()
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    path = unquote(raw.split("?", 1)[0])
+    if "/wikipedia/" not in path.lower() and "file:" not in path.lower() and "filepath" not in path.lower():
+        if not _IMAGE_EXT_RE.search(path):
+            return ""
+    name = path.rsplit("/", 1)[-1]
+    name = re.sub(r"^\d+px-", "", name)
+    if name.lower().startswith("file:"):
+        name = name.split(":", 1)[-1]
+    return name if name and _IMAGE_EXT_RE.search(name) else ""
 
 
 def _first_srcset(srcset: str) -> str:
@@ -890,12 +926,15 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
         name = path[len("/I/"):]
     elif path.startswith("/A/") and _IMAGE_EXT_RE.search(path):
         name = path[len("/A/"):]
-    if name:
+    names = [name] if name else []
+    if name and name.lower().endswith(".svg.png"):
+        names.append(name[:-4])
+    for n in names:
         variants += [
-            "/I/" + name,
-            "/I/_assets_/" + name,
-            "/A/_assets_/" + name,
-            "/A/" + name,
+            "/I/" + n,
+            "/I/_assets_/" + n,
+            "/A/_assets_/" + n,
+            "/A/" + n,
         ]
     seen: list[str] = []
     for v in variants:
@@ -993,9 +1032,14 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
     query = query.strip()
     if not query:
         return t("kiwix.empty_query")
+    search_query = query
+    if _query_is_organ_lookup(query):
+        titles = _canonical_titles_for_query(query)
+        if titles:
+            search_query = titles[0]
     try:
         zim = await resolve_zim()
-        results = rank_search_results(await search(query, zim), query)
+        results = rank_search_results(await search(search_query, zim), query)
     except KiwixError as exc:
         detail = t(exc.key)
         if exc.err:

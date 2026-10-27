@@ -170,6 +170,66 @@ def test_canonical_heart_when_search_misses_article():
     assert primary["href"] == "/A/Heart"
 
 
+def test_extract_reads_commons_url():
+    html = """
+    <img src="//upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Heart_diagram.svg/220px-Heart_diagram.svg.png" alt="Heart">
+    """
+    extracted = kiwix._extract_images(html, "zim", "/A/Heart", 2)
+    assert [p["path"] for p in extracted] == ["/I/Heart_diagram.svg.png"]
+
+
+def test_article_path_candidates_include_namespace_variants():
+    assert kiwix._article_path_candidates("/A/Heart") == [
+        "/A/Heart",
+        "/Heart",
+        "/A/Heart.html",
+        "/Heart.html",
+    ]
+
+
+def test_image_url_candidates_try_svg_without_png_thumb(monkeypatch):
+    monkeypatch.setattr(kiwix, "get_base_url", lambda: "http://kiwix")
+    urls = kiwix._image_url_candidates("zim", "/I/Heart_diagram.svg.png")
+    paths = [p for p, _ in urls]
+    assert "/I/Heart_diagram.svg.png" in paths
+    assert "/I/Heart_diagram.svg" in paths
+
+
+def test_russian_query_searches_english_heart(monkeypatch):
+    kiwix.take_pending_images()
+    searched: list[str] = []
+
+    async def resolve_zim():
+        return "zim"
+
+    async def search(query, _zim):
+        searched.append(query)
+        return [{"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"}]
+
+    async def get_article_html(_zim, _href):
+        return '<img src="./Heart_diagram.svg" alt="Heart">'
+
+    async def fetch_image(_zim, path):
+        return b"img", path
+
+    async def describe(_data, _mime):
+        return None
+
+    monkeypatch.setattr(kiwix, "resolve_zim", resolve_zim)
+    monkeypatch.setattr(kiwix, "search", search)
+    monkeypatch.setattr(kiwix, "get_article_html", get_article_html)
+    monkeypatch.setattr(kiwix, "_fetch_image", fetch_image)
+    monkeypatch.setattr(kiwix, "_describe_image_bytes", describe)
+
+    out = asyncio.run(kiwix.fetch_tool_results("покажи сердце человека", limit=1))
+    pending = kiwix.take_pending_images()
+
+    assert searched == ["heart"]
+    assert "[Wikipedia: Heart]" in out
+    assert pending
+    assert pending[0]["path"].endswith("Heart_diagram.svg")
+
+
 def test_extract_reads_data_src_and_relative_png():
     html = """
     <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
