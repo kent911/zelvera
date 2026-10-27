@@ -133,6 +133,28 @@ def test_rank_heart_over_radio_station():
     assert primary["title"] == "Heart"
 
 
+def test_russian_heart_query_picks_heart_not_lung():
+    results = [
+        {"title": "Lung", "href": "/A/Lung", "snippet": "respiratory organ"},
+        {"title": "Heart UK", "href": "/A/Heart_UK", "snippet": "British radio station"},
+        {"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"},
+    ]
+    primary = kiwix.pick_primary_article(results, "покажи сердце человека в разрезе")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+
+
+def test_cross_section_query_still_picks_heart():
+    results = [
+        {"title": "Heart UK", "href": "/A/Heart_UK", "snippet": "British radio station"},
+        {"title": "Lung", "href": "/A/Lung", "snippet": "respiratory organ"},
+        {"title": "Heart", "href": "/A/Heart", "snippet": "muscular organ"},
+    ]
+    primary = kiwix.pick_primary_article(results, "heart cross section")
+    assert primary is not None
+    assert primary["title"] == "Heart"
+
+
 def test_canonical_heart_when_search_misses_article():
     results = [
         {"title": "Heart UK", "href": "/A/Heart_UK", "snippet": "British radio station"},

@@ -91,6 +91,40 @@ _ORGAN_QUERY_RE = re.compile(
     r"stomach|spleen|pancreas|intestine)\b",
     re.I,
 )
+_RU_ORGAN_RE = (
+    (re.compile(r"сердц", re.I), "heart"),
+    (re.compile(r"лёгочн|легочн|лёгк|легк", re.I), "lung"),
+    (re.compile(r"печен", re.I), "liver"),
+    (re.compile(r"почк", re.I), "kidney"),
+    (re.compile(r"мозг", re.I), "brain"),
+    (re.compile(r"трахе", re.I), "trachea"),
+    (re.compile(r"поджелуд", re.I), "pancreas"),
+    (re.compile(r"желуд", re.I), "stomach"),
+    (re.compile(r"селез", re.I), "spleen"),
+    (re.compile(r"кишк", re.I), "intestine"),
+)
+_ORGAN_LOOKUP_EXTRA = {
+    "human",
+    "anatomy",
+    "anatomical",
+    "organ",
+    "cross",
+    "section",
+    "diagram",
+    "view",
+    "cut",
+    "slice",
+    "sagittal",
+    "interior",
+    "structure",
+    "picture",
+    "image",
+    "photo",
+    "illustration",
+    "figure",
+    "show",
+    "tell",
+}
 
 _IMAGE_EXT_RE = re.compile(r"\.(?:jpe?g|png|gif|webp|svg|tiff?)(?:\.png)?$", re.I)
 _CANONICAL_TITLES = {
@@ -100,6 +134,12 @@ _CANONICAL_TITLES = {
     "kidney": ("kidney", "human kidney"),
     "brain": ("brain", "human brain"),
     "trachea": ("trachea",),
+    "stomach": ("stomach",),
+    "spleen": ("spleen",),
+    "pancreas": ("pancreas",),
+    "intestine": ("intestine", "human intestine"),
+    "valve": ("heart valve",),
+    "cardiac": ("heart", "human heart"),
 }
 
 _MIME_BY_EXT = {
@@ -613,10 +653,9 @@ def _contains_word(text: str, word: str) -> bool:
 
 def _title_mismatches_organ(title: str, query: str) -> bool:
     """«Any Human Heart» / «Map of the Human Heart» — не статья про орган."""
-    m = _ORGAN_QUERY_RE.search(query or "")
-    if not m:
+    organ = _detect_organ(query)
+    if not organ:
         return False
-    organ = m.group(0).lower()
     title_l = (title or "").lower()
     if not _contains_word(title_l, organ):
         return False
@@ -682,7 +721,7 @@ def _article_match_score(item: dict[str, str], query: str) -> int:
         score += 35
     if _is_offtopic_article(item, query):
         score -= 120
-    if _ORGAN_QUERY_RE.search(query or "") and re.fullmatch(
+    if _detect_organ(query) and re.fullmatch(
         r"anatomy( \(.+\))?", title.strip()
     ):
         score -= 100
@@ -710,11 +749,20 @@ def rank_search_results(results: list[dict[str, str]], query: str) -> list[dict[
     return [item for _, item in scored]
 
 
+def _detect_organ(query: str) -> str:
+    text = query or ""
+    for pat, organ in _RU_ORGAN_RE:
+        if pat.search(text):
+            return organ
+    m = _ORGAN_QUERY_RE.search(text)
+    return m.group(0).lower() if m else ""
+
+
 def _canonical_titles_for_query(query: str) -> tuple[str, ...]:
-    m = _ORGAN_QUERY_RE.search(query or "")
-    if not m:
+    organ = _detect_organ(query)
+    if not organ:
         return ()
-    return _CANONICAL_TITLES.get(m.group(0).lower(), ())
+    return _CANONICAL_TITLES.get(organ, (organ,))
 
 
 def _href_for_title(title: str) -> str:
@@ -727,11 +775,12 @@ def _query_is_organ_lookup(query: str) -> bool:
     if not wanted:
         return False
     qtok = set(_tokens(query))
-    allowed: set[str] = set()
+    if not qtok:
+        return True
+    allowed: set[str] = set(_ORGAN_LOOKUP_EXTRA)
     for title in wanted:
         allowed.update(_tokens(title))
-    allowed.update({"human", "anatomy", "anatomical", "organ"})
-    return bool(qtok) and qtok <= allowed
+    return qtok <= allowed
 
 
 def pick_primary_article(
@@ -839,13 +888,20 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
         name = path.rsplit("/_assets_/", 1)[-1]
     elif path.startswith("/I/"):
         name = path[len("/I/"):]
+    elif path.startswith("/A/") and _IMAGE_EXT_RE.search(path):
+        name = path[len("/A/"):]
     if name:
-        if path.startswith("/A/_assets_/"):
-            variants += ["/I/_assets_/" + name, "/I/" + name]
-        elif path.startswith("/I/_assets_/"):
-            variants += ["/A/_assets_/" + name, "/I/" + name]
-        elif path.startswith("/I/"):
-            variants += ["/I/_assets_/" + name, "/A/_assets_/" + name]
+        variants += [
+            "/I/" + name,
+            "/I/_assets_/" + name,
+            "/A/_assets_/" + name,
+            "/A/" + name,
+        ]
+    seen: list[str] = []
+    for v in variants:
+        if v not in seen:
+            seen.append(v)
+    variants = seen
     return [
         (v, f"{base}/raw/{quote(zim, safe='')}/content{quote(v, safe='/')}")
         for v in variants
