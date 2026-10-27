@@ -178,6 +178,27 @@ def test_extract_reads_commons_url():
     assert [p["path"] for p in extracted] == ["/I/Heart_diagram.svg.png"]
 
 
+def test_extract_reads_content_prefix_and_file_href():
+    html = """
+    <a href="/content/wikipedia_en_all/I/Heart_diagram.svg">x</a>
+    <img src="/wikipedia_en_all/I/e/e5/Diagram_of_the_human_heart.svg" alt="Heart">
+    """
+    extracted = kiwix._extract_images(html, "wikipedia_en_all", "/A/Heart", 2)
+    assert "/I/e/e5/Diagram_of_the_human_heart.svg" in [p["path"] for p in extracted]
+    assert "/I/Heart_diagram.svg" in [p["path"] for p in extracted]
+
+
+def test_image_url_candidates_include_content_and_basename(monkeypatch):
+    monkeypatch.setattr(kiwix, "get_base_url", lambda: "http://kiwix")
+    urls = kiwix._image_url_candidates("zim", "/I/e/e5/Heart_diagram.svg")
+    paths = [p for p, _ in urls]
+    http = [u for _, u in urls]
+    assert "/I/e/e5/Heart_diagram.svg" in paths
+    assert "/I/Heart_diagram.svg" in paths
+    assert any("/content/zim/I/Heart_diagram.svg" in u for u in http)
+    assert any("/raw/zim/content/I/Heart_diagram.svg" in u for u in http)
+
+
 def test_article_path_candidates_include_namespace_variants():
     assert kiwix._article_path_candidates("/A/Heart") == [
         "/A/Heart",

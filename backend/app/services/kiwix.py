@@ -560,16 +560,17 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
         return article_zim, unquote(src)
     if src.startswith("/"):
         decoded = unquote(src)
+        if "/I/" in decoded:
+            return article_zim, "/I/" + decoded.split("/I/", 1)[-1]
+        if "/_assets_/" in decoded:
+            return article_zim, "/A/_assets_/" + decoded.split("/_assets_/", 1)[-1]
         rest = decoded.lstrip("/")
         parts = rest.split("/", 1)
-        if len(parts) == 2 and parts[0] == article_zim and (
-            parts[1].startswith("I/") or "/_assets_/" in parts[1]
-        ):
+        if len(parts) == 2 and parts[0] == article_zim and _IMAGE_EXT_RE.search(parts[1]):
             return article_zim, "/" + parts[1]
-        if decoded.startswith("/I/") or "/_assets_/" in decoded:
-            return article_zim, decoded
         if _IMAGE_EXT_RE.search(decoded):
-            return article_zim, decoded
+            name = decoded.rsplit("/", 1)[-1]
+            return article_zim, "/I/" + name if name else decoded
         return "", ""
     base = posixpath.dirname(article_path or "/")
     joined = posixpath.normpath(posixpath.join(base, unquote(src)))
@@ -585,6 +586,10 @@ def _normalize_img_src(src: str, article_zim: str, article_path: str = "/") -> t
 
 
 _IMG_TAG_RE = re.compile(r"<img[^>]*>", flags=re.I)
+_FILE_HREF_RE = re.compile(
+    r"""(?:href|src)\s*=\s*["']([^"']*(?:File:|I/)[^"']+\.(?:jpe?g|png|gif|webp|svg)(?:\.png)?)["']""",
+    flags=re.I,
+)
 
 
 def _attr_value(tag: str, name: str) -> str:
@@ -670,6 +675,23 @@ def _extract_images(
         candidates.append({"zim": zim, "path": path, "alt": alt})
         if len(candidates) >= limit:
             break
+    if len(candidates) < limit:
+        for href in _FILE_HREF_RE.findall(raw):
+            name = _filename_from_remote(href) or unquote(href.rsplit("/", 1)[-1])
+            if name.lower().startswith("file:"):
+                name = name.split(":", 1)[-1]
+            if not name or not _IMAGE_EXT_RE.search(name):
+                continue
+            path = "/I/" + name
+            key = (article_zim, path)
+            if key in seen:
+                continue
+            if _SKIP_IMAGE_RE.search(path):
+                continue
+            seen.add(key)
+            candidates.append({"zim": article_zim, "path": path, "alt": name})
+            if len(candidates) >= limit:
+                break
     return candidates
 
 
@@ -926,9 +948,17 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
         name = path[len("/I/"):]
     elif path.startswith("/A/") and _IMAGE_EXT_RE.search(path):
         name = path[len("/A/"):]
-    names = [name] if name else []
-    if name and name.lower().endswith(".svg.png"):
-        names.append(name[:-4])
+    names: list[str] = []
+    if name:
+        names.append(name)
+        base_name = name.rsplit("/", 1)[-1]
+        if base_name and base_name != name:
+            names.append(base_name)
+    extra: list[str] = []
+    for n in names:
+        if n.lower().endswith(".svg.png"):
+            extra.append(n[:-4])
+    names += extra
     for n in names:
         variants += [
             "/I/" + n,
@@ -938,13 +968,16 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
         ]
     seen: list[str] = []
     for v in variants:
-        if v not in seen:
+        if v and v not in seen:
             seen.append(v)
     variants = seen
-    return [
-        (v, f"{base}/raw/{quote(zim, safe='')}/content{quote(v, safe='/')}")
-        for v in variants
-    ]
+    qzim = quote(zim, safe="")
+    out: list[tuple[str, str]] = []
+    for v in variants:
+        qv = quote(v, safe="/")
+        out.append((v, f"{base}/raw/{qzim}/content{qv}"))
+        out.append((v, f"{base}/content/{qzim}{qv}"))
+    return out
 
 
 async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
