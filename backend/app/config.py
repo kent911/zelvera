@@ -40,6 +40,7 @@ else:
 DB_PATH = DATA_DIR / "medical.db"
 CHROMA_DIR = DATA_DIR / "chroma"
 KIWIX_CACHE_DIR = DATA_DIR / "kiwix_cache"
+KIWIX_LOG_FILE = DATA_DIR / "kiwix.log"
 MEDIA_DIR = DATA_DIR / "media"
 
 

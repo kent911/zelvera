@@ -242,6 +242,9 @@ USER_LLM_MODEL=bonsai2-27B
 | GET | `/api/logs/download` | Скачать журнал (.log) |
 | POST | `/api/logs/client` | Записать ошибку с фронтенда в журнал/аудит |
 | DELETE | `/api/logs` | Очистить журнал приложения |
+| GET | `/api/logs/kiwix` | Журнал запросов ИИ к офлайн-Википедии (`data/kiwix.log`) |
+| GET | `/api/logs/kiwix/download` | Скачать журнал Kiwix |
+| DELETE | `/api/logs/kiwix` | Очистить журнал Kiwix |
 | GET | `/api/notes` | Список заметок (выводы ИИ) |
 | POST | `/api/notes` | Сохранить заметку (можно привязать к статье) |
 | DELETE | `/api/notes/{id}` | Удалить заметку |

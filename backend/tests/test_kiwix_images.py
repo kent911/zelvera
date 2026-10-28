@@ -384,3 +384,40 @@ def test_images_only_from_primary_article(monkeypatch):
     assert "Chromosome" not in out
     assert [p["path"] for p in pending] == ["/I/Heart_diagram.svg"]
     assert pending[0]["source"] == "Heart"
+
+
+def test_kiwix_log_records_query_and_output(tmp_path, monkeypatch):
+    log_file = tmp_path / "kiwix.log"
+    monkeypatch.setattr(kiwix, "KIWIX_LOG_FILE", log_file)
+    monkeypatch.setattr(kiwix, "DATA_DIR", tmp_path)
+    kiwix.take_pending_images()
+
+    async def resolve_zim():
+        return "zim"
+
+    async def search(query, _zim):
+        return [{"title": "Heart", "href": "/A/Heart", "snippet": "organ"}]
+
+    async def get_article_html(_zim, _href):
+        return '<img src="./Heart_diagram.svg" alt="Heart">'
+
+    async def fetch_image(_zim, path):
+        return b"img", path
+
+    async def describe(_data, _mime):
+        return None
+
+    monkeypatch.setattr(kiwix, "resolve_zim", resolve_zim)
+    monkeypatch.setattr(kiwix, "search", search)
+    monkeypatch.setattr(kiwix, "get_article_html", get_article_html)
+    monkeypatch.setattr(kiwix, "_fetch_image", fetch_image)
+    monkeypatch.setattr(kiwix, "_describe_image_bytes", describe)
+
+    asyncio.run(kiwix.fetch_tool_results("покажи сердце", limit=1))
+    text = kiwix.read_kiwix_log()
+    assert "tool_query: покажи сердце" in text
+    assert "search_query: heart" in text
+    assert "primary: Heart /A/Heart" in text
+    assert "tool_output:" in text
+    kiwix.clear_kiwix_log()
+    assert kiwix.read_kiwix_log() == ""

@@ -8,8 +8,8 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.config import DATA_DIR
-from app.services import audit, database, i18n, logger
+from app.config import DATA_DIR, KIWIX_LOG_FILE
+from app.services import audit, database, i18n, kiwix, logger
 
 router = APIRouter()
 
@@ -67,6 +67,31 @@ async def client_log(body: ClientLogIn) -> dict:
     if level in {"warning", "error", "critical"}:
         audit.log_action("error", f"{body.message} (url: {body.url})")
     return {"ok": True}
+
+
+@router.get("/logs/kiwix")
+async def get_kiwix_logs() -> dict:
+    text = kiwix.read_kiwix_log()
+    lines = text.splitlines() if text else []
+    return {"logs": lines[-400:], "file": str(KIWIX_LOG_FILE)}
+
+
+@router.delete("/logs/kiwix")
+async def clear_kiwix_logs() -> dict[str, bool]:
+    kiwix.clear_kiwix_log()
+    audit.log_action("logs_clear", "Журнал Kiwix очищен")
+    return {"ok": True}
+
+
+@router.get("/logs/kiwix/download")
+async def download_kiwix_logs() -> FileResponse:
+    if not KIWIX_LOG_FILE.exists() or KIWIX_LOG_FILE.stat().st_size == 0:
+        raise HTTPException(status_code=404, detail=i18n.t("logs.not_created"))
+    return FileResponse(
+        KIWIX_LOG_FILE,
+        media_type="text/plain",
+        filename="zelvera-kiwix.log",
+    )
 
 
 @router.get("/audit")

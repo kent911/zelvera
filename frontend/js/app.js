@@ -3064,18 +3064,19 @@ async function refreshLogs() {
     await refreshAudit();
     return;
   }
+  const kiwixTab = logsTab === "kiwix";
   try {
-    const res = await fetch("/api/logs");
+    const res = await fetch(kiwixTab ? "/api/logs/kiwix" : "/api/logs");
     const data = await res.json();
     const lines = (data.logs || []).map((line) => {
       let cls = "";
-      if (/\bERROR\b/.test(line)) cls = "err";
-      else if (/\bWARN|WARNING\b/.test(line)) cls = "warn";
+      if (/\bERROR\b/.test(line) || line.startsWith("error:") || line.startsWith("article_error:")) cls = "err";
+      else if (/\bWARN|WARNING\b/.test(line) || line.startsWith("image_fail:")) cls = "warn";
       return `<div class="${cls}">${escapeLogHtml(line)}</div>`;
     });
     logsContent.innerHTML = lines.length
       ? lines.join("")
-      : `<div class="record-empty">${t("logs.empty")}</div>`;
+      : `<div class="record-empty">${t(kiwixTab ? "logs.kiwixEmpty" : "logs.empty")}</div>`;
   } catch (err) {
     logsContent.innerHTML = `<div class="record-empty">${escapeLogHtml(t("logs.errorLoad", { msg: err.message }))}</div>`;
   }
@@ -3139,9 +3140,10 @@ async function clearAudit() {
 }
 
 async function clearJournal() {
-  if (!confirm(t("logs.clearJournalConfirm"))) return;
+  const kiwixTab = logsTab === "kiwix";
+  if (!confirm(t(kiwixTab ? "logs.clearKiwixConfirm" : "logs.clearJournalConfirm"))) return;
   try {
-    const res = await fetch("/api/logs", { method: "DELETE" });
+    const res = await fetch(kiwixTab ? "/api/logs/kiwix" : "/api/logs", { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await refreshLogs();
     showToast(t("logs.cleared"), "success");
@@ -3151,9 +3153,10 @@ async function clearJournal() {
 }
 
 function downloadLogs() {
+  const kiwixTab = logsTab === "kiwix";
   const a = document.createElement("a");
-  a.href = "/api/logs/download";
-  a.download = "zelvera-app.log";
+  a.href = kiwixTab ? "/api/logs/kiwix/download" : "/api/logs/download";
+  a.download = kiwixTab ? "zelvera-kiwix.log" : "zelvera-app.log";
   document.body.appendChild(a);
   a.click();
   a.remove();

@@ -242,6 +242,9 @@ images.
 | GET | `/api/logs/download` | Download the log (.log) |
 | POST | `/api/logs/client` | Write a frontend error into the log/audit |
 | DELETE | `/api/logs` | Clear the app log |
+| GET | `/api/logs/kiwix` | Wikipedia tool trace (`data/kiwix.log`) |
+| GET | `/api/logs/kiwix/download` | Download the Kiwix request log |
+| DELETE | `/api/logs/kiwix` | Clear the Kiwix request log |
 | GET | `/api/notes` | List of notes (AI takeaways) |
 | POST | `/api/notes` | Save a note (can be linked to an article) |
 | DELETE | `/api/notes/{id}` | Delete a note |

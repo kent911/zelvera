@@ -21,18 +21,24 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
 import httpx
 
-from app.config import KIWIX_CACHE_DIR
+from app.config import DATA_DIR, KIWIX_CACHE_DIR, KIWIX_LOG_FILE
 from app.services import settings_store
 
 log = logging.getLogger("kiwix")
+
+_KIWIX_LOG_MAX = 2 * 1024 * 1024
+_trace: ContextVar[dict[str, Any] | None] = ContextVar("kiwix_trace", default=None)
+_trace_lock = threading.Lock()
 
 TIMEOUT = 15.0
 ARTICLE_MAX_CHARS = 4000
@@ -154,6 +160,90 @@ _MIME_BY_EXT = {
 }
 
 KIWIX_CACHE_MAX_BYTES = 256 * 1024 * 1024
+
+
+def _trace_set(key: str, value: Any) -> None:
+    rec = _trace.get()
+    if rec is not None:
+        rec[key] = value
+
+
+def _trace_append(key: str, value: Any, cap: int = 16) -> None:
+    rec = _trace.get()
+    if rec is None:
+        return
+    items = rec.setdefault(key, [])
+    if isinstance(items, list) and len(items) < cap:
+        items.append(value)
+
+
+def _format_trace(rec: dict[str, Any]) -> str:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    lines = [f"==== {ts} ===="]
+    for key in (
+        "tool_query",
+        "search_query",
+        "zim",
+        "search_url",
+        "search_status",
+        "primary",
+        "article_url",
+        "article_bytes",
+        "article_error",
+        "img_tags",
+        "images_to_chat",
+        "error",
+    ):
+        if rec.get(key) not in (None, "", []):
+            lines.append(f"{key}: {rec[key]}")
+    for key in ("hits", "extracted", "image_ok", "image_fail", "article_attempts"):
+        items = rec.get(key) or []
+        if not items:
+            continue
+        lines.append(f"{key}:")
+        for item in items:
+            lines.append(f"  {item}")
+    out = rec.get("tool_output")
+    if out:
+        lines.append("tool_output:")
+        for row in str(out).splitlines():
+            lines.append(f"  {row}")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def write_kiwix_log(rec: dict[str, Any]) -> None:
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        block = _format_trace(rec)
+        with _trace_lock:
+            with KIWIX_LOG_FILE.open("a", encoding="utf-8") as fh:
+                fh.write(block)
+            try:
+                size = KIWIX_LOG_FILE.stat().st_size
+            except OSError:
+                return
+            if size <= _KIWIX_LOG_MAX:
+                return
+            text = KIWIX_LOG_FILE.read_text("utf-8", errors="replace")
+            KIWIX_LOG_FILE.write_text(text[-_KIWIX_LOG_MAX // 2 :], encoding="utf-8")
+    except OSError:
+        log.debug("kiwix.log: не удалось записать")
+
+
+def read_kiwix_log(max_chars: int = 200_000) -> str:
+    try:
+        text = KIWIX_LOG_FILE.read_text("utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-max_chars:]
+
+
+def clear_kiwix_log() -> None:
+    try:
+        KIWIX_LOG_FILE.write_text("", encoding="utf-8")
+    except OSError:
+        pass
 
 _cache_dir = Path(KIWIX_CACHE_DIR)
 
@@ -456,19 +546,30 @@ async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, 
         )
 
     filter_q = "books.filter.category=wikipedia&books.filter.lang=eng"
+    search_url = url_for(f"books.name={quote(zim)}") if zim else url_for(filter_q)
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         if zim:
-            resp = await client.get(url_for(f"books.name={quote(zim)}"))
+            resp = await client.get(search_url)
             if resp.status_code == 400:
-                resp = await client.get(url_for(filter_q))
+                search_url = url_for(filter_q)
+                resp = await client.get(search_url)
         else:
-            resp = await client.get(url_for(filter_q))
+            resp = await client.get(search_url)
         resp.raise_for_status()
         text = resp.text
+    _trace_set("search_url", search_url)
+    _trace_set("search_status", resp.status_code)
     results = _parse_search_xml(text)
     if zim:
         for r in results:
             r.setdefault("zim", zim)
+    _trace_set(
+        "hits",
+        [
+            f"{item.get('title') or ''} {item.get('href') or ''}".strip()
+            for item in results[:12]
+        ],
+    )
     return results
 
 
@@ -525,9 +626,14 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
-                return resp.text[:max_chars]
+                body = resp.text[:max_chars]
+                _trace_set("article_url", url)
+                _trace_set("article_bytes", len(body))
+                return body
         except httpx.HTTPError as exc:
-            errors.append(str(exc))
+            errors.append(f"{url} -> {exc}")
+            _trace_append("article_attempts", f"{url} -> {exc}")
+    _trace_set("article_error", "; ".join(errors)[:800])
     raise KiwixError("kiwix.article_failed", err="; ".join(errors))
 
 
@@ -990,6 +1096,7 @@ async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
         cached, _ = await cache_get(zim, variant)
         if cached is not None:
             if len(cached) <= MAX_IMAGE_BYTES:
+                _trace_append("image_ok", f"{variant} cache {len(cached)}b")
                 return cached, variant
             continue
         try:
@@ -1001,8 +1108,10 @@ async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
                     await cache_put(
                         zim, variant, data, resp.headers.get("Content-Type", "")
                     )
+                    _trace_append("image_ok", f"{variant} {len(data)}b {url}")
                     return data, variant
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            _trace_append("image_fail", f"{variant} {url} -> {exc}")
             continue
     return None, ""
 
@@ -1065,24 +1174,44 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
     query = query.strip()
     if not query:
         return t("kiwix.empty_query")
+    rec: dict[str, Any] = {"tool_query": query}
+    token = _trace.set(rec)
     search_query = query
     if _query_is_organ_lookup(query):
         titles = _canonical_titles_for_query(query)
         if titles:
             search_query = titles[0]
+    rec["search_query"] = search_query
     try:
         zim = await resolve_zim()
+        rec["zim"] = zim
         results = rank_search_results(await search(search_query, zim), query)
     except KiwixError as exc:
         detail = t(exc.key)
         if exc.err:
             detail = f"{detail} ({exc.err})"
-        return f"{t('error.prefix')} {detail}"
+        out = f"{t('error.prefix')} {detail}"
+        rec["error"] = out
+        rec["tool_output"] = out
+        write_kiwix_log(rec)
+        _trace.reset(token)
+        return out
     except httpx.HTTPError as exc:
-        return f"{t('error.prefix')} {t('kiwix.unreachable', url=get_base_url() or '—', err=exc)}"
+        out = f"{t('error.prefix')} {t('kiwix.unreachable', url=get_base_url() or '—', err=exc)}"
+        rec["error"] = out
+        rec["tool_output"] = out
+        write_kiwix_log(rec)
+        _trace.reset(token)
+        return out
     primary = pick_primary_article(results, query)
     if not primary:
-        return t("kiwix.no_results")
+        out = t("kiwix.no_results")
+        rec["error"] = out
+        rec["tool_output"] = out
+        write_kiwix_log(rec)
+        _trace.reset(token)
+        return out
+    rec["primary"] = f"{primary.get('title') or ''} {primary.get('href') or ''}".strip()
     extras = [
         item
         for item in results
@@ -1112,23 +1241,28 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
                 article = _strip_html(html_text)[:ARTICLE_MAX_CHARS]
                 if article:
                     body_parts.append(article)
+                extracted = _extract_images(
+                    html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
+                )
+                rec["extracted"] = [
+                    f"{img.get('path') or ''} {img.get('alt') or ''}".strip()
+                    for img in extracted
+                ]
                 images_for_article = pick_relevant_images(
-                    _extract_images(
-                        html_text, article_zim, item["href"], IMAGE_CAP_PER_ARTICLE
-                    ),
+                    extracted,
                     query,
                     item.get("title") or "",
                     IMAGE_CAP_PER_ARTICLE,
                 )
-                if not images_for_article:
-                    img_tags = _IMG_TAG_RE.findall(html_text)
-                    if img_tags:
-                        log.info(
-                            "kiwix: статья %s: %d <img>, но не извлечено ни одного; примеры src: %s",
-                            item["href"],
-                            len(img_tags),
-                            "; ".join(img_tags[:3])[:400],
-                        )
+                img_tags = _IMG_TAG_RE.findall(html_text)
+                rec["img_tags"] = len(img_tags)
+                if not images_for_article and img_tags:
+                    log.info(
+                        "kiwix: статья %s: %d <img>, но не извлечено ни одного; примеры src: %s",
+                        item["href"],
+                        len(img_tags),
+                        "; ".join(img_tags[:3])[:400],
+                    )
                 for img in images_for_article:
                     if image_count >= IMAGE_CAP_TOTAL:
                         break
@@ -1184,8 +1318,17 @@ async def fetch_tool_results(query: str, limit: int = 3) -> str:
             "Do not call search_wikipedia again."
         )
     if not blocks:
-        return t("kiwix.no_results")
-    return "\n\n---\n\n".join(blocks)
+        out = t("kiwix.no_results")
+        rec["tool_output"] = out
+        write_kiwix_log(rec)
+        _trace.reset(token)
+        return out
+    out = "\n\n---\n\n".join(blocks)
+    rec["images_to_chat"] = image_count
+    rec["tool_output"] = out[:4000]
+    write_kiwix_log(rec)
+    _trace.reset(token)
+    return out
 
 
 async def fetch_books_tool_result() -> str:
