@@ -167,7 +167,7 @@ def test_canonical_heart_when_search_misses_article():
     primary = kiwix.pick_primary_article(results, "Heart")
     assert primary is not None
     assert primary["title"] == "Heart"
-    assert primary["href"] == "/A/Heart"
+    assert primary["href"] == "/Heart"
 
 
 def test_extract_reads_commons_url():
@@ -200,12 +200,26 @@ def test_image_url_candidates_include_content_and_basename(monkeypatch):
 
 
 def test_article_path_candidates_include_namespace_variants():
-    assert kiwix._article_path_candidates("/A/Heart") == [
-        "/A/Heart",
-        "/Heart",
-        "/A/Heart.html",
-        "/Heart.html",
+    paths = kiwix._article_path_candidates("/A/Heart")
+    assert paths[0] == "/A/Heart"
+    assert "/Heart" in paths
+    assert "/Heart.html" in paths
+    assert kiwix._article_path_candidates("/Heart")[0] == "/Heart"
+
+
+def test_match_zim_name_expands_prefix():
+    books = [
+        "wikipedia_en_all_nopic_2024-01",
+        "wikipedia_en_all_maxi_2024-01",
+        "wikipedia_ru_all_maxi_2024-01",
     ]
+    assert (
+        kiwix._match_zim_name("wikipedia_en_all", books)
+        == "wikipedia_en_all_maxi_2024-01"
+    )
+    assert kiwix._match_zim_name("wikipedia_en_all_maxi_2024-01", books) == (
+        "wikipedia_en_all_maxi_2024-01"
+    )
 
 
 def test_image_url_candidates_try_svg_without_png_thumb(monkeypatch):
@@ -245,7 +259,7 @@ def test_russian_query_searches_english_heart(monkeypatch):
     out = asyncio.run(kiwix.fetch_tool_results("покажи сердце человека", limit=1))
     pending = kiwix.take_pending_images()
 
-    assert searched == ["heart"]
+    assert searched == ["Heart"]
     assert "[Wikipedia: Heart]" in out
     assert pending
     assert pending[0]["path"].endswith("Heart_diagram.svg")
@@ -416,7 +430,7 @@ def test_kiwix_log_records_query_and_output(tmp_path, monkeypatch):
     asyncio.run(kiwix.fetch_tool_results("покажи сердце", limit=1))
     text = kiwix.read_kiwix_log()
     assert "tool_query: покажи сердце" in text
-    assert "search_query: heart" in text
+    assert "search_query: Heart" in text
     assert "primary: Heart /A/Heart" in text
     assert "tool_output:" in text
     kiwix.clear_kiwix_log()

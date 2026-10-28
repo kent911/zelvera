@@ -134,18 +134,18 @@ _ORGAN_LOOKUP_EXTRA = {
 
 _IMAGE_EXT_RE = re.compile(r"\.(?:jpe?g|png|gif|webp|svg|tiff?)(?:\.png)?$", re.I)
 _CANONICAL_TITLES = {
-    "heart": ("heart", "human heart", "anatomy of the human heart"),
-    "lung": ("lung", "human lung", "lungs"),
-    "liver": ("liver", "human liver"),
-    "kidney": ("kidney", "human kidney"),
-    "brain": ("brain", "human brain"),
-    "trachea": ("trachea",),
-    "stomach": ("stomach",),
-    "spleen": ("spleen",),
-    "pancreas": ("pancreas",),
-    "intestine": ("intestine", "human intestine"),
-    "valve": ("heart valve",),
-    "cardiac": ("heart", "human heart"),
+    "heart": ("Heart", "human heart", "anatomy of the human heart"),
+    "lung": ("Lung", "human lung", "lungs"),
+    "liver": ("Liver", "human liver"),
+    "kidney": ("Kidney", "human kidney"),
+    "brain": ("Brain", "human brain"),
+    "trachea": ("Trachea",),
+    "stomach": ("Stomach",),
+    "spleen": ("Spleen",),
+    "pancreas": ("Pancreas",),
+    "intestine": ("Intestine", "human intestine"),
+    "valve": ("Heart valve",),
+    "cardiac": ("Heart", "human heart"),
 }
 
 _MIME_BY_EXT = {
@@ -462,29 +462,49 @@ async def get_books() -> list[str]:
     return [b["name"] for b in books if b["name"]]
 
 
+def _rank_zim_name(name: str) -> tuple[int, int, int]:
+    low = name.lower()
+    penalty = 2 if "nopic" in low or "mini" in low else 0
+    bonus = 1 if "maxi" in low else 0
+    return (bonus - penalty, len(name), name.count("_"))
+
+
+def _match_zim_name(configured: str, books: list[str]) -> str | None:
+    if not configured:
+        return None
+    if configured in books:
+        return configured
+    matches = [b for b in books if b.startswith(configured) or configured in b]
+    if not matches:
+        return None
+    return max(matches, key=_rank_zim_name)
+
+
 def _pick_wikipedia_zim(names: list[str]) -> str | None:
     candidates = [n for n in names if "wikipedia" in n.lower()]
     en = [n for n in candidates if "_en_" in n or "en" in n.lower().split("_")]
-    pool = en or candidates
-    meta = [n for n in pool if "meta" in n.lower()]
-    for n in meta:
-        pool.remove(n)
-    return pool[0] if pool else None
+    pool = list(en or candidates)
+    pool = [n for n in pool if "meta" not in n.lower()]
+    if not pool:
+        return None
+    return max(pool, key=_rank_zim_name)
 
 
 async def resolve_zim() -> str:
-    """Точное имя ZIM-книги: из настроек, иначе автоопределение. Может вернуть ""."""
+    """Точное имя ZIM-книги: из настроек (или префикс в каталоге). Может вернуть ""."""
     name = get_zim_name()
-    if name:
-        return name
+    books: list[str] = []
     try:
         books = await get_books()
-        picked = _pick_wikipedia_zim(books)
-        if picked:
-            return picked
     except KiwixError:
         pass
-    return ""
+    matched = _match_zim_name(name, books)
+    if matched:
+        return matched
+    if name:
+        return name
+    picked = _pick_wikipedia_zim(books)
+    return picked or ""
 
 
 def _parse_search_xml(text: str) -> list[dict[str, str]]:
@@ -601,7 +621,7 @@ def _article_path_candidates(path: str) -> list[str]:
     if not raw.startswith("/"):
         raw = "/" + raw
     name = raw.rsplit("/", 1)[-1]
-    variants = [raw, f"/A/{name}", f"/{name}", f"/A/{name}.html", f"/{name}.html"]
+    variants = [raw, f"/{name}", f"/A/{name}", f"/{name}.html", f"/A/{name}.html"]
     seen: list[str] = []
     for v in variants:
         if v and v not in seen:
@@ -614,11 +634,14 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
     base = get_base_url()
     if not base:
         raise KiwixError("kiwix.not_configured")
+    qzim = quote(zim, safe="")
     attempts: list[str] = []
     for p in _article_path_candidates(path):
+        qpath = quote(p, safe="/")
         attempts += [
-            f"{base}/raw/{zim}/content{p}",
-            f"{base}/raw/{zim}{p}",
+            f"{base}/content/{qzim}{qpath}",
+            f"{base}/raw/{qzim}/content{qpath}",
+            f"{base}/raw/{qzim}{qpath}",
         ]
     errors: list[str] = []
     for url in attempts:
@@ -931,7 +954,7 @@ def _canonical_titles_for_query(query: str) -> tuple[str, ...]:
 
 def _href_for_title(title: str) -> str:
     slug = (title or "").strip().replace(" ", "_")
-    return f"/A/{slug}" if slug else ""
+    return f"/{slug}" if slug else ""
 
 
 def _query_is_organ_lookup(query: str) -> bool:
