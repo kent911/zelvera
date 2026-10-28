@@ -209,6 +209,7 @@ def test_article_path_candidates_include_namespace_variants():
 
 def test_match_zim_name_expands_prefix():
     books = [
+        "wikipedia_en_all",
         "wikipedia_en_all_nopic_2024-01",
         "wikipedia_en_all_maxi_2024-01",
         "wikipedia_ru_all_maxi_2024-01",
@@ -220,6 +221,54 @@ def test_match_zim_name_expands_prefix():
     assert kiwix._match_zim_name("wikipedia_en_all_maxi_2024-01", books) == (
         "wikipedia_en_all_maxi_2024-01"
     )
+
+
+def test_zim_id_from_catalog_link():
+    xml = """
+    <feed>
+      <entry>
+        <name>wikipedia_en_all</name>
+        <title>Wikipedia</title>
+        <link href="/content/wikipedia_en_all_maxi_2024-01/Heart"/>
+      </entry>
+    </feed>
+    """
+    books = kiwix._parse_books_info_xml(xml)
+    assert books[0]["name"] == "wikipedia_en_all_maxi_2024-01"
+
+
+def test_article_html_tries_root_path(monkeypatch):
+    monkeypatch.setattr(kiwix, "get_base_url", lambda: "http://kiwix")
+    urls: list[str] = []
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        @property
+        def text(self):
+            return "<html>Heart</html>"
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, url):
+            urls.append(url)
+            if url.endswith("/Heart") and "/content" not in url and "/raw/" not in url:
+                return FakeResp()
+            raise kiwix.httpx.HTTPError("404")
+
+    monkeypatch.setattr(kiwix.httpx, "AsyncClient", FakeClient)
+    html = asyncio.run(kiwix.get_article_html("wikipedia_en_all", "/Heart"))
+    assert "Heart" in html
+    assert "http://kiwix/Heart" in urls
 
 
 def test_image_url_candidates_try_svg_without_png_thumb(monkeypatch):

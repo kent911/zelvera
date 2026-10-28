@@ -184,6 +184,7 @@ def _format_trace(rec: dict[str, Any]) -> str:
         "tool_query",
         "search_query",
         "zim",
+        "hit_zim",
         "search_url",
         "search_status",
         "primary",
@@ -196,7 +197,7 @@ def _format_trace(rec: dict[str, Any]) -> str:
     ):
         if rec.get(key) not in (None, "", []):
             lines.append(f"{key}: {rec[key]}")
-    for key in ("hits", "extracted", "image_ok", "image_fail", "article_attempts"):
+    for key in ("catalog", "hits", "extracted", "image_ok", "image_fail", "article_attempts"):
         items = rec.get(key) or []
         if not items:
             continue
@@ -330,17 +331,32 @@ def _strip_html(raw: str) -> str:
 
 
 def _split_content_link(href: str) -> tuple[str, str]:
-    """Разбирает /content/<zim>/<path> на (zim, /path). Иначе (None, href)."""
+    """Разбирает /content/<zim>/<path> на (zim, /path). Иначе ("", href)."""
     href = href.split("#")[0].split("?")[0]
+    if "://" in href:
+        href = "/" + href.split("://", 1)[-1].split("/", 1)[-1]
     if "/content/" in href:
         rest = href.split("/content/")[-1]
         parts = rest.split("/", 1)
         if len(parts) == 2 and parts[0] and parts[1]:
             return parts[0], "/" + parts[1]
-        return parts[0] if parts else None, ""
+        if parts and parts[0]:
+            return parts[0], ""
+        return "", "/"
     if not href.startswith("/"):
         href = "/" + href
-    return None, href
+    return "", href
+
+
+def _zim_id_from_href(href: str) -> str:
+    zim, _path = _split_content_link(href or "")
+    if zim:
+        return zim
+    raw = (href or "").split("#")[0].split("?")[0]
+    if "://" in raw:
+        raw = "/" + raw.split("://", 1)[-1].split("/", 1)[-1]
+    m = re.search(r"/(wikipedia_[a-z0-9_]+)/?", raw, flags=re.I)
+    return m.group(1) if m else ""
 
 
 def get_base_url() -> str:
@@ -400,11 +416,26 @@ def _parse_books_info_xml(raw: str) -> list[dict[str, str]]:
         if local(entry.tag) != "entry":
             continue
         info: dict[str, str] = {"name": "", "title": "", "language": "", "category": ""}
+        link_ids: list[str] = []
         for child in entry:
             tag = local(child.tag)
             value = (child.text or "").strip()
             if tag in info and value:
                 info[tag] = value
+            if tag == "link":
+                zid = _zim_id_from_href(child.attrib.get("href") or "")
+                if zid:
+                    link_ids.append(zid)
+            if tag == "id":
+                zid = _zim_id_from_href(value)
+                if zid:
+                    link_ids.append(zid)
+        if link_ids:
+            best = max(link_ids, key=_rank_zim_name)
+            if not info["name"] or (
+                info["name"] in best and info["name"] != best
+            ):
+                info["name"] = best
         if info["name"]:
             books.append(info)
     return books
@@ -438,6 +469,27 @@ async def get_books_info() -> list[dict[str, str]]:
                     "language": str(lang or ""),
                     "category": str(meta.get("category") or ""),
                 }
+                hrefs = [
+                    str(e.get("url") or ""),
+                    str(e.get("href") or ""),
+                    str(meta.get("url") or ""),
+                    str(e.get("id") or ""),
+                ]
+                links = e.get("links") or e.get("link") or []
+                if isinstance(links, dict):
+                    links = [links]
+                for link in links:
+                    if isinstance(link, dict):
+                        hrefs.append(str(link.get("href") or link.get("url") or ""))
+                    elif isinstance(link, str):
+                        hrefs.append(link)
+                link_ids = [zid for href in hrefs if (zid := _zim_id_from_href(href))]
+                if link_ids:
+                    best = max(link_ids, key=_rank_zim_name)
+                    if not info["name"] or (
+                        info["name"] in best and info["name"] != best
+                    ):
+                        info["name"] = best
                 if info["name"]:
                     books.append(info)
             if books:
@@ -472,9 +524,11 @@ def _rank_zim_name(name: str) -> tuple[int, int, int]:
 def _match_zim_name(configured: str, books: list[str]) -> str | None:
     if not configured:
         return None
-    if configured in books:
-        return configured
-    matches = [b for b in books if b.startswith(configured) or configured in b]
+    matches = [
+        b
+        for b in books
+        if b == configured or b.startswith(configured + "_") or configured in b
+    ]
     if not matches:
         return None
     return max(matches, key=_rank_zim_name)
@@ -500,10 +554,13 @@ async def resolve_zim() -> str:
         pass
     matched = _match_zim_name(name, books)
     if matched:
+        _trace_set("catalog", books[:12])
         return matched
     if name:
+        _trace_set("catalog", books[:12])
         return name
     picked = _pick_wikipedia_zim(books)
+    _trace_set("catalog", books[:12])
     return picked or ""
 
 
@@ -566,13 +623,31 @@ async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, 
         )
 
     filter_q = "books.filter.category=wikipedia&books.filter.lang=eng"
-    search_url = url_for(f"books.name={quote(zim)}") if zim else url_for(filter_q)
+    name_q = f"books.name={quote(zim)}" if zim else ""
+    search_url = url_for(name_q) if name_q else url_for(filter_q)
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         if zim:
             resp = await client.get(search_url)
             if resp.status_code == 400:
-                search_url = url_for(filter_q)
-                resp = await client.get(search_url)
+                alts: list[str] = []
+                try:
+                    alts = await get_books()
+                except KiwixError:
+                    pass
+                for alt in sorted(alts, key=_rank_zim_name, reverse=True):
+                    if alt == zim:
+                        continue
+                    if not (alt.startswith(zim) or zim in alt):
+                        continue
+                    search_url = url_for(f"books.name={quote(alt)}")
+                    resp = await client.get(search_url)
+                    if resp.status_code != 400:
+                        zim = alt
+                        _trace_set("zim", zim)
+                        break
+                if resp.status_code == 400:
+                    search_url = url_for(filter_q)
+                    resp = await client.get(search_url)
         else:
             resp = await client.get(search_url)
         resp.raise_for_status()
@@ -580,13 +655,17 @@ async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, 
     _trace_set("search_url", search_url)
     _trace_set("search_status", resp.status_code)
     results = _parse_search_xml(text)
+    hit_zims = [r.get("zim") or "" for r in results if r.get("zim")]
     if zim:
         for r in results:
-            r.setdefault("zim", zim)
+            if not r.get("zim"):
+                r["zim"] = zim
+    if hit_zims:
+        _trace_set("hit_zim", max(hit_zims, key=_rank_zim_name))
     _trace_set(
         "hits",
         [
-            f"{item.get('title') or ''} {item.get('href') or ''}".strip()
+            f"{item.get('title') or ''} {item.get('href') or ''} {item.get('zim') or ''}".strip()
             for item in results[:12]
         ],
     )
@@ -639,6 +718,8 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
     for p in _article_path_candidates(path):
         qpath = quote(p, safe="/")
         attempts += [
+            f"{base}{qpath}",
+            f"{base}/content{qpath}",
             f"{base}/content/{qzim}{qpath}",
             f"{base}/raw/{qzim}/content{qpath}",
             f"{base}/raw/{qzim}{qpath}",
@@ -1104,6 +1185,8 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for v in variants:
         qv = quote(v, safe="/")
+        out.append((v, f"{base}{qv}"))
+        out.append((v, f"{base}/content{qv}"))
         out.append((v, f"{base}/raw/{qzim}/content{qv}"))
         out.append((v, f"{base}/content/{qzim}{qv}"))
     return out
