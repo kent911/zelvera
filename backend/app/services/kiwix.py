@@ -718,8 +718,6 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
     for p in _article_path_candidates(path):
         qpath = quote(p, safe="/")
         attempts += [
-            f"{base}{qpath}",
-            f"{base}/content{qpath}",
             f"{base}/content/{qzim}{qpath}",
             f"{base}/raw/{qzim}/content{qpath}",
             f"{base}/raw/{qzim}{qpath}",
@@ -1185,10 +1183,8 @@ def _image_url_candidates(zim: str, path: str) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for v in variants:
         qv = quote(v, safe="/")
-        out.append((v, f"{base}{qv}"))
-        out.append((v, f"{base}/content{qv}"))
-        out.append((v, f"{base}/raw/{qzim}/content{qv}"))
         out.append((v, f"{base}/content/{qzim}{qv}"))
+        out.append((v, f"{base}/raw/{qzim}/content{qv}"))
     return out
 
 

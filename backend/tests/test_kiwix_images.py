@@ -237,7 +237,7 @@ def test_zim_id_from_catalog_link():
     assert books[0]["name"] == "wikipedia_en_all_maxi_2024-01"
 
 
-def test_article_html_tries_root_path(monkeypatch):
+def test_article_html_tries_content_zim_first(monkeypatch):
     monkeypatch.setattr(kiwix, "get_base_url", lambda: "http://kiwix")
     urls: list[str] = []
 
@@ -261,14 +261,17 @@ def test_article_html_tries_root_path(monkeypatch):
 
         async def get(self, url):
             urls.append(url)
-            if url.endswith("/Heart") and "/content" not in url and "/raw/" not in url:
+            if url == "http://kiwix/content/wikipedia_en_all_maxi_2025-08/Heart":
                 return FakeResp()
             raise kiwix.httpx.HTTPError("404")
 
     monkeypatch.setattr(kiwix.httpx, "AsyncClient", FakeClient)
-    html = asyncio.run(kiwix.get_article_html("wikipedia_en_all", "/Heart"))
+    html = asyncio.run(
+        kiwix.get_article_html("wikipedia_en_all_maxi_2025-08", "/Heart")
+    )
     assert "Heart" in html
-    assert "http://kiwix/Heart" in urls
+    assert urls[0] == "http://kiwix/content/wikipedia_en_all_maxi_2025-08/Heart"
+    assert not any(u == "http://kiwix/Heart" or u == "http://kiwix/content/Heart" for u in urls)
 
 
 def test_image_url_candidates_try_svg_without_png_thumb(monkeypatch):
