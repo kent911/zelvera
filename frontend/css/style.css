@@ -41,9 +41,22 @@ html, body {
 }
 
 .brand {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 4px 8px;
+}
+
+.logo-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.15;
+  text-align: left;
 }
 
 .logo {
@@ -51,6 +64,90 @@ html, body {
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.5px;
+}
+
+.brand .logo {
+  display: inline-block;
+  transition: filter 0.25s ease;
+}
+
+.brand:hover .logo,
+.brand.is-open .logo,
+.logo-btn:focus-visible .logo {
+  background-image: linear-gradient(
+    90deg,
+    #38bdf8 0%,
+    #818cf8 22%,
+    #e879f9 48%,
+    #fbbf24 74%,
+    #38bdf8 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));
+  animation: logo-shimmer 2.2s linear infinite;
+}
+
+.logo-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@keyframes logo-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand:hover .logo,
+  .brand.is-open .logo,
+  .logo-btn:focus-visible .logo {
+    animation: none;
+    background-position: 40% 50%;
+  }
+}
+
+.donate-pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  padding: 12px 13px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(2, 6, 23, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+.brand:hover .donate-pop,
+.brand.is-open .donate-pop {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.donate-pop-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.donate-pop-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
 }
 
 .subtitle {

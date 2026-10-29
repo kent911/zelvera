@@ -3666,6 +3666,28 @@ btnExportNotes.addEventListener("click", async () => {
   setupVoiceInput();
 })();
 
+const brandEl = document.querySelector("#sidebar .brand");
+const brandLogo = document.getElementById("brand-logo");
+
+function setDonateOpen(open) {
+  if (!brandEl || !brandLogo) return;
+  brandEl.classList.toggle("is-open", open);
+  brandLogo.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+if (brandLogo && brandEl) {
+  brandLogo.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setDonateOpen(!brandEl.classList.contains("is-open"));
+  });
+  document.addEventListener("click", (e) => {
+    if (!brandEl.contains(e.target)) setDonateOpen(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setDonateOpen(false);
+  });
+}
+
 const langToggle = document.getElementById("lang-toggle");
 if (langToggle) {
   langToggle.addEventListener("click", () => {

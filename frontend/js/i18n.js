@@ -6,6 +6,9 @@ const LANG_KEY = "zelvera.lang";
 const I18N_STRINGS = {
   ru: {
     "subtitle": "локальный ассистент",
+    "donate.hint": "Пожертвования",
+    "donate.title": "Поддержать Zelvera",
+    "donate.body": "Здесь позже появятся реквизиты для пожертвований на развитие проекта.",
     "profileLabel": "Профиль",
     "profileTitle": "Профиль здоровья",
     "nav.chat": "Чат с ИИ",
@@ -451,6 +454,9 @@ const I18N_STRINGS = {
   },
   en: {
     "subtitle": "local assistant",
+    "donate.hint": "Donations",
+    "donate.title": "Support Zelvera",
+    "donate.body": "Donation details for the project will appear here later.",
     "profileLabel": "Profile",
     "profileTitle": "Health profile",
     "nav.chat": "AI Chat",
