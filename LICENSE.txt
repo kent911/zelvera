@@ -3,6 +3,8 @@ ZELVERA — LICENSE
 
 Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 
+Contact: kron911911@gmail.com | Telegram: @Kent911 | GitHub: https://github.com/kent911/zelvera
+
 The Software, its source code, documentation, and all associated files
 (the "Software") are the exclusive property of the copyright holder,
 Chernomurov Egor Mikhailovich.

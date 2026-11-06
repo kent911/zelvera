@@ -656,6 +656,12 @@ data/                # databases (SQLite, ChromaDB) — not in git
 - On LAN, terminate TLS with Caddy (`deploy/proxmox/Caddyfile`, internal CA).
   Do not use public Wi-Fi when working with lab results without HTTPS.
 
+## Contact
+
+- Email: kron911911@gmail.com
+- Telegram: @Kent911
+- GitHub: https://github.com/kent911/zelvera
+
 ## License
 
 Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.

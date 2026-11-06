@@ -653,6 +653,12 @@ data/                # базы данных (SQLite, ChromaDB) — не в git
 - На LAN шифруйте доступ через Caddy (`deploy/proxmox/Caddyfile`, внутренний
   TLS). Не используйте публичные Wi-Fi-сети при работе с анализами без HTTPS.
 
+## Контакты
+
+- Email: kron911911@gmail.com
+- Telegram: @Kent911
+- GitHub: https://github.com/kent911/zelvera
+
 ## Лицензия
 
 Copyright (c) 2026 Chernomurov Egor Mikhailovich. Все права защищены.
