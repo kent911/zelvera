@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from app.config import DATA_DIR, settings as env_settings
+from app.services import net
 
 SETTINGS_FILE = DATA_DIR / "settings.json"
 
@@ -177,7 +178,7 @@ async def list_openai_models(base_url: str, api_key: str = "") -> list[str]:
     if not url:
         raise ConnectionError(t("settings.openai_url_required"))
     headers = {"Authorization": f"Bearer {(api_key or 'local').strip() or 'local'}"}
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with net.async_client(url, timeout=10) as client:
         try:
             resp = await client.get(f"{url}/models", headers=headers)
             resp.raise_for_status()
@@ -202,7 +203,7 @@ async def list_ollama_models(base_url: str) -> list[str]:
     from app.services.i18n import t
 
     url = f"{base_url.rstrip('/')}/api/tags"
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with net.async_client(url, timeout=10) as client:
         try:
             resp = await client.get(url)
             resp.raise_for_status()

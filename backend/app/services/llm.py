@@ -8,7 +8,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.services import i18n, settings_store
+from app.services import i18n, net, settings_store
 
 log = logging.getLogger("llm")
 
@@ -67,9 +67,13 @@ def _use_openai_vision() -> bool:
 
 
 def _openai_client() -> AsyncOpenAI:
+    base_url = settings_store.openai_base_url()
+    # llama-server в локальной сети: без прокси из окружения (он нужен только Telegram/GitHub).
+    http_client = httpx.AsyncClient(**net.client_options(base_url)) if net.is_lan_url(base_url) else None
     return AsyncOpenAI(
-        base_url=settings_store.openai_base_url(),
+        base_url=base_url,
         api_key=settings_store.openai_api_key(),
+        http_client=http_client,
     )
 
 
@@ -255,7 +259,7 @@ async def _complete_with_tools_ollama(
         "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
-    async with httpx.AsyncClient(timeout=300) as client:
+    async with net.async_client(url, timeout=300) as client:
         t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
@@ -375,7 +379,7 @@ async def _stream_tools_ollama(
     t0 = time.monotonic()
     done_data: dict | None = None
     calls: list[dict] = []
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10)) as client:
+    async with net.async_client(url, timeout=httpx.Timeout(300, connect=10)) as client:
         try:
             async with client.stream("POST", url, json=payload) as resp:
                 if resp.status_code != 200:
@@ -499,7 +503,7 @@ async def _describe_ollama(image_b64: str) -> str:
         "keep_alive": await _keep_alive(),
         "options": options,
     }
-    async with httpx.AsyncClient(timeout=900) as client:
+    async with net.async_client(url, timeout=900) as client:
         t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
@@ -534,7 +538,7 @@ async def _ocr_ollama(image_b64: str) -> str:
         "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
-    async with httpx.AsyncClient(timeout=900) as client:
+    async with net.async_client(url, timeout=900) as client:
         t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
@@ -617,7 +621,7 @@ async def _complete_ollama(messages: list[ChatMessage]) -> str:
         "keep_alive": await _keep_alive(),
         "options": {"num_ctx": await _num_ctx()},
     }
-    async with httpx.AsyncClient(timeout=300) as client:
+    async with net.async_client(url, timeout=300) as client:
         t0 = time.monotonic()
         try:
             resp = await client.post(url, json=payload)
@@ -656,7 +660,7 @@ async def _stream_ollama(messages: list[ChatMessage]) -> AsyncIterator[str]:
     }
     t0 = time.monotonic()
     done_data: dict | None = None
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10)) as client:
+    async with net.async_client(url, timeout=httpx.Timeout(300, connect=10)) as client:
         try:
             async with client.stream("POST", url, json=payload) as resp:
                 if resp.status_code != 200:

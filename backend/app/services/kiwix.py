@@ -32,7 +32,7 @@ from urllib.parse import quote, unquote
 import httpx
 
 from app.config import DATA_DIR, KIWIX_CACHE_DIR, KIWIX_LOG_FILE
-from app.services import settings_store
+from app.services import net, settings_store
 
 log = logging.getLogger("kiwix")
 
@@ -383,7 +383,7 @@ async def check_connection() -> dict[str, Any]:
         result = {"ok": False, "url": "", "zim": zim, "error": "kiwix.no_url"}
     else:
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with net.async_client(f"{base}/catalog/v2/entries?count=1", timeout=3.0) as client:
                 resp = await client.get(f"{base}/catalog/v2/entries?count=1")
                 resp.raise_for_status()
             result = {"ok": True, "url": base, "zim": zim, "error": ""}
@@ -396,7 +396,7 @@ async def check_connection() -> dict[str, Any]:
 
 async def _get_json(base: str, path: str) -> dict[str, Any] | None:
     url = f"{base}{path}"
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+    async with net.async_client(url, timeout=TIMEOUT) as client:
         resp = await client.get(url, headers={"Accept": "application/json"})
         resp.raise_for_status()
         text = resp.text.lstrip()
@@ -499,7 +499,7 @@ async def get_books_info() -> list[dict[str, str]]:
         errors.append(str(exc))
     try:
         url = f"{base}/catalog/v2/entries?count=200"
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        async with net.async_client(url, timeout=TIMEOUT) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             return _parse_books_info_xml(resp.text)
@@ -625,7 +625,7 @@ async def search(query: str, zim: str, page_length: int = 20) -> list[dict[str, 
     filter_q = "books.filter.category=wikipedia&books.filter.lang=eng"
     name_q = f"books.name={quote(zim)}" if zim else ""
     search_url = url_for(name_q) if name_q else url_for(filter_q)
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+    async with net.async_client(search_url, timeout=TIMEOUT) as client:
         if zim:
             resp = await client.get(search_url)
             if resp.status_code == 400:
@@ -684,7 +684,7 @@ async def get_article(zim: str, path: str) -> str:
     errors: list[str] = []
     for url in attempts:
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            async with net.async_client(url, timeout=TIMEOUT) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 return _strip_html(resp.text)[:ARTICLE_MAX_CHARS]
@@ -725,7 +725,7 @@ async def get_article_html(zim: str, path: str, max_chars: int = ARTICLE_HTML_MA
     errors: list[str] = []
     for url in attempts:
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            async with net.async_client(url, timeout=TIMEOUT) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 body = resp.text[:max_chars]
@@ -1202,7 +1202,7 @@ async def _fetch_image(zim: str, path: str) -> tuple[bytes | None, str]:
                 return cached, variant
             continue
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            async with net.async_client(url, timeout=TIMEOUT) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 data = resp.content

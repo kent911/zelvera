@@ -540,7 +540,12 @@ out), set an HTTP/SOCKS proxy in the "Proxy for Telegram" field or via the
 `TELEGRAM_PROXY` variable (e.g. `socks5h://host:10808`). When
 `TELEGRAM_PROXY` is unset, the system proxy from `HTTPS_PROXY`/`ALL_PROXY`
 is used (the systemd unit reads `/etc/environment`; local addresses from
-`NO_PROXY` go direct). SOCKS proxies require the `socksio` package (already
+`NO_PROXY` go direct). The app itself bypasses the proxy for this machine's
+addresses and private networks (`127.0.0.1`, `localhost`, `192.168.*`,
+`10.*`, `172.16-31.*`, `*.local`), so Ollama, llama-server and kiwix-serve
+stay reachable even when the proxy is down. The proxy is still used for
+Telegram and GitHub. Set `ZELVERA_PROXY_LAN=1` to send everything through
+the proxy again. SOCKS proxies require the `socksio` package (already
 in `requirements.txt`). A common cause of timeouts is unreachable IPv6 while
 `api.telegram.org` has an AAAA record: by default the bot connects over IPv4
 only (the "Connect over IPv4 only" setting, `TELEGRAM_FORCE_IPV4`).

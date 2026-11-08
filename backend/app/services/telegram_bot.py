@@ -26,6 +26,7 @@ from app.services import (
     kiwix,
     llm,
     memory,
+    net,
     settings_store,
     tools,
     validation,
@@ -825,7 +826,7 @@ class TelegramBot:
             if not base:
                 return
             url = f"{base}/raw/{zim}/content{path}"
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with net.async_client(url, timeout=30) as client:
                 resp = await client.get(url)
                 if resp.status_code != 200:
                     return

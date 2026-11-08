@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from app.services import kiwix
+from app.services import kiwix, net
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ async def kiwix_image(
         raise HTTPException(status_code=400, detail="Kiwix not configured")
     url = f"{base}/raw/{quote(zim, safe='')}/content{quote(path, safe='/')}"
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        async with net.async_client(url, timeout=TIMEOUT) as client:
             resp = await client.get(url)
             resp.raise_for_status()
     except httpx.HTTPError as exc:

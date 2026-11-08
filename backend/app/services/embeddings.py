@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Chernomurov Egor Mikhailovich. All rights reserved.
 import httpx
 
-from app.services import i18n, settings_store
+from app.services import i18n, net, settings_store
 
 from .llm import LLMError, _keep_alive
 
@@ -21,7 +21,7 @@ async def _embed_ollama(texts: list[str]) -> list[list[float]]:
         "input": texts,
         "keep_alive": await _keep_alive(),
     }
-    async with httpx.AsyncClient(timeout=180) as client:
+    async with net.async_client(url, timeout=180) as client:
         try:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
