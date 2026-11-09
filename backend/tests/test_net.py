@@ -34,6 +34,20 @@ def test_force_proxy_flag(monkeypatch):
     assert net.client_options("http://192.168.88.100:8080") == {}
 
 
+def test_ui_flag_enables_proxy_for_lan(monkeypatch):
+    monkeypatch.setattr(net, "_proxy_for_lan_setting", lambda: True)
+    assert net.client_options("http://192.168.88.100:8080") == {}
+
+
+def test_ui_flag_off_by_default(monkeypatch):
+    from app.services import settings_store
+
+    monkeypatch.setattr(settings_store, "get", lambda key: "0")
+    assert net.client_options("http://192.168.88.100:8080") == {
+        "trust_env": False
+    }
+
+
 def test_async_client_builds(monkeypatch):
     monkeypatch.setenv("HTTP_PROXY", "http://192.168.88.100:10808")
     monkeypatch.setenv("HTTPS_PROXY", "http://192.168.88.100:10808")

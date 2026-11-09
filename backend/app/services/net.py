@@ -22,6 +22,16 @@ FORCE_PROXY_FOR_LAN = os.getenv("ZELVERA_PROXY_LAN", "").strip().lower() in (
 )
 
 
+def _proxy_for_lan_setting() -> bool:
+    """Флаг из настроек UI: пускать и локальную сеть через прокси."""
+    try:
+        from app.services import settings_store
+
+        return (settings_store.get("proxy_for_lan") or "0").strip() == "1"
+    except Exception:  # noqa: BLE001 — настройки недоступны, ведём себя как раньше
+        return False
+
+
 def _is_lan_host(host: str) -> bool:
     name = (host or "").strip().strip("[]").lower()
     if not name:
@@ -46,7 +56,7 @@ def is_lan_url(url: str) -> bool:
 
 def client_options(url: str) -> dict:
     """Доп. аргументы httpx.AsyncClient: для LAN выключаем прокси из окружения."""
-    if FORCE_PROXY_FOR_LAN or not is_lan_url(url):
+    if FORCE_PROXY_FOR_LAN or _proxy_for_lan_setting() or not is_lan_url(url):
         return {}
     return {"trust_env": False}
 

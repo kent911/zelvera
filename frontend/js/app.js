@@ -130,6 +130,7 @@ const setTelegramToken = document.getElementById("set-telegram-token");
 const setTelegramAllowedIds = document.getElementById("set-telegram-allowed-ids");
 const setTelegramProxy = document.getElementById("set-telegram-proxy");
 const setTelegramIpv4 = document.getElementById("set-telegram-ipv4");
+const setProxyForLan = document.getElementById("set-proxy-for-lan");
 const setTelegramVoice = document.getElementById("set-telegram-voice");
 const setTelegramReminders = document.getElementById("set-telegram-reminders");
 const btnTelegramTest = document.getElementById("btn-telegram-test");
@@ -2726,6 +2727,7 @@ async function openSettings() {
     setTelegramAllowedIds.value = data.telegram_allowed_ids || "";
     setTelegramProxy.value = data.telegram_proxy || "";
     setTelegramIpv4.checked = (data.telegram_force_ipv4 || "1") !== "0";
+    if (setProxyForLan) setProxyForLan.checked = (data.proxy_for_lan || "0") === "1";
     setTelegramVoice.checked = (data.telegram_voice_enabled || "1") !== "0";
     setTelegramReminders.checked = (data.telegram_reminders_enabled || "1") !== "0";
     if (setRecoveryEmail) setRecoveryEmail.value = data.recovery_email || "";
@@ -2986,6 +2988,7 @@ async function saveSettings() {
     telegram_allowed_ids: setTelegramAllowedIds.value.trim(),
     telegram_proxy: setTelegramProxy.value.trim(),
     telegram_force_ipv4: setTelegramIpv4.checked ? "1" : "0",
+    proxy_for_lan: setProxyForLan?.checked ? "1" : "0",
     telegram_voice_enabled: setTelegramVoice.checked ? "1" : "0",
     telegram_reminders_enabled: setTelegramReminders.checked ? "1" : "0",
     recovery_email: setRecoveryEmail?.value.trim() || "",

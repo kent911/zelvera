@@ -544,8 +544,9 @@ is used (the systemd unit reads `/etc/environment`; local addresses from
 addresses and private networks (`127.0.0.1`, `localhost`, `192.168.*`,
 `10.*`, `172.16-31.*`, `*.local`), so Ollama, llama-server and kiwix-serve
 stay reachable even when the proxy is down. The proxy is still used for
-Telegram and GitHub. Set `ZELVERA_PROXY_LAN=1` to send everything through
-the proxy again. SOCKS proxies require the `socksio` package (already
+Telegram and GitHub. A separate "Use the proxy for the local network too"
+checkbox (or `ZELVERA_PROXY_LAN=1`) sends local addresses through the proxy
+again when they are only reachable via it; the toggle applies without a restart. SOCKS proxies require the `socksio` package (already
 in `requirements.txt`). A common cause of timeouts is unreachable IPv6 while
 `api.telegram.org` has an AAAA record: by default the bot connects over IPv4
 only (the "Connect over IPv4 only" setting, `TELEGRAM_FORCE_IPV4`).

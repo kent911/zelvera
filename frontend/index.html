@@ -408,6 +408,11 @@
           <span class="field-hint" data-i18n="settings.telegramProxyHint">Укажите, если из контейнера нет прямого доступа к api.telegram.org (например, socks5://user:pass@host:1080).</span>
         </label>
         <label class="field field-check">
+          <input type="checkbox" id="set-proxy-for-lan" />
+          <span data-i18n="settings.proxyForLan">Прокси и для локальной сети (Ollama, llama-server, Kiwix)</span>
+          <span class="field-hint" data-i18n="settings.proxyForLanHint">По умолчанию локальные адреса идут напрямую, в обход прокси. Включайте, только если локальные сервисы доступны лишь через прокси.</span>
+        </label>
+        <label class="field field-check">
           <input type="checkbox" id="set-telegram-ipv4" />
           <span data-i18n="settings.telegramForceIpv4">Подключаться к Telegram только по IPv4 (если IPv6 недоступен)</span>
         </label>
