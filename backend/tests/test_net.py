@@ -29,20 +29,8 @@ def test_public_addresses_keep_proxy():
         assert net.client_options(url) == {}, url
 
 
-def test_force_proxy_flag(monkeypatch):
-    monkeypatch.setattr(net, "FORCE_PROXY_FOR_LAN", True)
-    assert net.client_options("http://192.168.88.100:8080") == {}
-
-
-def test_ui_flag_enables_proxy_for_lan(monkeypatch):
-    monkeypatch.setattr(net, "_proxy_for_lan_setting", lambda: True)
-    assert net.client_options("http://192.168.88.100:8080") == {}
-
-
-def test_ui_flag_off_by_default(monkeypatch):
-    from app.services import settings_store
-
-    monkeypatch.setattr(settings_store, "get", lambda key: "0")
+def test_lan_always_bypasses_proxy(monkeypatch):
+    monkeypatch.setenv("ZELVERA_PROXY_LAN", "1")
     assert net.client_options("http://192.168.88.100:8080") == {
         "trust_env": False
     }

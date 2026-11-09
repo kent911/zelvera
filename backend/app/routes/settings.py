@@ -33,7 +33,7 @@ class SettingsUpdate(BaseModel):
     telegram_reminders_enabled: str | None = None
     telegram_proxy: str | None = None
     telegram_force_ipv4: str | None = None
-    proxy_for_lan: str | None = None
+    github_proxy: str | None = None
     recovery_email: str | None = None
     smtp_host: str | None = None
     smtp_port: str | None = None

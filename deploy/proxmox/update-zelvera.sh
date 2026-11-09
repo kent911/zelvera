@@ -34,6 +34,24 @@ read_unit_env() {
     sed -n "s/^Environment=${key}=//p" "${file}" | head -1
 }
 
+read_settings_value() {
+    # Значение из data/settings.json (настройки веб-интерфейса).
+    local key="$1" data_dir="$2" file
+    file="${data_dir}/settings.json"
+    [ -f "${file}" ] || return 0
+    python3 - "${file}" "${key}" <<'PY' 2>/dev/null || true
+import json, sys
+path, key = sys.argv[1], sys.argv[2]
+try:
+    data = json.load(open(path, encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+value = data.get(key)
+if isinstance(value, str) and value.strip():
+    print(value.strip())
+PY
+}
+
 if [ "$(id -u)" -ne 0 ]; then
     die "Запускайте скрипт от root."
 fi
@@ -42,6 +60,15 @@ fi
 cd "${ZELVERA_HOME}"
 git config --global --add safe.directory "${ZELVERA_HOME}" >/dev/null 2>&1 || true
 
+DATA_DIR="${ZELVERA_DATA_DIR:-$(read_unit_env "${UNIT_FILE}" ZELVERA_DATA_DIR)}"
+DATA_DIR="${DATA_DIR:-${ZELVERA_HOME}/data}"
+GITHUB_PROXY="${GITHUB_PROXY:-$(read_settings_value github_proxy "${DATA_DIR}")}"
+GIT_PROXY_ARGS=()
+if [ -n "${GITHUB_PROXY}" ]; then
+    log "Прокси для GitHub: ${GITHUB_PROXY}"
+    GIT_PROXY_ARGS=(-c "http.proxy=${GITHUB_PROXY}")
+fi
+
 if [ ! -d "${ZELVERA_HOME}/.git" ]; then
     if [ -z "${REPO_URL}" ]; then
         die "Установка без Git. Укажите репозиторий, например:
@@ -49,13 +76,13 @@ if [ ! -d "${ZELVERA_HOME}/.git" ]; then
     fi
     log "Восстановление Git из ${REPO_URL}"
     tmp="$(mktemp -d)"
-    git clone --depth 1 "${REPO_URL}" "${tmp}"
+    git "${GIT_PROXY_ARGS[@]}" clone --depth 1 "${REPO_URL}" "${tmp}"
     rsync -a "${tmp}/.git/" "${ZELVERA_HOME}/.git/"
     rm -rf "${tmp}"
 fi
 
 if [ -z "${BRANCH}" ]; then
-    BRANCH="$(git remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')"
+    BRANCH="$(git "${GIT_PROXY_ARGS[@]}" remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')"
     [ -n "${BRANCH}" ] || BRANCH="master"
 fi
 
@@ -68,7 +95,7 @@ log "Remote: $(git remote get-url origin)"
 BEFORE="$(git rev-parse --short HEAD 2>/dev/null || echo none)"
 log "Сейчас: $(git log --oneline -1 2>/dev/null || echo нет коммита)"
 
-if ! git fetch --depth 1 origin "${BRANCH}"; then
+if ! git "${GIT_PROXY_ARGS[@]}" fetch --depth 1 origin "${BRANCH}"; then
     die "Не удалось скачать обновления (приватный репозиторий?). Проверьте:
   git -C ${ZELVERA_HOME} remote -v
   git -C ${ZELVERA_HOME} fetch origin ${BRANCH}"

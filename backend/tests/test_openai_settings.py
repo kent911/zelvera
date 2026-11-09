@@ -218,3 +218,16 @@ def test_openai_image_unsupported_detects_mmproj():
         Exception("image input is not supported - hint: if this is unexpected, you may need to provide the mmproj")
     )
     assert not _openai_image_unsupported(Exception("timeout connecting to llama-server"))
+
+
+def test_github_proxy_saved_and_can_be_cleared(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(github_proxy="socks5h://192.168.88.100:10808")
+    assert settings_store.get("github_proxy") == "socks5h://192.168.88.100:10808"
+    assert settings_store.public_settings()["github_proxy"] == (
+        "socks5h://192.168.88.100:10808"
+    )
+    settings_store.update(github_proxy="")
+    assert settings_store.get("github_proxy") == ""

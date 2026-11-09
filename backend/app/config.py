@@ -110,6 +110,13 @@ class Settings:
         self.telegram_force_ipv4: bool = os.getenv(
             "TELEGRAM_FORCE_IPV4", "1"
         ).strip().lower() in ("1", "true", "yes", "on")
+        self.github_proxy: str = (
+            os.getenv("GITHUB_PROXY", "").strip()
+            or os.getenv("HTTPS_PROXY", "").strip()
+            or os.getenv("https_proxy", "").strip()
+            or os.getenv("ALL_PROXY", "").strip()
+            or os.getenv("all_proxy", "").strip()
+        )
         self.recovery_email: str = os.getenv("RECOVERY_EMAIL", "").strip()
         self.smtp_host: str = os.getenv("SMTP_HOST", "").strip()
         self.smtp_port: str = os.getenv("SMTP_PORT", "587").strip() or "587"

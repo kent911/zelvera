@@ -4,7 +4,6 @@
 Приоритет: настройки, сохранённые пользователем > значения из .env.
 """
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -40,12 +39,7 @@ DEFAULTS = {
     "telegram_offset": "0",
     "telegram_proxy": env_settings.telegram_proxy,
     "telegram_force_ipv4": "1" if env_settings.telegram_force_ipv4 else "0",
-    "proxy_for_lan": (
-        "1"
-        if os.getenv("ZELVERA_PROXY_LAN", "").strip().lower()
-        in ("1", "true", "yes", "on")
-        else "0"
-    ),
+    "github_proxy": env_settings.github_proxy,
     "recovery_email": env_settings.recovery_email,
     "smtp_host": env_settings.smtp_host,
     "smtp_port": env_settings.smtp_port,
@@ -66,6 +60,7 @@ ALLOW_EMPTY_KEYS = {
     "smtp_user",
     "smtp_password",
     "smtp_from",
+    "github_proxy",
 }
 
 SECRET_KEYS = ("openai_api_key", "telegram_bot_token", "smtp_password")

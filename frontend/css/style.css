@@ -537,11 +537,6 @@ nav {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.field-check .field-hint {
-  flex-basis: 100%;
 }
 
 .field-check input[type="checkbox"] {
