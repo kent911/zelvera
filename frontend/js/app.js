@@ -2724,6 +2724,8 @@ async function openSettings() {
       setTelegramToken.value = "";
       setTelegramToken.placeholder = data.telegram_bot_token_set === "1" ? t("settings.secretKeep") : "123456:ABC-DEF...";
     }
+    const telegramDetails = document.getElementById("telegram-settings");
+    if (telegramDetails) telegramDetails.open = data.telegram_bot_token_set !== "1";
     setTelegramAllowedIds.value = data.telegram_allowed_ids || "";
     setTelegramProxy.value = data.telegram_proxy || "";
     setTelegramIpv4.checked = (data.telegram_force_ipv4 || "1") !== "0";
