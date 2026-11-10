@@ -276,80 +276,87 @@
           <span class="field-hint" data-i18n="settings.backupHint">Копия сохраняется в ZIP-архив. Восстановление полностью заменит текущие данные.</span>
         </div>
         <div class="modal-divider"></div>
-        <label class="field">
-          <span data-i18n="settings.backend">Движок ИИ</span>
-          <select id="set-llm-backend">
-            <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
-            <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
-          </select>
-          <span class="field-hint" data-i18n="settings.backendHint">Ollama — локальные модели. OpenAI — любой совместимый API, например llama-server.</span>
-        </label>
-        <div id="openai-settings" class="hidden">
-          <label class="field">
-            <span data-i18n="settings.openaiUrl">Адрес OpenAI API / llama-server</span>
-            <input type="text" id="set-openai-url" placeholder="http://192.168.1.100:8080" />
-            <span class="field-hint" data-i18n="settings.openaiUrlHint">Например http://192.168.1.100:8080 — суффикс /v1 добавится сам.</span>
-          </label>
-          <label class="field">
-            <span data-i18n="settings.openaiKey">API-ключ (для llama-server можно оставить пустым)</span>
-            <input type="password" id="set-openai-key" placeholder="local" autocomplete="off" />
-          </label>
-        </div>
-        <div class="settings-group" id="ollama-url-field">
-          <span class="modal-title modal-title-sm" data-i18n="settings.ollamaTitle">Ollama — поиск по статьям</span>
-          <label class="field">
-            <span data-i18n="settings.ollamaUrl">Адрес сервера Ollama</span>
-            <input type="text" id="set-ollama-url" placeholder="http://localhost:11434" />
-            <span class="field-hint" data-i18n="settings.ollamaUrlHint">Сервер с моделями Ollama, например http://192.168.88.100:11434. По нему строится поиск в базе статей. Если движок чата — Ollama, диалог тоже идёт сюда.</span>
-          </label>
-          <label class="field">
-            <span data-i18n="settings.embedModel">Эмбеддинг-модель</span>
-            <input type="text" id="set-embed-model" placeholder="nomic-embed-text" />
-            <span class="field-hint" data-i18n="settings.embedModelHint">Модель векторов для поиска по вашим статьям (обычно nomic-embed-text). Всегда через адрес Ollama выше, даже если чат на llama-server.</span>
-          </label>
-        </div>
-        <div class="modal-divider"></div>
-        <span class="modal-title modal-title-sm" data-i18n="settings.kiwixTitle">Офлайн-Википедия (Kiwix)</span>
-        <label class="field">
-          <span data-i18n="settings.kiwixUrl">Адрес Kiwix (kiwix-serve)</span>
-          <input type="text" id="set-kiwix-url" placeholder="http://192.168.1.50:8080" />
-          <span class="field-hint" data-i18n="settings.kiwixUrlHint">Адрес LXC-контейнера с Kiwix. Тогда ИИ-ассистент сможет искать и анализировать информацию из Википедии.</span>
-        </label>
-        <label class="field">
-          <span data-i18n="settings.kiwixZimName">Имя ZIM-книги (пусто — найдём автоматически)</span>
-          <input type="text" id="set-kiwix-zim" placeholder="wikipedia_en_all_maxi_2024-01" />
-        </label>
-        <div class="modal-row">
-          <button id="btn-kiwix-books" class="action-btn" data-i18n="settings.checkBooks">Проверить список книг</button>
-          <span id="kiwix-status" class="models-status"></span>
-        </div>
-        <div class="modal-divider"></div>
-        <div class="modal-row">
-          <button id="btn-refresh-models" class="action-btn" data-i18n="settings.refreshModels">Обновить список моделей</button>
-          <span id="models-status" class="models-status"></span>
-        </div>
-        <label class="field">
-          <span data-i18n="settings.chatModel">Модель для чата</span>
-          <input type="text" id="set-chat-model" placeholder="gemma4:26b" />
-        </label>
-        <label class="field">
-          <span data-i18n="settings.visionBackend">Движок для фото</span>
-          <select id="set-vision-backend">
-            <option value="" data-i18n="settings.visionBackendInherit">Как у чата</option>
-            <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
-            <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
-          </select>
-          <span class="field-hint" data-i18n="settings.visionBackendHint">Для распознавания фото можно выбрать другой движок, чем для чата. llama-server без mmproj картинки не читает.</span>
-        </label>
-        <label class="field">
-          <span data-i18n="settings.visionModel">Vision-модель (распознавание фото анализов)</span>
-          <input type="text" id="set-vision-model" placeholder="gemma4:26b" />
-        </label>
-        <label class="field">
-          <span data-i18n="settings.numCtx">Размер контекста модели, токенов (num_ctx)</span>
-          <input type="number" id="set-num-ctx" min="2048" step="1024" placeholder="32768" />
-          <span class="field-hint" data-i18n="settings.numCtxHint">Например: 32768, 65536, 131072. Влияет на то, сколько текста статей ИИ «видит» за один ответ.</span>
-        </label>
+        <details class="settings-collapse" id="engine-settings">
+          <summary class="settings-collapse-head">
+            <span class="modal-title modal-title-sm" data-i18n="settings.engineTitle">Движок ИИ</span>
+          </summary>
+          <div class="settings-collapse-body">
+            <label class="field">
+              <span data-i18n="settings.backendType">Тип движка</span>
+              <select id="set-llm-backend">
+                <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
+                <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
+              </select>
+              <span class="field-hint" data-i18n="settings.backendHint">Ollama — локальные модели. OpenAI — любой совместимый API, например llama-server.</span>
+            </label>
+            <div id="openai-settings" class="hidden">
+              <label class="field">
+                <span data-i18n="settings.openaiUrl">Адрес OpenAI API / llama-server</span>
+                <input type="text" id="set-openai-url" placeholder="http://192.168.1.100:8080" />
+                <span class="field-hint" data-i18n="settings.openaiUrlHint">Например http://192.168.1.100:8080 — суффикс /v1 добавится сам.</span>
+              </label>
+              <label class="field">
+                <span data-i18n="settings.openaiKey">API-ключ (для llama-server можно оставить пустым)</span>
+                <input type="password" id="set-openai-key" placeholder="local" autocomplete="off" />
+              </label>
+            </div>
+            <div class="settings-group" id="ollama-url-field">
+              <span class="modal-title modal-title-sm" data-i18n="settings.ollamaTitle">Ollama — поиск по статьям</span>
+              <label class="field">
+                <span data-i18n="settings.ollamaUrl">Адрес сервера Ollama</span>
+                <input type="text" id="set-ollama-url" placeholder="http://localhost:11434" />
+                <span class="field-hint" data-i18n="settings.ollamaUrlHint">Сервер с моделями Ollama, например http://192.168.88.100:11434. По нему строится поиск в базе статей. Если движок чата — Ollama, диалог тоже идёт сюда.</span>
+              </label>
+              <label class="field">
+                <span data-i18n="settings.embedModel">Эмбеддинг-модель</span>
+                <input type="text" id="set-embed-model" placeholder="nomic-embed-text" />
+                <span class="field-hint" data-i18n="settings.embedModelHint">Модель векторов для поиска по вашим статьям (обычно nomic-embed-text). Всегда через адрес Ollama выше, даже если чат на llama-server.</span>
+              </label>
+            </div>
+            <div class="modal-divider"></div>
+            <span class="modal-title modal-title-sm" data-i18n="settings.kiwixTitle">Офлайн-Википедия (Kiwix)</span>
+            <label class="field">
+              <span data-i18n="settings.kiwixUrl">Адрес Kiwix (kiwix-serve)</span>
+              <input type="text" id="set-kiwix-url" placeholder="http://192.168.1.50:8080" />
+              <span class="field-hint" data-i18n="settings.kiwixUrlHint">Адрес LXC-контейнера с Kiwix. Тогда ИИ-ассистент сможет искать и анализировать информацию из Википедии.</span>
+            </label>
+            <label class="field">
+              <span data-i18n="settings.kiwixZimName">Имя ZIM-книги (пусто — найдём автоматически)</span>
+              <input type="text" id="set-kiwix-zim" placeholder="wikipedia_en_all_maxi_2024-01" />
+            </label>
+            <div class="modal-row">
+              <button id="btn-kiwix-books" class="action-btn" data-i18n="settings.checkBooks">Проверить список книг</button>
+              <span id="kiwix-status" class="models-status"></span>
+            </div>
+            <div class="modal-divider"></div>
+            <div class="modal-row">
+              <button id="btn-refresh-models" class="action-btn" data-i18n="settings.refreshModels">Обновить список моделей</button>
+              <span id="models-status" class="models-status"></span>
+            </div>
+            <label class="field">
+              <span data-i18n="settings.chatModel">Модель для чата</span>
+              <input type="text" id="set-chat-model" placeholder="gemma4:26b" />
+            </label>
+            <label class="field">
+              <span data-i18n="settings.visionBackend">Движок для фото</span>
+              <select id="set-vision-backend">
+                <option value="" data-i18n="settings.visionBackendInherit">Как у чата</option>
+                <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
+                <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
+              </select>
+              <span class="field-hint" data-i18n="settings.visionBackendHint">Для распознавания фото можно выбрать другой движок, чем для чата. llama-server без mmproj картинки не читает.</span>
+            </label>
+            <label class="field">
+              <span data-i18n="settings.visionModel">Vision-модель (распознавание фото анализов)</span>
+              <input type="text" id="set-vision-model" placeholder="gemma4:26b" />
+            </label>
+            <label class="field">
+              <span data-i18n="settings.numCtx">Размер контекста модели, токенов (num_ctx)</span>
+              <input type="number" id="set-num-ctx" min="2048" step="1024" placeholder="32768" />
+              <span class="field-hint" data-i18n="settings.numCtxHint">Например: 32768, 65536, 131072. Влияет на то, сколько текста статей ИИ «видит» за один ответ.</span>
+            </label>
+          </div>
+        </details>
         <div class="modal-divider"></div>
         <details class="settings-collapse" id="password-settings">
           <summary class="settings-collapse-head">
