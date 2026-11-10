@@ -313,22 +313,6 @@
                 <span class="field-hint" data-i18n="settings.embedModelHint">Модель векторов для поиска по вашим статьям (обычно nomic-embed-text). Всегда через адрес Ollama выше, даже если чат на llama-server.</span>
               </label>
             </div>
-            <div class="modal-divider"></div>
-            <span class="modal-title modal-title-sm" data-i18n="settings.kiwixTitle">Офлайн-Википедия (Kiwix)</span>
-            <label class="field">
-              <span data-i18n="settings.kiwixUrl">Адрес Kiwix (kiwix-serve)</span>
-              <input type="text" id="set-kiwix-url" placeholder="http://192.168.1.50:8080" />
-              <span class="field-hint" data-i18n="settings.kiwixUrlHint">Адрес LXC-контейнера с Kiwix. Тогда ИИ-ассистент сможет искать и анализировать информацию из Википедии.</span>
-            </label>
-            <label class="field">
-              <span data-i18n="settings.kiwixZimName">Имя ZIM-книги (пусто — найдём автоматически)</span>
-              <input type="text" id="set-kiwix-zim" placeholder="wikipedia_en_all_maxi_2024-01" />
-            </label>
-            <div class="modal-row">
-              <button id="btn-kiwix-books" class="action-btn" data-i18n="settings.checkBooks">Проверить список книг</button>
-              <span id="kiwix-status" class="models-status"></span>
-            </div>
-            <div class="modal-divider"></div>
             <div class="modal-row">
               <button id="btn-refresh-models" class="action-btn" data-i18n="settings.refreshModels">Обновить список моделей</button>
               <span id="models-status" class="models-status"></span>
@@ -355,6 +339,27 @@
               <input type="number" id="set-num-ctx" min="2048" step="1024" placeholder="32768" />
               <span class="field-hint" data-i18n="settings.numCtxHint">Например: 32768, 65536, 131072. Влияет на то, сколько текста статей ИИ «видит» за один ответ.</span>
             </label>
+          </div>
+        </details>
+        <div class="modal-divider"></div>
+        <details class="settings-collapse" id="kiwix-settings">
+          <summary class="settings-collapse-head">
+            <span class="modal-title modal-title-sm" data-i18n="settings.kiwixTitle">Офлайн-Википедия (Kiwix)</span>
+          </summary>
+          <div class="settings-collapse-body">
+            <label class="field">
+              <span data-i18n="settings.kiwixUrl">Адрес Kiwix (kiwix-serve)</span>
+              <input type="text" id="set-kiwix-url" placeholder="http://192.168.1.50:8080" />
+              <span class="field-hint" data-i18n="settings.kiwixUrlHint">Адрес LXC-контейнера с Kiwix. Тогда ИИ-ассистент сможет искать и анализировать информацию из Википедии.</span>
+            </label>
+            <label class="field">
+              <span data-i18n="settings.kiwixZimName">Имя ZIM-книги (пусто — найдём автоматически)</span>
+              <input type="text" id="set-kiwix-zim" placeholder="wikipedia_en_all_maxi_2024-01" />
+            </label>
+            <div class="modal-row">
+              <button id="btn-kiwix-books" class="action-btn" data-i18n="settings.checkBooks">Проверить список книг</button>
+              <span id="kiwix-status" class="models-status"></span>
+            </div>
           </div>
         </details>
         <div class="modal-divider"></div>

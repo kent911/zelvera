@@ -2715,6 +2715,8 @@ async function openSettings() {
     setOllamaUrl.value = data.ollama_base_url || "";
     setKiwixUrl.value = data.kiwix_base_url || "";
     setKiwixZim.value = data.kiwix_zim_name || "";
+    const kiwixDetails = document.getElementById("kiwix-settings");
+    if (kiwixDetails) kiwixDetails.open = !data.kiwix_base_url;
     setChatModel.value = data.chat_model || "";
     if (setVisionBackend) setVisionBackend.value = data.vision_backend || "";
     setVisionModel.value = data.vision_model || "";
