@@ -2732,6 +2732,10 @@ async function openSettings() {
     if (setGithubProxy) setGithubProxy.value = data.github_proxy || "";
     setTelegramVoice.checked = (data.telegram_voice_enabled || "1") !== "0";
     setTelegramReminders.checked = (data.telegram_reminders_enabled || "1") !== "0";
+    const smtpDetails = document.getElementById("smtp-settings");
+    if (smtpDetails) {
+      smtpDetails.open = !(data.smtp_host && data.smtp_password_set === "1");
+    }
     if (setRecoveryEmail) setRecoveryEmail.value = data.recovery_email || "";
     if (setSmtpHost) setSmtpHost.value = data.smtp_host || "";
     if (setSmtpPort) setSmtpPort.value = data.smtp_port || "587";
