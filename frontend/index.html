@@ -351,19 +351,25 @@
           <span class="field-hint" data-i18n="settings.numCtxHint">Например: 32768, 65536, 131072. Влияет на то, сколько текста статей ИИ «видит» за один ответ.</span>
         </label>
         <div class="modal-divider"></div>
-        <span class="modal-title modal-title-sm" data-i18n="auth.changeTitle">Смена пароля</span>
-        <label class="field">
-          <span data-i18n="auth.oldPassword">Текущий пароль</span>
-          <input type="password" id="set-old-password" autocomplete="current-password" />
-        </label>
-        <label class="field">
-          <span data-i18n="auth.newPassword">Новый пароль</span>
-          <input type="password" id="set-new-password" autocomplete="new-password" />
-        </label>
-        <div class="modal-row">
-          <button id="btn-change-password" class="action-btn" data-i18n="auth.changePassword">Сменить пароль</button>
-          <span id="password-status" class="models-status"></span>
-        </div>
+        <details class="settings-collapse" id="password-settings">
+          <summary class="settings-collapse-head">
+            <span class="modal-title modal-title-sm" data-i18n="auth.changeTitle">Смена пароля</span>
+          </summary>
+          <div class="settings-collapse-body">
+            <label class="field">
+              <span data-i18n="auth.oldPassword">Текущий пароль</span>
+              <input type="password" id="set-old-password" autocomplete="current-password" />
+            </label>
+            <label class="field">
+              <span data-i18n="auth.newPassword">Новый пароль</span>
+              <input type="password" id="set-new-password" autocomplete="new-password" />
+            </label>
+            <div class="modal-row">
+              <button id="btn-change-password" class="action-btn" data-i18n="auth.changePassword">Сменить пароль</button>
+              <span id="password-status" class="models-status"></span>
+            </div>
+          </div>
+        </details>
         <div class="modal-divider"></div>
         <details class="settings-collapse" id="smtp-settings">
           <summary class="settings-collapse-head">
