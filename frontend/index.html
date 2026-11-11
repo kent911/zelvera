@@ -446,12 +446,18 @@
           </div>
         </details>
         <div class="modal-divider"></div>
-        <span class="modal-title modal-title-sm" data-i18n="settings.githubTitle">Обновление с GitHub</span>
-        <label class="field">
-          <span data-i18n="settings.githubProxy">Прокси для GitHub (необязательно)</span>
-          <input type="text" id="set-github-proxy" placeholder="http://192.168.1.10:3128" />
-          <span class="field-hint" data-i18n="settings.githubProxyHint">Используется при обновлении проекта с GitHub (скрипт update-zelvera.sh). Укажите, если git не может напрямую достучаться до github.com (например, socks5h://user:pass@host:1080). Пусто — прокси не используется.</span>
-        </label>
+        <details class="settings-collapse" id="github-settings">
+          <summary class="settings-collapse-head">
+            <span class="modal-title modal-title-sm" data-i18n="settings.githubTitle">Обновление с GitHub</span>
+          </summary>
+          <div class="settings-collapse-body">
+            <label class="field">
+              <span data-i18n="settings.githubProxy">Прокси для GitHub (необязательно)</span>
+              <input type="text" id="set-github-proxy" placeholder="http://192.168.1.10:3128" />
+              <span class="field-hint" data-i18n="settings.githubProxyHint">Используется при обновлении проекта с GitHub (скрипт update-zelvera.sh). Укажите, если git не может напрямую достучаться до github.com (например, socks5h://user:pass@host:1080). Пусто — прокси не используется.</span>
+            </label>
+          </div>
+        </details>
         <div class="modal-divider"></div>
         <details class="settings-collapse" id="data-settings">
           <summary class="settings-collapse-head">
