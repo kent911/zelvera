@@ -259,23 +259,6 @@
         <button id="settings-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="data-dir-block">
-          <span class="data-dir-label" data-i18n="settings.dataDir">Папка данных (БД, статьи, настройки)</span>
-          <code id="data-dir-path" class="data-dir-path">…</code>
-          <button id="btn-copy-dir" class="action-btn" data-i18n="settings.copy" data-i18n-title="settings.copyTitle">Копировать</button>
-        </div>
-        <div class="modal-divider"></div>
-        <div class="backup-block">
-          <span class="data-dir-label" data-i18n="settings.backup">Резервная копия (мед. карта, фото, статьи, настройки)</span>
-          <div class="modal-row">
-            <button id="btn-backup-export" class="action-btn" data-i18n="settings.backupExport">Сохранить копию</button>
-            <button id="btn-backup-import" class="action-btn" data-i18n="settings.backupImport">Восстановить из копии</button>
-            <input type="file" id="backup-file-input" accept=".zip" hidden />
-            <span id="backup-status" class="models-status"></span>
-          </div>
-          <span class="field-hint" data-i18n="settings.backupHint">Копия сохраняется в ZIP-архив. Восстановление полностью заменит текущие данные.</span>
-        </div>
-        <div class="modal-divider"></div>
         <details class="settings-collapse" id="engine-settings">
           <summary class="settings-collapse-head">
             <span class="modal-title modal-title-sm" data-i18n="settings.engineTitle">Движок ИИ</span>
@@ -470,6 +453,28 @@
           <span class="field-hint" data-i18n="settings.githubProxyHint">Используется при обновлении проекта с GitHub (скрипт update-zelvera.sh). Укажите, если git не может напрямую достучаться до github.com (например, socks5h://user:pass@host:1080). Пусто — прокси не используется.</span>
         </label>
         <div class="modal-divider"></div>
+        <details class="settings-collapse" id="data-settings">
+          <summary class="settings-collapse-head">
+            <span class="modal-title modal-title-sm" data-i18n="settings.dataTitle">Сохранение данных</span>
+          </summary>
+          <div class="settings-collapse-body">
+            <div class="data-dir-block">
+              <span class="data-dir-label" data-i18n="settings.dataDir">Папка данных (БД, статьи, настройки)</span>
+              <code id="data-dir-path" class="data-dir-path">…</code>
+              <button id="btn-copy-dir" class="action-btn" data-i18n="settings.copy" data-i18n-title="settings.copyTitle">Копировать</button>
+            </div>
+            <div class="backup-block">
+              <span class="data-dir-label" data-i18n="settings.backup">Резервная копия (мед. карта, фото, статьи, настройки)</span>
+              <div class="modal-row">
+                <button id="btn-backup-export" class="action-btn" data-i18n="settings.backupExport">Сохранить копию</button>
+                <button id="btn-backup-import" class="action-btn" data-i18n="settings.backupImport">Восстановить из копии</button>
+                <input type="file" id="backup-file-input" accept=".zip" hidden />
+                <span id="backup-status" class="models-status"></span>
+              </div>
+              <span class="field-hint" data-i18n="settings.backupHint">Копия сохраняется в ZIP-архив. Восстановление полностью заменит текущие данные.</span>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="modal-foot">
         <button id="settings-save" class="primary-btn" data-i18n="settings.save">Сохранить</button>
