@@ -193,6 +193,18 @@ USER_LLM_MODEL=bonsai2-27B
 
 Ключ хранится только локально. Эмбеддинги статей по-прежнему идут через Ollama.
 
+### LM Studio
+
+LM Studio тоже отдаёт OpenAI-совместимый API: в «Настройки ИИ» выберите движок
+**LM Studio**, адрес по умолчанию — `http://localhost:1234` (`/v1` добавится
+сам). В самом LM Studio включите локальный сервер (Developer → Start Server).
+Ключ обычно не нужен. Через `.env`:
+
+```env
+LLM_BACKEND=lmstudio
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+```
+
 Распознавание фото имеет отдельный движок («Движок для фото»): можно оставить
 чат на llama-server, а vision — на Ollama. llama-server без mmproj картинки
 не читает.

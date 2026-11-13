@@ -231,3 +231,42 @@ def test_github_proxy_saved_and_can_be_cleared(tmp_path, monkeypatch):
     )
     settings_store.update(github_proxy="")
     assert settings_store.get("github_proxy") == ""
+
+
+def test_lmstudio_backend_and_base_url(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(
+        llm_backend="lmstudio",
+        lmstudio_base_url="http://192.168.1.50:1234",
+    )
+    assert settings_store.llm_backend() == "lmstudio"
+    assert settings_store.openai_base_url() == "http://192.168.1.50:1234/v1"
+    assert settings_store.openai_api_key() == "local"
+
+
+def test_lmstudio_is_openai_compatible(tmp_path, monkeypatch):
+    from app.services import llm
+
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(llm_backend="lmstudio")
+    assert llm._use_openai() is True
+    settings_store.update(llm_backend="ollama")
+    assert llm._use_openai() is False
+
+
+def test_lmstudio_keeps_its_own_address(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_cache", None)
+    settings_store.update(
+        openai_base_url="https://api.openai.com/v1",
+        lmstudio_base_url="http://localhost:1234",
+        llm_backend="openai",
+    )
+    assert settings_store.openai_base_url() == "https://api.openai.com/v1"
+    settings_store.update(llm_backend="lmstudio")
+    assert settings_store.openai_base_url() == "http://localhost:1234/v1"

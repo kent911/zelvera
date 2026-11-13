@@ -73,6 +73,9 @@ class Settings:
         self.user_llm_base_url: str = os.getenv(
             "USER_LLM_BASE_URL", "https://api.openai.com/v1"
         ).rstrip("/")
+        self.lmstudio_base_url: str = os.getenv(
+            "LMSTUDIO_BASE_URL", "http://localhost:1234/v1"
+        ).rstrip("/")
         self.user_llm_api_key: str = os.getenv("USER_LLM_API_KEY", "").strip()
         self.user_llm_model: str = os.getenv("USER_LLM_MODEL", "gpt-4o").strip()
         self.user_llm_vision_model: str = os.getenv(
@@ -136,13 +139,13 @@ class Settings:
 
     @property
     def active_model(self) -> str:
-        if self.llm_backend == "openai":
+        if self.llm_backend in ("openai", "lmstudio"):
             return self.user_llm_model
         return self.ollama_model
 
     @property
     def vision_model(self) -> str:
-        if self.llm_backend == "openai":
+        if self.llm_backend in ("openai", "lmstudio"):
             return self.user_llm_vision_model
         return self.ollama_vision_model
 

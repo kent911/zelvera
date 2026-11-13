@@ -18,6 +18,8 @@ DEFAULTS = {
     "llm_backend": env_settings.llm_backend,
     "openai_base_url": env_settings.user_llm_base_url,
     "openai_api_key": env_settings.user_llm_api_key or "local",
+    "lmstudio_base_url": env_settings.lmstudio_base_url,
+    "lmstudio_api_key": "local",
     "ollama_base_url": env_settings.ollama_base_url,
     "chat_model": env_settings.ollama_model,
     "vision_backend": "",
@@ -63,7 +65,12 @@ ALLOW_EMPTY_KEYS = {
     "github_proxy",
 }
 
-SECRET_KEYS = ("openai_api_key", "telegram_bot_token", "smtp_password")
+SECRET_KEYS = (
+    "openai_api_key",
+    "lmstudio_api_key",
+    "telegram_bot_token",
+    "smtp_password",
+)
 KEEP_IF_BLANK_KEYS = SECRET_KEYS
 
 
@@ -109,30 +116,54 @@ def public_settings() -> dict[str, str]:
     return data
 
 
+BACKENDS = ("ollama", "openai", "lmstudio")
+
+
 def llm_backend() -> str:
     value = (_load().get("llm_backend") or env_settings.llm_backend or "ollama").strip().lower()
-    return "openai" if value == "openai" else "ollama"
+    return value if value in BACKENDS else "ollama"
 
 
 def vision_backend() -> str:
-    """Движок для фото. Пусто — как у чата; иначе ollama или openai."""
+    """Движок для фото. Пусто — как у чата; иначе ollama, openai или lmstudio."""
     value = (_load().get("vision_backend") or "").strip().lower()
-    if value in ("ollama", "openai"):
+    if value in BACKENDS:
         return value
     return llm_backend()
 
 
 def openai_base_url() -> str:
-    url = (_load().get("openai_base_url") or env_settings.user_llm_base_url or "").strip().rstrip("/")
-    if not url:
-        url = "http://127.0.0.1:8080"
+    """Адрес OpenAI-совместимого API: OpenAI/llama-server или LM Studio."""
+    if llm_backend() == "lmstudio":
+        url = (
+            _load().get("lmstudio_base_url")
+            or env_settings.lmstudio_base_url
+            or ""
+        ).strip().rstrip("/")
+        if not url:
+            url = "http://127.0.0.1:1234"
+    else:
+        url = (
+            _load().get("openai_base_url")
+            or env_settings.user_llm_base_url
+            or ""
+        ).strip().rstrip("/")
+        if not url:
+            url = "http://127.0.0.1:8080"
     if url.endswith("/v1"):
         return url
     return url + "/v1"
 
 
 def openai_api_key() -> str:
-    key = (_load().get("openai_api_key") or env_settings.user_llm_api_key or "").strip()
+    if llm_backend() == "lmstudio":
+        key = (_load().get("lmstudio_api_key") or "").strip()
+    else:
+        key = (
+            _load().get("openai_api_key")
+            or env_settings.user_llm_api_key
+            or ""
+        ).strip()
     return key or "local"
 
 
@@ -154,13 +185,15 @@ def update(**kwargs: str) -> dict[str, str]:
         stripped = value.strip()
         if key in KEEP_IF_BLANK_KEYS and not stripped:
             continue
-        if key == "openai_base_url" and stripped:
+        if key in ("openai_base_url", "lmstudio_base_url") and stripped:
             stripped = normalize_openai_base_url(stripped)
         if key == "llm_backend":
-            stripped = "openai" if stripped.lower() == "openai" else "ollama"
+            stripped = stripped.lower()
+            if stripped not in BACKENDS:
+                stripped = "ollama"
         if key == "vision_backend":
             stripped = stripped.lower()
-            if stripped not in ("ollama", "openai"):
+            if stripped not in BACKENDS:
                 stripped = ""
         if (stripped or key in ALLOW_EMPTY_KEYS) and stripped != current.get(key):
             current[key] = stripped
@@ -229,7 +262,7 @@ async def probe_llm() -> dict[str, str | bool]:
         "error": "",
     }
     try:
-        if backend == "openai":
+        if backend in ("openai", "lmstudio"):
             names = await list_openai_models(openai_base_url(), openai_api_key())
         else:
             names = await list_ollama_models(get("ollama_base_url"))

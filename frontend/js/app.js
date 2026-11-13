@@ -116,6 +116,9 @@ const setLlmBackend = document.getElementById("set-llm-backend");
 const setOpenaiUrl = document.getElementById("set-openai-url");
 const setOpenaiKey = document.getElementById("set-openai-key");
 const openaiSettings = document.getElementById("openai-settings");
+const lmstudioSettings = document.getElementById("lmstudio-settings");
+const setLmStudioUrl = document.getElementById("set-lmstudio-url");
+const setLmStudioKey = document.getElementById("set-lmstudio-key");
 const setOllamaUrl = document.getElementById("set-ollama-url");
 const setKiwixUrl = document.getElementById("set-kiwix-url");
 const setKiwixZim = document.getElementById("set-kiwix-zim");
@@ -2697,9 +2700,15 @@ function setModelsDatalist(models) {
   availableModels = models || [];
 }
 
+function backendKind() {
+  const value = setLlmBackend?.value || "ollama";
+  return value === "lmstudio" ? "lmstudio" : value === "openai" ? "openai" : "ollama";
+}
+
 function syncBackendFields() {
-  const openai = (setLlmBackend?.value || "ollama") === "openai";
-  if (openaiSettings) openaiSettings.classList.toggle("hidden", !openai);
+  const kind = backendKind();
+  if (openaiSettings) openaiSettings.classList.toggle("hidden", kind !== "openai");
+  if (lmstudioSettings) lmstudioSettings.classList.toggle("hidden", kind !== "lmstudio");
 }
 
 async function openSettings() {
@@ -2711,6 +2720,11 @@ async function openSettings() {
     if (setOpenaiKey) {
       setOpenaiKey.value = "";
       setOpenaiKey.placeholder = data.openai_api_key_set === "1" ? t("settings.secretKeep") : "local";
+    }
+    if (setLmStudioUrl) setLmStudioUrl.value = (data.lmstudio_base_url || "").replace(/\/v1\/?$/, "");
+    if (setLmStudioKey) {
+      setLmStudioKey.value = "";
+      setLmStudioKey.placeholder = data.lmstudio_api_key_set === "1" ? t("settings.secretKeep") : "local";
     }
     setOllamaUrl.value = data.ollama_base_url || "";
     setKiwixUrl.value = data.kiwix_base_url || "";
@@ -2942,19 +2956,25 @@ backupFileInput?.addEventListener("change", async () => {
 let modelsRefreshAbort = null;
 
 async function refreshModels() {
-  const openai = (setLlmBackend?.value || "ollama") === "openai";
+  const kind = backendKind();
   if (modelsRefreshAbort) modelsRefreshAbort.abort();
   const controller = new AbortController();
   modelsRefreshAbort = controller;
   setModelsStatus(t("settings.fetchingModels"));
   try {
-    const res = openai
+    const res = kind !== "ollama"
       ? await fetch("/api/settings/openai-models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            openai_base_url: setOpenaiUrl?.value.trim() || "",
-            openai_api_key: setOpenaiKey?.value.trim() || "",
+            openai_base_url:
+              kind === "lmstudio"
+                ? setLmStudioUrl?.value.trim() || ""
+                : setOpenaiUrl?.value.trim() || "",
+            openai_api_key:
+              kind === "lmstudio"
+                ? setLmStudioKey?.value.trim() || ""
+                : setOpenaiKey?.value.trim() || "",
           }),
           signal: controller.signal,
         })
@@ -2984,6 +3004,8 @@ async function saveSettings() {
     llm_backend: setLlmBackend?.value || "ollama",
     openai_base_url: setOpenaiUrl?.value.trim() || "",
     openai_api_key: setOpenaiKey?.value.trim() || "",
+    lmstudio_base_url: setLmStudioUrl?.value.trim() || "",
+    lmstudio_api_key: setLmStudioKey?.value.trim() || "",
     ollama_base_url: setOllamaUrl.value.trim(),
     kiwix_base_url: setKiwixUrl.value.trim(),
     kiwix_zim_name: setKiwixZim.value.trim(),

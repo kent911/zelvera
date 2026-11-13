@@ -193,6 +193,18 @@ USER_LLM_MODEL=bonsai2-27B
 
 The key is stored only locally. Article embeddings still go through Ollama.
 
+### LM Studio
+
+LM Studio also exposes an OpenAI-compatible API: in **AI settings** choose backend
+**LM Studio**, the default address is `http://localhost:1234` (`/v1` is appended
+automatically). In LM Studio itself enable the local server (Developer → Start
+Server). A key is usually not needed. Via `.env`:
+
+```env
+LLM_BACKEND=lmstudio
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+```
+
 Photo recognition has its own backend ("Backend for photos"): you can keep chat
 on llama-server and vision on Ollama. llama-server without mmproj cannot read
 images.

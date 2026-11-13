@@ -59,11 +59,12 @@ def _log_openai_metrics(model: str, phase: str, usage, seconds: float) -> None:
 
 
 def _use_openai() -> bool:
-    return settings_store.llm_backend() == "openai"
+    """OpenAI-совместимый API: OpenAI/llama-server и LM Studio."""
+    return settings_store.llm_backend() in ("openai", "lmstudio")
 
 
 def _use_openai_vision() -> bool:
-    return settings_store.vision_backend() == "openai"
+    return settings_store.vision_backend() in ("openai", "lmstudio")
 
 
 def _openai_client() -> AsyncOpenAI:

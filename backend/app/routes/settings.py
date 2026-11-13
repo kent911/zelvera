@@ -16,6 +16,8 @@ class SettingsUpdate(BaseModel):
     llm_backend: str | None = None
     openai_base_url: str | None = None
     openai_api_key: str | None = None
+    lmstudio_base_url: str | None = None
+    lmstudio_api_key: str | None = None
     ollama_base_url: str | None = None
     chat_model: str | None = None
     vision_backend: str | None = None

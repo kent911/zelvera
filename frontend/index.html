@@ -269,8 +269,9 @@
               <select id="set-llm-backend">
                 <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
                 <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
+                <option value="lmstudio" data-i18n="settings.backendLmStudio">LM Studio</option>
               </select>
-              <span class="field-hint" data-i18n="settings.backendHint">Ollama — локальные модели. OpenAI — любой совместимый API, например llama-server.</span>
+              <span class="field-hint" data-i18n="settings.backendHint">Ollama — локальные модели. OpenAI — любой совместимый API, например llama-server. LM Studio — локальный сервер моделей.</span>
             </label>
             <div id="openai-settings" class="hidden">
               <label class="field">
@@ -281,6 +282,18 @@
               <label class="field">
                 <span data-i18n="settings.openaiKey">API-ключ (для llama-server можно оставить пустым)</span>
                 <input type="password" id="set-openai-key" placeholder="local" autocomplete="off" />
+              </label>
+            </div>
+            <div id="lmstudio-settings" class="hidden">
+              <label class="field">
+                <span data-i18n="settings.lmstudioUrl">Адрес сервера LM Studio</span>
+                <input type="text" id="set-lmstudio-url" placeholder="http://localhost:1234" />
+                <span class="field-hint" data-i18n="settings.lmstudioUrlHint">По умолчанию http://localhost:1234 — суффикс /v1 добавится сам. В LM Studio включите локальный сервер (Developer → Start Server).</span>
+              </label>
+              <label class="field">
+                <span data-i18n="settings.lmstudioKey">API-ключ (обычно не нужен)</span>
+                <input type="password" id="set-lmstudio-key" placeholder="local" autocomplete="off" />
+                <span class="field-hint" data-i18n="settings.lmstudioKeyHint">LM Studio по умолчанию не требует ключ. Оставьте пустым, если не задавали его в настройках сервера.</span>
               </label>
             </div>
             <div class="settings-group" id="ollama-url-field">
@@ -310,6 +323,7 @@
                 <option value="" data-i18n="settings.visionBackendInherit">Как у чата</option>
                 <option value="ollama" data-i18n="settings.backendOllama">Ollama</option>
                 <option value="openai" data-i18n="settings.backendOpenai">OpenAI / llama-server</option>
+                <option value="lmstudio" data-i18n="settings.backendLmStudio">LM Studio</option>
               </select>
               <span class="field-hint" data-i18n="settings.visionBackendHint">Для распознавания фото можно выбрать другой движок, чем для чата. llama-server без mmproj картинки не читает.</span>
             </label>
