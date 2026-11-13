@@ -467,6 +467,13 @@ const I18N_STRINGS = {
     "memory.src.ui": "вручную",
     "memory.src.tool": "инструмент",
     "chips.memory": "Что ты обо мне помнишь?",
+    "chips.edit": "Настроить",
+    "chips.editorTitle": "Быстрые вопросы",
+    "chips.editorHint": "Эти вопросы показываются в пустом чате. Пустой список вернёт значения по умолчанию.",
+    "chips.add": "Добавить вопрос",
+    "chips.inputPlaceholder": "Текст вопроса",
+    "chips.remove": "Удалить вопрос",
+    "chips.saving": "Сохранение...",
   },
   en: {
     "subtitle": "local assistant",
@@ -931,6 +938,13 @@ const I18N_STRINGS = {
     "memory.src.ui": "manual",
     "memory.src.tool": "tool",
     "chips.memory": "What do you remember about me?",
+    "chips.edit": "Customize",
+    "chips.editorTitle": "Quick questions",
+    "chips.editorHint": "These questions appear in an empty chat. An empty list restores the defaults.",
+    "chips.add": "Add question",
+    "chips.inputPlaceholder": "Question text",
+    "chips.remove": "Remove question",
+    "chips.saving": "Saving...",
   },
 };
 
@@ -997,6 +1011,7 @@ async function syncLangToBackend() {
 }
 
 function refreshLocalizedViews() {
+  if (typeof renderSuggestChips === "function") renderSuggestChips();
   if (typeof loadProfiles === "function") loadProfiles();
   if (typeof loadRecords === "function" && cardView && !cardView.classList.contains("hidden")) {
     loadRecords();

@@ -36,6 +36,7 @@ class SettingsUpdate(BaseModel):
     telegram_proxy: str | None = None
     telegram_force_ipv4: str | None = None
     github_proxy: str | None = None
+    suggest_chips: str | None = None
     recovery_email: str | None = None
     smtp_host: str | None = None
     smtp_port: str | None = None

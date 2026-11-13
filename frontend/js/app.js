@@ -780,6 +780,7 @@ btnChangePassword?.addEventListener("click", async () => {
 
 async function init() {
   const chips = document.getElementById("suggest-chips");
+  await loadSuggestChips();
   messagesEl.innerHTML = "";
   const welcome = addMessage("bot", t("chat.welcome"));
   welcome.setAttribute("data-i18n", "chat.welcome");
@@ -867,6 +868,127 @@ function hideSuggestChips() {
 function showSuggestChips() {
   const chips = document.getElementById("suggest-chips");
   if (chips) chips.classList.remove("hidden");
+}
+
+const CHIPS_MAX = 12;
+const CHIP_MAX_LEN = 200;
+let customChips = null;
+
+function defaultChips() {
+  return ["chips.card", "chips.trend", "chips.deviations", "chips.studies", "chips.memory"].map(
+    (key) => t(key)
+  );
+}
+
+function currentChips() {
+  return customChips && customChips.length ? customChips : defaultChips();
+}
+
+function renderSuggestChips() {
+  const list = document.getElementById("suggest-chips-list");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const text of currentChips()) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip";
+    btn.textContent = text;
+    list.appendChild(btn);
+  }
+}
+
+async function loadSuggestChips() {
+  try {
+    const res = await fetch("/api/settings");
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.suggest_chips;
+      if (typeof raw === "string" && raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          customChips = parsed
+            .filter((v) => typeof v === "string" && v.trim())
+            .map((v) => v.trim().slice(0, CHIP_MAX_LEN))
+            .slice(0, CHIPS_MAX);
+        }
+      }
+    }
+  } catch {
+    /* показываем значения по умолчанию */
+  }
+  renderSuggestChips();
+}
+
+function addChipRow(value) {
+  const list = document.getElementById("chips-editor-list");
+  if (!list || list.children.length >= CHIPS_MAX) return;
+  const row = document.createElement("div");
+  row.className = "chip-row";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = CHIP_MAX_LEN;
+  input.value = value || "";
+  input.placeholder = t("chips.inputPlaceholder");
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "chip-del";
+  del.textContent = "\u00d7";
+  del.setAttribute("aria-label", t("chips.remove"));
+  del.title = t("chips.remove");
+  del.addEventListener("click", () => row.remove());
+  row.append(input, del);
+  list.appendChild(row);
+}
+
+function openChipsEditor() {
+  const list = document.getElementById("chips-editor-list");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const text of currentChips()) addChipRow(text);
+  const status = document.getElementById("chips-editor-status");
+  if (status) status.textContent = "";
+  document.getElementById("chips-editor")?.classList.remove("hidden");
+  list.querySelector("input")?.focus();
+}
+
+function closeChipsEditor() {
+  document.getElementById("chips-editor")?.classList.add("hidden");
+}
+
+async function saveChipsEditor() {
+  const list = document.getElementById("chips-editor-list");
+  const status = document.getElementById("chips-editor-status");
+  const values = [...(list?.querySelectorAll("input") || [])]
+    .map((el) => el.value.trim().slice(0, CHIP_MAX_LEN))
+    .filter(Boolean)
+    .slice(0, CHIPS_MAX);
+  if (status) {
+    status.textContent = t("chips.saving");
+    status.style.color = "";
+  }
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ suggest_chips: JSON.stringify(values) }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (status) {
+        status.textContent = t("settings.error", { msg: data.detail || res.status });
+        status.style.color = "var(--danger, #e5484d)";
+      }
+      return;
+    }
+    customChips = values;
+    renderSuggestChips();
+    closeChipsEditor();
+  } catch (err) {
+    if (status) {
+      status.textContent = t("settings.error", { msg: err.message });
+      status.style.color = "var(--danger, #e5484d)";
+    }
+  }
 }
 
 async function sendWithText(text) {
@@ -3501,13 +3623,23 @@ newChatBtn.addEventListener("click", () => {
   inputEl.focus();
 });
 
-document.querySelectorAll("#suggest-chips .chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    inputEl.value = chip.textContent;
-    autoResize();
-    send();
-  });
+document.getElementById("suggest-chips")?.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  inputEl.value = chip.textContent;
+  autoResize();
+  send();
 });
+
+document.getElementById("chips-edit-btn")?.addEventListener("click", openChipsEditor);
+document.getElementById("chips-editor-close")?.addEventListener("click", closeChipsEditor);
+document.getElementById("chips-editor-cancel")?.addEventListener("click", closeChipsEditor);
+document.getElementById("chips-editor-add")?.addEventListener("click", () => {
+  addChipRow("");
+  const inputs = document.querySelectorAll("#chips-editor-list input");
+  inputs[inputs.length - 1]?.focus();
+});
+document.getElementById("chips-editor-save")?.addEventListener("click", saveChipsEditor);
 
 const btnVoice = document.getElementById("btn-voice");
 let recognition = null;

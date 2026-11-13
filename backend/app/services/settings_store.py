@@ -42,6 +42,7 @@ DEFAULTS = {
     "telegram_proxy": env_settings.telegram_proxy,
     "telegram_force_ipv4": "1" if env_settings.telegram_force_ipv4 else "0",
     "github_proxy": env_settings.github_proxy,
+    "suggest_chips": "",
     "recovery_email": env_settings.recovery_email,
     "smtp_host": env_settings.smtp_host,
     "smtp_port": env_settings.smtp_port,
@@ -57,6 +58,7 @@ _cache: dict[str, str] | None = None
 
 ALLOW_EMPTY_KEYS = {
     "vision_backend",
+    "suggest_chips",
     "recovery_email",
     "smtp_host",
     "smtp_user",
@@ -176,6 +178,41 @@ def normalize_openai_base_url(url: str) -> str:
     return value + "/v1"
 
 
+SUGGEST_CHIPS_MAX = 12
+SUGGEST_CHIP_MAX_LEN = 200
+
+
+def _clean_suggest_chips(raw: str) -> str:
+    """JSON-массив строк: обрезаем пустые, длину и количество."""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(data, list):
+        return ""
+    items: list[str] = []
+    for item in data:
+        if not isinstance(item, str):
+            continue
+        value = item.strip()[:SUGGEST_CHIP_MAX_LEN]
+        if value:
+            items.append(value)
+        if len(items) >= SUGGEST_CHIPS_MAX:
+            break
+    return json.dumps(items, ensure_ascii=False)
+
+
+def suggest_chips() -> list[str]:
+    """Быстрые вопросы из настроек. Пусто — используются значения по умолчанию."""
+    cleaned = _clean_suggest_chips(_load().get("suggest_chips") or "")
+    if not cleaned:
+        return []
+    return list(json.loads(cleaned))
+
+
 def update(**kwargs: str) -> dict[str, str]:
     current = _load()
     changed = False
@@ -187,6 +224,8 @@ def update(**kwargs: str) -> dict[str, str]:
             continue
         if key in ("openai_base_url", "lmstudio_base_url") and stripped:
             stripped = normalize_openai_base_url(stripped)
+        if key == "suggest_chips":
+            stripped = _clean_suggest_chips(stripped)
         if key == "llm_backend":
             stripped = stripped.lower()
             if stripped not in BACKENDS:

@@ -1144,10 +1144,97 @@ nav {
   max-width: 70%;
 }
 
+.suggest-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .suggest-title {
   font-size: 12px;
   color: var(--text-dim);
   margin-bottom: 2px;
+}
+
+.chip-edit-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chip-edit-btn:hover {
+  color: var(--accent);
+}
+
+.chip-edit-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.suggest-chips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.chip-row input:focus {
+  border-color: var(--accent);
+}
+
+.chip-del {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip-del:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.modal-sm {
+  width: 520px;
 }
 
 .chip {

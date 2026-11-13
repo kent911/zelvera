@@ -128,12 +128,11 @@
             </div>
           </div>
           <div id="suggest-chips" class="suggest-chips">
-            <div class="suggest-title" data-i18n="chips.title">С чего начать:</div>
-            <button class="chip" data-i18n="chips.card">Покажи мои последние анализы</button>
-            <button class="chip" data-i18n="chips.trend">Как изменился мой холестерин за последний месяц?</button>
-            <button class="chip" data-i18n="chips.deviations">Что означают мои отклонения от нормы?</button>
-            <button class="chip" data-i18n="chips.studies">Есть ли в моих статьях что-то о статинах?</button>
-            <button class="chip" data-i18n="chips.memory">Что ты обо мне помнишь?</button>
+            <div class="suggest-head">
+              <div class="suggest-title" data-i18n="chips.title">С чего начать:</div>
+              <button type="button" id="chips-edit-btn" class="chip-edit-btn" data-i18n="chips.edit">Настроить</button>
+            </div>
+            <div id="suggest-chips-list" class="suggest-chips-list"></div>
           </div>
         </div>
 
@@ -499,6 +498,27 @@
       <div class="modal-foot">
         <button id="settings-save" class="primary-btn" data-i18n="settings.save">Сохранить</button>
         <button id="settings-cancel" class="action-btn" data-i18n="settings.cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chips-editor" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-head">
+        <span class="modal-title" data-i18n="chips.editorTitle">Быстрые вопросы</span>
+        <button id="chips-editor-close" class="extract-close" data-i18n-title="extract.close" title="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <span class="field-hint" data-i18n="chips.editorHint">Эти вопросы показываются в пустом чате. Пустой список вернёт значения по умолчанию.</span>
+        <div id="chips-editor-list" class="chips-editor-list"></div>
+        <div class="modal-row">
+          <button id="chips-editor-add" class="action-btn" data-i18n="chips.add">Добавить вопрос</button>
+          <span id="chips-editor-status" class="models-status"></span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="chips-editor-save" class="primary-btn" data-i18n="settings.save">Сохранить</button>
+        <button id="chips-editor-cancel" class="action-btn" data-i18n="settings.cancel">Отмена</button>
       </div>
     </div>
   </div>
